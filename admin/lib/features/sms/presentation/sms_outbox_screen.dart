@@ -16,6 +16,7 @@ import '../../../shared/widgets/symbol_icon.dart';
 import '../../auth/data/admin_auth_models.dart';
 import '../data/admin_sms_repository.dart';
 import 'sms_message_preview.dart';
+import 'sms_mobile_chrome.dart';
 
 enum _SmsOutboxStatus { sent, queued, scheduled, failed }
 
@@ -252,61 +253,20 @@ class _SmsOutboxScreenState extends State<SmsOutboxScreen> {
   }
 
   void _openSendDrawer() {
-    showGeneralDialog<void>(
+    showSmsSideDrawer<void>(
       context: context,
-      barrierDismissible: true,
-      barrierLabel: context.t('common.cancel'),
-      barrierColor: Colors.black.withValues(alpha: 0.5),
-      transitionDuration: const Duration(milliseconds: 300),
-      pageBuilder: (dialogContext, animation, secondaryAnimation) {
-        final screenWidth = MediaQuery.sizeOf(dialogContext).width;
-        final mobile = screenWidth < 700;
-        final availableWidth = screenWidth - 24;
-        final drawerWidth = mobile
-            ? screenWidth
-            : availableWidth > 1040
-            ? 1040.0
-            : availableWidth;
-
-        return SafeArea(
-          child: Align(
-            alignment: mobile ? Alignment.center : Alignment.centerRight,
-            child: Material(
-              color: Colors.transparent,
-              child: Container(
-                width: drawerWidth,
-                height: double.infinity,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.12),
-                      spreadRadius: 2,
-                      blurRadius: 14,
-                    ),
-                  ],
-                ),
-                child: SmsSendDrawer(
-                  onClose: () => Navigator.of(dialogContext).pop(),
-                  onSend: (draft) {
-                    Navigator.of(dialogContext).pop();
-                    unawaited(_sendDraftMessage(draft));
-                  },
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-      transitionBuilder: (context, animation, secondaryAnimation, child) {
-        return SlideTransition(
-          position: Tween<Offset>(
-            begin: const Offset(1, 0),
-            end: Offset.zero,
-          ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOut)),
-          child: child,
-        );
-      },
+      maxWidth: 1040,
+      child: Builder(
+        builder: (drawerContext) {
+          return SmsSendDrawer(
+            onClose: () => Navigator.of(drawerContext).pop(),
+            onSend: (draft) {
+              Navigator.of(drawerContext).pop();
+              unawaited(_sendDraftMessage(draft));
+            },
+          );
+        },
+      ),
     );
   }
 
@@ -355,7 +315,7 @@ class _SmsOutboxScreenState extends State<SmsOutboxScreen> {
                     ? totalCount
                     : _page * _pageSize);
           return Padding(
-            padding: const EdgeInsets.fromLTRB(16, 18, 16, 22),
+            padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -368,16 +328,16 @@ class _SmsOutboxScreenState extends State<SmsOutboxScreen> {
                   onChanged: _changeFilter,
                 ),
                 const SizedBox(height: 12),
-                AdminMobileToolbar(
+                SmsMobileSearchPanel(
                   controller: _searchController,
                   query: _searchController.text,
                   hintText: context.t('sms.outbox.searchPlaceholder'),
                   onSearchChanged: _changeSearch,
-                  activeFilterCount: 0,
-                  onOpenFilters: () {},
-                  showFilters: false,
+                  recordCount: totalCount,
+                  pageSize: _pageSize,
+                  onPageSizeChanged: _changePageSize,
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 Row(
                   children: [
                     Expanded(
@@ -416,7 +376,7 @@ class _SmsOutboxScreenState extends State<SmsOutboxScreen> {
                     onSendAgain: _openSendDrawer,
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 4),
                 AdminMobilePager(
                   page: _page,
                   lastPage: lastPage,
@@ -921,17 +881,61 @@ class _SmsOutboxFilters extends StatelessWidget {
       ),
     ];
 
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        for (final filter in filters)
-          _SmsOutboxFilterPill(
-            filter: filter,
-            selected: selected == filter.value,
-            onTap: () => onChanged(filter.value),
+    final selectedFilter = filters.firstWhere(
+      (filter) => filter.value == selected,
+      orElse: () => filters.first,
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final mobile = constraints.maxWidth < AdminMobile.breakpoint;
+        final width = mobile ? constraints.maxWidth : 280.0;
+
+        return Align(
+          alignment: Alignment.centerLeft,
+          child: SizedBox(
+            width: width,
+            child: Container(
+              height: 44,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(AppRadius.value),
+                border: Border.all(
+                  color: AppColors.line.withValues(alpha: 0.86),
+                ),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: selectedFilter.value,
+                  isExpanded: true,
+                  borderRadius: BorderRadius.circular(AppRadius.value),
+                  icon: const SymbolIcon(
+                    Symbols.keyboard_arrow_down,
+                    color: AppColors.iconMuted,
+                    size: 18,
+                  ),
+                  selectedItemBuilder: (context) {
+                    return filters.map((filter) {
+                      return _SmsOutboxFilterSelectLabel(filter: filter);
+                    }).toList();
+                  },
+                  items: [
+                    for (final filter in filters)
+                      DropdownMenuItem<String>(
+                        value: filter.value,
+                        child: _SmsOutboxFilterSelectLabel(filter: filter),
+                      ),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) onChanged(value);
+                  },
+                ),
+              ),
+            ),
           ),
-      ],
+        );
+      },
     );
   }
 }
@@ -948,56 +952,31 @@ class _SmsOutboxFilterData {
   final IconData icon;
 }
 
-class _SmsOutboxFilterPill extends StatelessWidget {
-  const _SmsOutboxFilterPill({
-    required this.filter,
-    required this.selected,
-    required this.onTap,
-  });
+class _SmsOutboxFilterSelectLabel extends StatelessWidget {
+  const _SmsOutboxFilterSelectLabel({required this.filter});
 
   final _SmsOutboxFilterData filter;
-  final bool selected;
-  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final foreground = selected ? AppColors.deepOcean : AppColors.inkSoft;
-
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: Container(
-          height: 42,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          decoration: BoxDecoration(
-            color: selected ? AppColors.surface : Colors.white,
-            borderRadius: BorderRadius.circular(AppRadius.value),
-            border: Border.all(
-              color: selected
-                  ? AppColors.deepOcean.withValues(alpha: 0.22)
-                  : AppColors.line.withValues(alpha: 0.82),
+    return Row(
+      children: [
+        SymbolIcon(filter.icon, color: AppColors.deepOcean, size: 18),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            context.t(filter.label),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppColors.deepOcean,
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0,
             ),
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SymbolIcon(filter.icon, color: foreground, size: 18),
-              const SizedBox(width: 8),
-              Text(
-                context.t(filter.label),
-                style: TextStyle(
-                  color: foreground,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0,
-                ),
-              ),
-            ],
-          ),
         ),
-      ),
+      ],
     );
   }
 }
@@ -2480,14 +2459,19 @@ class _SmsSendActions extends StatelessWidget {
     );
 
     if (mobile) {
-      return Row(
-        children: [
-          Expanded(child: queue),
-          const SizedBox(width: 8),
-          Expanded(child: schedule),
-          const SizedBox(width: 8),
-          Expanded(child: send),
-        ],
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final gap = constraints.maxWidth < 340 ? 6.0 : 8.0;
+          return Row(
+            children: [
+              Expanded(flex: 4, child: queue),
+              SizedBox(width: gap),
+              Expanded(flex: 3, child: schedule),
+              SizedBox(width: gap),
+              Expanded(flex: 3, child: send),
+            ],
+          );
+        },
       );
     }
 
@@ -2527,7 +2511,7 @@ class _SmsSendFooterButton extends StatelessWidget {
             TextButton.styleFrom(
               backgroundColor: primary ? AppColors.actionRed : Colors.white,
               foregroundColor: primary ? Colors.white : AppColors.deepOcean,
-              padding: const EdgeInsets.symmetric(horizontal: 18),
+              padding: const EdgeInsets.symmetric(horizontal: 10),
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(AppRadius.value),
@@ -2550,8 +2534,13 @@ class _SmsSendFooterButton extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             SymbolIcon(icon, size: 18, color: primary ? Colors.white : null),
-            const SizedBox(width: 8),
-            Flexible(child: Text(context.t(label))),
+            const SizedBox(width: 6),
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(context.t(label), maxLines: 1, softWrap: false),
+              ),
+            ),
           ],
         ),
       ),
@@ -2576,49 +2565,69 @@ class _SmsSendEditor extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: Column(
         children: [
-          Container(
-            height: 50,
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            color: const Color(0xFF282B33),
-            child: Row(
-              children: [
-                Text(
-                  context.t('sms.outbox.drawer.message'),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0,
-                  ),
-                ),
-                const SizedBox(width: 20),
-                const _SmsEditorToolbarLabel(label: 'B'),
-                const SizedBox(width: 8),
-                const _SmsEditorToolbarLabel(label: 'I', italic: true),
-                const Spacer(),
-                SmsMetricPill(
-                  label: '${stats.characterCount} ${stats.encodingLabel}',
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 360;
+              final edgePadding = compact ? 10.0 : 14.0;
+              final labelGap = compact ? 10.0 : 20.0;
+              final pillGap = compact ? 6.0 : 8.0;
+
+              Widget metricPill(String label) {
+                return SmsMetricPill(
+                  label: label,
                   compact: true,
                   backgroundColor: Colors.white.withValues(alpha: 0.08),
                   color: Colors.white,
+                );
+              }
+
+              return Container(
+                height: 50,
+                padding: EdgeInsets.symmetric(horizontal: edgePadding),
+                color: const Color(0xFF282B33),
+                child: Row(
+                  children: [
+                    Text(
+                      context.t('sms.outbox.drawer.message'),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                    SizedBox(width: labelGap),
+                    const _SmsEditorToolbarLabel(label: 'B'),
+                    const SizedBox(width: 6),
+                    const _SmsEditorToolbarLabel(label: 'I', italic: true),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerRight,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              metricPill(
+                                '${stats.characterCount} ${stats.encodingLabel}',
+                              ),
+                              SizedBox(width: pillGap),
+                              metricPill('${stats.segmentCount} SMS'),
+                              SizedBox(width: pillGap),
+                              metricPill(
+                                '${stats.remaining} ${context.t('sms.preview.remaining')}',
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                SmsMetricPill(
-                  label: '${stats.segmentCount} SMS',
-                  compact: true,
-                  backgroundColor: Colors.white.withValues(alpha: 0.08),
-                  color: Colors.white,
-                ),
-                const SizedBox(width: 8),
-                SmsMetricPill(
-                  label:
-                      '${stats.remaining} ${context.t('sms.preview.remaining')}',
-                  compact: true,
-                  backgroundColor: Colors.white.withValues(alpha: 0.08),
-                  color: Colors.white,
-                ),
-              ],
-            ),
+              );
+            },
           ),
           Expanded(
             child: TextField(

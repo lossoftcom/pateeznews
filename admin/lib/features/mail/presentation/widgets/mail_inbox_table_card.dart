@@ -9,6 +9,7 @@ import '../../../../core/theme/app_radius.dart';
 import '../../../../shared/widgets/admin_mobile_list.dart';
 import '../../../../shared/widgets/sortable_table_header.dart';
 import '../../../../shared/widgets/symbol_icon.dart';
+import '../mail_mobile_chrome.dart';
 import '../mail_inbox_models.dart';
 
 const mailFilterAll = '__all';
@@ -2784,15 +2785,16 @@ class _MailInboxMobileView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        AdminMobileToolbar(
+        MailMobileSearchPanel(
           query: searchQuery,
           hintText: context.t('mail.inbox.searchPlaceholder'),
           onSearchChanged: onSearchChanged,
-          activeFilterCount: _activeFilterCount,
-          onOpenFilters: () => _openFilters(context),
-          showFilters: false,
+          recordCount: totalCount,
+          pageSize: pageSize,
+          onPageSizeChanged: onPageSizeChanged,
+          filterCount: _activeFilterCount,
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 4),
         hasSelection
             ? AdminMobileSelectionBar(
                 selectedCount: selectedMessageIds.length,

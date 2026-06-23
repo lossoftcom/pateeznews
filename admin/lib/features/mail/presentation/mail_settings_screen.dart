@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:pateeznews_admin/shared/widgets/admin_mobile_list.dart';
 import 'package:pateeznews_admin/shared/widgets/admin_table_chrome.dart';
 import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
 
@@ -16,6 +17,7 @@ import '../../../shared/widgets/symbol_icon.dart';
 import '../../auth/data/admin_auth_models.dart';
 import '../data/admin_mail_repository.dart';
 import 'mail_settings_models.dart';
+import 'mail_mobile_chrome.dart';
 
 class MailSettingsScreen extends StatefulWidget {
   const MailSettingsScreen({
@@ -302,26 +304,10 @@ class _MailSettingsScreenState extends State<MailSettingsScreen> {
   }
 
   Future<void> _openProviderPicker() async {
-    final preset = await showDialog<AdminMailProviderPreset>(
+    final preset = await showMailSideDrawer<AdminMailProviderPreset>(
       context: context,
-      barrierDismissible: true,
-      builder: (context) {
-        final size = MediaQuery.sizeOf(context);
-        final width = math.max(340.0, math.min(size.width - 48, 860.0));
-        final height = math.max(540.0, math.min(size.height - 48, 820.0));
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.symmetric(
-            horizontal: 24,
-            vertical: 24,
-          ),
-          child: SizedBox(
-            width: width,
-            height: height,
-            child: const _ProviderPickerDialog(),
-          ),
-        );
-      },
+      maxWidth: 860,
+      child: const _ProviderPickerDialog(),
     );
 
     if (preset == null || !mounted) return;
@@ -341,26 +327,10 @@ class _MailSettingsScreenState extends State<MailSettingsScreen> {
     AdminMailAccount? account,
     AdminMailProviderPreset? preset,
   }) async {
-    final result = await showDialog<AdminMailAccount>(
+    final result = await showMailSideDrawer<AdminMailAccount>(
       context: context,
-      barrierDismissible: true,
-      builder: (context) {
-        final size = MediaQuery.sizeOf(context);
-        final width = math.max(340.0, math.min(size.width - 48, 860.0));
-        final height = math.max(560.0, math.min(size.height - 48, 840.0));
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.symmetric(
-            horizontal: 24,
-            vertical: 24,
-          ),
-          child: SizedBox(
-            width: width,
-            height: height,
-            child: _ConnectionSettingsDialog(account: account, preset: preset),
-          ),
-        );
-      },
+      maxWidth: 860,
+      child: _ConnectionSettingsDialog(account: account, preset: preset),
     );
 
     if (result == null || !mounted) return;
@@ -396,7 +366,9 @@ class _MailSettingsScreenState extends State<MailSettingsScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final horizontalPadding = constraints.maxWidth < 640 ? 16.0 : 28.0;
+        final mobile = constraints.maxWidth < AdminMobile.breakpoint;
         final compact = constraints.maxWidth < 980;
+        final topPadding = mobile ? 18.0 : 28.0;
         final content = Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -404,7 +376,7 @@ class _MailSettingsScreenState extends State<MailSettingsScreen> {
               selectedCount: _selectedIds.length,
               onDeleteSelected: _deleteSelectedAccounts,
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: mobile ? 12 : 24),
             _MailSettingsMetricGrid(
               totalAccounts: _accounts.length,
               compatibleDomains: _accounts
@@ -414,7 +386,7 @@ class _MailSettingsScreenState extends State<MailSettingsScreen> {
               hygieneReady: _hygieneReadyCount,
               suppressionCount: 3,
             ),
-            const SizedBox(height: 14),
+            SizedBox(height: mobile ? 12 : 14),
             Expanded(
               child: _MailSettingsTableCard(
                 accounts: _pagedAccounts,
@@ -447,11 +419,23 @@ class _MailSettingsScreenState extends State<MailSettingsScreen> {
           ],
         );
 
+        if (mobile) {
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+              horizontalPadding,
+              topPadding,
+              horizontalPadding,
+              0,
+            ),
+            child: content,
+          );
+        }
+
         if (compact) {
           return SingleChildScrollView(
             padding: EdgeInsets.fromLTRB(
               horizontalPadding,
-              28,
+              topPadding,
               horizontalPadding,
               28,
             ),
@@ -462,7 +446,7 @@ class _MailSettingsScreenState extends State<MailSettingsScreen> {
         return Padding(
           padding: EdgeInsets.fromLTRB(
             horizontalPadding,
-            28,
+            topPadding,
             horizontalPadding,
             28,
           ),
@@ -484,41 +468,51 @@ class _MailSettingsTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final mobile = constraints.maxWidth < AdminMobile.breakpoint;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Text(
-                context.t('mail.settings.centerTitle'),
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: AppColors.deepOcean,
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    context.t('mail.settings.centerTitle'),
+                    maxLines: mobile ? 1 : 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      color: AppColors.deepOcean,
+                      fontSize: mobile ? 24 : null,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ),
+                if (selectedCount > 0)
+                  _DangerTextButton(
+                    label: context.t(
+                      'mail.settings.selectedDelete',
+                      values: {'count': selectedCount},
+                    ),
+                    onTap: onDeleteSelected,
+                  ),
+              ],
+            ),
+            if (!mobile) ...[
+              const SizedBox(height: 20),
+              Text(
+                context.t('mail.settings.centerDescription'),
+                style: const TextStyle(
+                  color: AppColors.inkSoft,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0,
                 ),
               ),
-            ),
-            if (selectedCount > 0)
-              _DangerTextButton(
-                label: context.t(
-                  'mail.settings.selectedDelete',
-                  values: {'count': selectedCount},
-                ),
-                onTap: onDeleteSelected,
-              ),
+            ],
           ],
-        ),
-        const SizedBox(height: 20),
-        Text(
-          context.t('mail.settings.centerDescription'),
-          style: const TextStyle(
-            color: AppColors.inkSoft,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0,
-          ),
-        ),
-      ],
+        );
+      },
     );
   }
 }
@@ -586,6 +580,17 @@ class _MailSettingsMetricGrid extends StatelessWidget {
           _MetricDensity.compact => 8.0,
           _MetricDensity.regular => 12.0,
         };
+
+        if (width < AdminMobile.breakpoint) {
+          return Row(
+            children: [
+              for (var index = 0; index < metrics.length; index++) ...[
+                Expanded(child: _MetricMiniBox(data: metrics[index])),
+                if (index != metrics.length - 1) const SizedBox(width: 5),
+              ],
+            ],
+          );
+        }
 
         return Row(
           children: [
@@ -660,87 +665,125 @@ class _MailSettingsTableCard extends StatelessWidget {
     final pageIds = accounts.map((account) => account.id).toSet();
     final allSelected = pageIds.isNotEmpty && selectedIds.containsAll(pageIds);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _MailSettingsToolbar(
-          pageSize: pageSize,
-          searchController: searchController,
-          searchQuery: searchQuery,
-          onPageSizeChanged: onPageSizeChanged,
-          onSearchChanged: onSearchChanged,
-          onRefresh: onRefresh,
-          onSettings: onSettings,
-          onCreate: onCreate,
-        ),
-        const SizedBox(height: 18),
-        Expanded(
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border.all(color: AppColors.line),
-              borderRadius: BorderRadius.circular(AppRadius.value),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final mobile = constraints.maxWidth < AdminMobile.breakpoint;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _MailSettingsToolbar(
+              pageSize: pageSize,
+              totalCount: totalCount,
+              searchController: searchController,
+              searchQuery: searchQuery,
+              onPageSizeChanged: onPageSizeChanged,
+              onSearchChanged: onSearchChanged,
+              onRefresh: onRefresh,
+              onSettings: onSettings,
+              onCreate: onCreate,
             ),
-            clipBehavior: Clip.antiAlias,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final width = math.max(constraints.maxWidth, _minTableWidth);
-                return SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: SizedBox(
-                    width: width,
-                    height: constraints.hasBoundedHeight
-                        ? constraints.maxHeight
-                        : null,
-                    child: Column(
-                      children: [
-                        _MailSettingsTableHeader(
-                          selected: allSelected,
-                          sortState: sortState,
-                          onToggle: onToggleAllAccounts,
-                          onSort: onSort,
-                        ),
-                        Expanded(
-                          child: accounts.isEmpty
-                              ? const _MailSettingsEmptyState()
-                              : ListView.builder(
-                                  itemCount: accounts.length,
-                                  itemBuilder: (context, index) {
-                                    final account = accounts[index];
-                                    return _MailSettingsTableRow(
-                                      account: account,
-                                      selected: selectedIds.contains(
-                                        account.id,
-                                      ),
-                                      active: account.id == activeAccountId,
-                                      onToggle: () =>
-                                          onToggleAccount(account.id),
-                                      onSelect: () => onSelectRow(account),
-                                      onEdit: () => onEdit(account),
-                                      onDnsCheck: () => onDnsCheck(account),
-                                      onToggleActive: () =>
-                                          onToggleActive(account),
-                                      onDelete: () => onDelete(account),
-                                    );
-                                  },
-                                ),
-                        ),
-                      ],
+            SizedBox(height: mobile ? 14 : 18),
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  if (constraints.maxWidth < AdminMobile.breakpoint) {
+                    return AdminMobileListView(
+                      loading: false,
+                      itemCount: accounts.length,
+                      emptyLabel: context.t('mail.settings.empty'),
+                      itemBuilder: (context, index) {
+                        final account = accounts[index];
+                        return _MailSettingsMobileCard(
+                          account: account,
+                          selected: selectedIds.contains(account.id),
+                          active: account.id == activeAccountId,
+                          onToggle: () => onToggleAccount(account.id),
+                          onSelect: () => onSelectRow(account),
+                          onEdit: () => onEdit(account),
+                          onDnsCheck: () => onDnsCheck(account),
+                          onToggleActive: () => onToggleActive(account),
+                          onDelete: () => onDelete(account),
+                        );
+                      },
+                    );
+                  }
+
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border.all(color: AppColors.line),
+                      borderRadius: BorderRadius.circular(AppRadius.value),
                     ),
-                  ),
-                );
-              },
+                    clipBehavior: Clip.antiAlias,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final tableWidth = math.max(
+                          constraints.maxWidth,
+                          _minTableWidth,
+                        );
+                        return SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: SizedBox(
+                            width: tableWidth,
+                            height: constraints.hasBoundedHeight
+                                ? constraints.maxHeight
+                                : null,
+                            child: Column(
+                              children: [
+                                _MailSettingsTableHeader(
+                                  selected: allSelected,
+                                  sortState: sortState,
+                                  onToggle: onToggleAllAccounts,
+                                  onSort: onSort,
+                                ),
+                                Expanded(
+                                  child: accounts.isEmpty
+                                      ? const _MailSettingsEmptyState()
+                                      : ListView.builder(
+                                          itemCount: accounts.length,
+                                          itemBuilder: (context, index) {
+                                            final account = accounts[index];
+                                            return _MailSettingsTableRow(
+                                              account: account,
+                                              selected: selectedIds.contains(
+                                                account.id,
+                                              ),
+                                              active:
+                                                  account.id == activeAccountId,
+                                              onToggle: () =>
+                                                  onToggleAccount(account.id),
+                                              onSelect: () =>
+                                                  onSelectRow(account),
+                                              onEdit: () => onEdit(account),
+                                              onDnsCheck: () =>
+                                                  onDnsCheck(account),
+                                              onToggleActive: () =>
+                                                  onToggleActive(account),
+                                              onDelete: () => onDelete(account),
+                                            );
+                                          },
+                                        ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  );
+                },
+              ),
             ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        _MailSettingsFooter(
-          page: page,
-          pageSize: pageSize,
-          totalCount: totalCount,
-          onPageChanged: onPageChanged,
-        ),
-      ],
+            SizedBox(height: mobile ? 4 : 16),
+            _MailSettingsFooter(
+              page: page,
+              pageSize: pageSize,
+              totalCount: totalCount,
+              onPageChanged: onPageChanged,
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -748,6 +791,7 @@ class _MailSettingsTableCard extends StatelessWidget {
 class _MailSettingsToolbar extends StatelessWidget {
   const _MailSettingsToolbar({
     required this.pageSize,
+    required this.totalCount,
     required this.searchController,
     required this.searchQuery,
     required this.onPageSizeChanged,
@@ -758,6 +802,7 @@ class _MailSettingsToolbar extends StatelessWidget {
   });
 
   final int pageSize;
+  final int totalCount;
   final TextEditingController searchController;
   final String searchQuery;
   final ValueChanged<int?> onPageSizeChanged;
@@ -803,6 +848,52 @@ class _MailSettingsToolbar extends StatelessWidget {
             ),
           ],
         );
+
+        if (constraints.maxWidth < AdminMobile.breakpoint) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              MailMobileSearchPanel(
+                controller: searchController,
+                query: searchQuery,
+                hintText: context.t('mail.settings.searchPlaceholder'),
+                onSearchChanged: onSearchChanged,
+                recordCount: totalCount,
+                pageSize: pageSize,
+                onPageSizeChanged: onPageSizeChanged,
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: _SecondaryActionButton(
+                      icon: Symbols.refresh,
+                      label: context.t('mail.settings.refresh'),
+                      onPressed: onRefresh,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: _SecondaryActionButton(
+                      icon: Symbols.settings_outlined,
+                      label: context.t('mail.settings.settingsButton'),
+                      onPressed: onSettings,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    flex: 2,
+                    child: _PrimaryActionButton(
+                      icon: Symbols.add,
+                      label: context.t('mail.settings.addAccount'),
+                      onPressed: onCreate,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          );
+        }
 
         if (compact) {
           return Column(
@@ -1270,6 +1361,197 @@ class _MailSettingsTableRow extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _MailSettingsMobileCard extends StatelessWidget {
+  const _MailSettingsMobileCard({
+    required this.account,
+    required this.selected,
+    required this.active,
+    required this.onToggle,
+    required this.onSelect,
+    required this.onEdit,
+    required this.onDnsCheck,
+    required this.onToggleActive,
+    required this.onDelete,
+  });
+
+  final AdminMailAccount account;
+  final bool selected;
+  final bool active;
+  final VoidCallback onToggle;
+  final VoidCallback onSelect;
+  final VoidCallback onEdit;
+  final VoidCallback onDnsCheck;
+  final VoidCallback onToggleActive;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = adminMailProviderById(account.providerId);
+    final endpoint = account.smtpHost.isNotEmpty
+        ? account.smtpHost
+        : account.apiBaseUrl;
+    final statusColor = account.active
+        ? const Color(0xFF198754)
+        : AppColors.support;
+
+    return AdminMobileCard(
+      selected: active || selected,
+      onTap: onSelect,
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 1),
+                child: AdminMobileCheckbox(
+                  value: selected,
+                  onChanged: (_) => onToggle(),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: provider.color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(provider.icon, color: provider.color, size: 19),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      account.accountName,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF2F4053),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14.2,
+                        height: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      endpoint,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF7A7F85),
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        height: 1.18,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Transform.scale(
+                scale: 0.88,
+                alignment: Alignment.topRight,
+                child: AdminMobileMenuButton(
+                  tooltip: context.t('mail.settings.actions'),
+                  actions: [
+                    AdminMobileMenuAction(
+                      icon: Symbols.edit_square,
+                      label: context.t('mail.settings.action.edit'),
+                      onTap: onEdit,
+                    ),
+                    AdminMobileMenuAction(
+                      icon: Symbols.verified_outlined,
+                      label: context.t('mail.settings.action.dnsCheck'),
+                      onTap: onDnsCheck,
+                    ),
+                    AdminMobileMenuAction(
+                      icon: account.active
+                          ? Symbols.toggle_off_outlined
+                          : Symbols.toggle_on,
+                      label: context.t(
+                        account.active
+                            ? 'mail.settings.action.deactivate'
+                            : 'mail.settings.action.activate',
+                      ),
+                      onTap: onToggleActive,
+                    ),
+                    AdminMobileMenuAction(
+                      icon: Symbols.delete,
+                      label: context.t('mail.settings.action.delete'),
+                      danger: true,
+                      onTap: onDelete,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              AdminMobileStatusPill(
+                label: account.active
+                    ? context.t('mail.settings.status.active')
+                    : context.t('mail.settings.status.passive'),
+                color: statusColor,
+              ),
+              AdminMobileChip(label: context.t(account.mode.labelKey)),
+              AdminMobileMeta(icon: Symbols.person, value: account.senderName),
+              AdminMobileMeta(
+                icon: Symbols.alternate_email,
+                value: account.senderEmail,
+              ),
+              AdminMobileMeta(
+                icon: Symbols.dns_outlined,
+                value: account.domain,
+              ),
+              AdminMobileMeta(
+                icon: Symbols.ads_click_outlined,
+                value: account.trackingDomain.isEmpty
+                    ? context.t('mail.settings.noTrackingDomain')
+                    : account.trackingDomain,
+              ),
+              AdminMobileMeta(
+                icon: Symbols.schedule_send,
+                value: context.t(
+                  'mail.settings.limitDaily',
+                  values: {
+                    'used': account.sentToday,
+                    'limit': account.dailyLimit,
+                  },
+                ),
+              ),
+              AdminMobileMeta(
+                icon: Symbols.schedule,
+                value:
+                    '${formatAdminFullDate(context, account.createdAt)} ${formatAdminTime(account.createdAt)}',
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 5,
+            runSpacing: 5,
+            children: [
+              _DnsChip(label: 'SPF', ready: account.spfReady),
+              _DnsChip(label: 'DKIM', ready: account.dkimReady),
+              _DnsChip(label: 'DMARC', ready: account.dmarcReady),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -2173,6 +2455,83 @@ class _MetricBox extends StatelessWidget {
   }
 }
 
+class _MetricMiniBox extends StatelessWidget {
+  const _MetricMiniBox({required this.data});
+
+  final _MetricData data;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 76,
+      padding: const EdgeInsets.fromLTRB(7, 7, 7, 7),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(7),
+        border: Border.all(color: AppColors.line.withValues(alpha: 0.72)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.deepOcean.withValues(alpha: 0.035),
+            blurRadius: 10,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            context.t(data.label),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppColors.deepOcean,
+              fontSize: 8,
+              fontWeight: FontWeight.w800,
+              height: 1.04,
+              letterSpacing: 0,
+            ),
+          ),
+          const Spacer(),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Container(
+                width: 18,
+                height: 18,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: data.color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Icon(data.icon, color: data.color, size: 11),
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    data.value,
+                    maxLines: 1,
+                    style: const TextStyle(
+                      color: AppColors.deepOcean,
+                      fontSize: 19,
+                      fontWeight: FontWeight.w900,
+                      height: 1,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ConnectionSectionTitle extends StatelessWidget {
   const _ConnectionSectionTitle({required this.icon, required this.title});
 
@@ -2994,7 +3353,7 @@ class _PrimaryActionButton extends StatelessWidget {
             TextButton.styleFrom(
               backgroundColor: backgroundColor,
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 10),
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(AppRadius.value),
@@ -3013,8 +3372,14 @@ class _PrimaryActionButton extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             SymbolIcon(icon, color: Colors.white, size: 17),
-            const SizedBox(width: 7),
-            Flexible(child: Text(label)),
+            const SizedBox(width: 6),
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(label, maxLines: 1, softWrap: false),
+              ),
+            ),
           ],
         ),
       ),
@@ -3042,7 +3407,7 @@ class _SecondaryActionButton extends StatelessWidget {
         style: TextButton.styleFrom(
           backgroundColor: Colors.white,
           foregroundColor: AppColors.deepOcean,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 10),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadius.value),
             side: const BorderSide(color: AppColors.line),
@@ -3057,8 +3422,14 @@ class _SecondaryActionButton extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(icon, color: AppColors.deepOcean, size: 17),
-            const SizedBox(width: 7),
-            Text(label),
+            const SizedBox(width: 6),
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(label, maxLines: 1, softWrap: false),
+              ),
+            ),
           ],
         ),
       ),
@@ -3133,27 +3504,43 @@ class _MailSettingsFooter extends StatelessWidget {
     final pageCount = totalCount == 0 ? 1 : (totalCount / pageSize).ceil();
     final start = totalCount == 0 ? 0 : (page - 1) * pageSize + 1;
     final end = math.min(page * pageSize, totalCount);
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            context.t(
-              'mail.settings.recordRange',
-              values: {'start': start, 'end': end, 'total': totalCount},
+    final rangeText = context.t(
+      'mail.settings.recordRange',
+      values: {'start': start, 'end': end, 'total': totalCount},
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < AdminMobile.breakpoint) {
+          return AdminMobilePager(
+            page: page,
+            lastPage: pageCount,
+            rangeText: rangeText,
+            loading: false,
+            onPageChanged: onPageChanged,
+          );
+        }
+
+        return Row(
+          children: [
+            Expanded(
+              child: Text(
+                rangeText,
+                style: const TextStyle(
+                  color: AppColors.inkSoft,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 0,
+                ),
+              ),
             ),
-            style: const TextStyle(
-              color: AppColors.inkSoft,
-              fontWeight: FontWeight.w500,
-              letterSpacing: 0,
+            AdminTablePagination(
+              page: page,
+              pageCount: pageCount,
+              onPageChanged: onPageChanged,
             ),
-          ),
-        ),
-        AdminTablePagination(
-          page: page,
-          pageCount: pageCount,
-          onPageChanged: onPageChanged,
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 }

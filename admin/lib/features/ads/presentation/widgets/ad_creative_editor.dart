@@ -19,6 +19,42 @@ Future<AdCreative?> showAdCreativeEditor(
   AdCreative? existing,
   MediaService? mediaService,
 }) {
+  final mobile = MediaQuery.sizeOf(context).width < 700;
+  if (mobile) {
+    return showGeneralDialog<AdCreative>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'AdCreativeEditor',
+      barrierColor: Colors.black.withValues(alpha: 0.5),
+      transitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (context, _, _) => SafeArea(
+        child: Align(
+          alignment: Alignment.centerRight,
+          child: Material(
+            color: Colors.transparent,
+            child: _AdCreativeDrawerFrame(
+              child: _AdCreativeEditorDialog(
+                slot: slot,
+                existing: existing,
+                mediaService: mediaService ?? MediaService(),
+                mobileDrawer: true,
+              ),
+            ),
+          ),
+        ),
+      ),
+      transitionBuilder: (context, animation, _, child) {
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(1, 0),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOut)),
+          child: child,
+        );
+      },
+    );
+  }
+
   return showGeneralDialog<AdCreative>(
     context: context,
     barrierDismissible: true,
@@ -41,8 +77,35 @@ Future<AdCreative?> showAdCreativeEditor(
       slot: slot,
       existing: existing,
       mediaService: mediaService ?? MediaService(),
+      mobileDrawer: false,
     ),
   );
+}
+
+class _AdCreativeDrawerFrame extends StatelessWidget {
+  const _AdCreativeDrawerFrame({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    return Container(
+      width: size.width,
+      height: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            spreadRadius: 2,
+            blurRadius: 14,
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
 }
 
 class _AdCreativeEditorDialog extends StatefulWidget {
@@ -50,11 +113,13 @@ class _AdCreativeEditorDialog extends StatefulWidget {
     required this.slot,
     required this.existing,
     required this.mediaService,
+    required this.mobileDrawer,
   });
 
   final AdSlot slot;
   final AdCreative? existing;
   final MediaService mediaService;
+  final bool mobileDrawer;
 
   @override
   State<_AdCreativeEditorDialog> createState() =>
@@ -196,6 +261,10 @@ class _AdCreativeEditorDialogState extends State<_AdCreativeEditorDialog> {
     final viewport = MediaQuery.sizeOf(context);
     final maxHeight = math.min(860.0, math.max(560.0, viewport.height - 72));
     final horizontalInset = viewport.width < 720 ? 16.0 : 28.0;
+    if (widget.mobileDrawer) {
+      return _dialogContent(isEdit, mobile: true);
+    }
+
     return Dialog(
       backgroundColor: Colors.white,
       insetPadding: EdgeInsets.symmetric(
@@ -207,20 +276,29 @@ class _AdCreativeEditorDialogState extends State<_AdCreativeEditorDialog> {
       ),
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: 940, maxHeight: maxHeight),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _header(isEdit),
-            Flexible(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(22, 20, 22, 22),
-                child: _editorBody(),
-              ),
-            ),
-            _footer(isEdit),
-          ],
-        ),
+        child: _dialogContent(isEdit, mobile: false),
       ),
+    );
+  }
+
+  Widget _dialogContent(bool isEdit, {required bool mobile}) {
+    final body = SingleChildScrollView(
+      padding: EdgeInsets.fromLTRB(
+        mobile ? 14 : 22,
+        mobile ? 16 : 20,
+        mobile ? 14 : 22,
+        mobile ? 18 : 22,
+      ),
+      child: _editorBody(),
+    );
+
+    return Column(
+      mainAxisSize: mobile ? MainAxisSize.max : MainAxisSize.min,
+      children: [
+        _header(isEdit),
+        mobile ? Expanded(child: body) : Flexible(child: body),
+        _footer(isEdit),
+      ],
     );
   }
 
@@ -505,18 +583,36 @@ class _AdCreativeEditorDialogState extends State<_AdCreativeEditorDialog> {
 
   Widget _sizeGrid() {
     final sizes = AdSize.forPlatform(widget.slot.platform);
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [for (final size in sizes) _sizeChip(size)],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 390;
+        final columns = compact ? 3 : 4;
+        final cardWidth =
+            ((constraints.maxWidth - (8 * (columns - 1))) / columns)
+                .clamp(82.0, compact ? 104.0 : 112.0)
+                .toDouble();
+
+        return Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final size in sizes)
+              _sizeChip(size, width: cardWidth, compact: compact),
+          ],
+        );
+      },
     );
   }
 
-  Widget _sizeChip(AdSize size) {
+  Widget _sizeChip(
+    AdSize size, {
+    required double width,
+    required bool compact,
+  }) {
     final selected = (size.responsive || size.fullscreen)
         ? _responsive
         : (!_responsive && _width == size.width && _height == size.height);
-    final maxBox = 34.0;
+    final maxBox = compact ? 30.0 : 34.0;
     double bw = maxBox, bh = maxBox * 0.4;
     if (!size.responsive && !size.fullscreen && size.width > 0) {
       final scale = maxBox / math.max(size.width, size.height);
@@ -528,8 +624,11 @@ class _AdCreativeEditorDialogState extends State<_AdCreativeEditorDialog> {
       borderRadius: BorderRadius.circular(AppRadius.value),
       onTap: () => _applyPreset(size),
       child: Container(
-        width: 92,
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+        width: width,
+        padding: EdgeInsets.symmetric(
+          vertical: compact ? 8 : 9,
+          horizontal: compact ? 5 : 7,
+        ),
         decoration: BoxDecoration(
           color: selected ? const Color(0xFFF3F6F8) : Colors.white,
           borderRadius: BorderRadius.circular(AppRadius.value),
@@ -542,7 +641,7 @@ class _AdCreativeEditorDialogState extends State<_AdCreativeEditorDialog> {
           mainAxisSize: MainAxisSize.min,
           children: [
             SizedBox(
-              height: 38,
+              height: compact ? 34 : 38,
               child: Center(
                 child: (size.responsive || size.fullscreen)
                     ? SymbolIcon(
@@ -571,7 +670,7 @@ class _AdCreativeEditorDialogState extends State<_AdCreativeEditorDialog> {
               style: const TextStyle(
                 color: AppColors.deepOcean,
                 fontWeight: FontWeight.w600,
-                fontSize: 11.5,
+                fontSize: 11.2,
                 letterSpacing: 0,
               ),
             ),
@@ -582,7 +681,7 @@ class _AdCreativeEditorDialogState extends State<_AdCreativeEditorDialog> {
               textAlign: TextAlign.center,
               style: const TextStyle(
                 color: AppColors.inkSoft,
-                fontSize: 10,
+                fontSize: 9.6,
                 letterSpacing: 0,
               ),
             ),
@@ -597,56 +696,87 @@ class _AdCreativeEditorDialogState extends State<_AdCreativeEditorDialog> {
         ? null
         : AdSize.validationMessage(_width, _height);
     final compliant = !_responsive && message == null;
-    return Row(
-      children: [
-        const Text(
-          'Özel boyut:',
+    final status = _responsive
+        ? 'Duyarlı'
+        : compliant
+        ? 'AdSense uyumlu'
+        : message ?? '';
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 370;
+        final fields = Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(width: compact ? 68 : 72, child: _numField(_widthCtrl)),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 6),
+              child: Text('×', style: TextStyle(color: AppColors.placeholder)),
+            ),
+            SizedBox(width: compact ? 68 : 72, child: _numField(_heightCtrl)),
+            const SizedBox(width: 6),
+            const Text(
+              'px',
+              style: TextStyle(color: AppColors.placeholder, fontSize: 12),
+            ),
+          ],
+        );
+        final statusText = Text(
+          status,
+          textAlign: compact ? TextAlign.start : TextAlign.end,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(
-            color: AppColors.deepOcean,
+            color: _responsive
+                ? AppColors.inkSoft
+                : compliant
+                ? const Color(0xFF0F6E56)
+                : const Color(0xFF9A6207),
+            fontSize: 11.5,
             fontWeight: FontWeight.w600,
-            fontSize: 12.5,
             letterSpacing: 0,
           ),
-        ),
-        const SizedBox(width: 10),
-        SizedBox(width: 72, child: _numField(_widthCtrl)),
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 6),
-          child: Text('×', style: TextStyle(color: AppColors.placeholder)),
-        ),
-        SizedBox(width: 72, child: _numField(_heightCtrl)),
-        const SizedBox(width: 6),
-        const Text(
-          'px',
-          style: TextStyle(color: AppColors.placeholder, fontSize: 12),
-        ),
-        const Spacer(),
-        if (_responsive)
-          const Text(
-            'Duyarlı',
-            style: TextStyle(
-              color: AppColors.inkSoft,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0,
-            ),
-          )
-        else
-          Flexible(
-            child: Text(
-              compliant ? '✓ AdSense uyumlu' : '⚠ ${message ?? ''}',
-              textAlign: TextAlign.end,
+        );
+
+        if (compact) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Özel boyut',
+                style: TextStyle(
+                  color: AppColors.deepOcean,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12.5,
+                  letterSpacing: 0,
+                ),
+              ),
+              const SizedBox(height: 8),
+              fields,
+              const SizedBox(height: 6),
+              statusText,
+            ],
+          );
+        }
+
+        return Row(
+          children: [
+            const Text(
+              'Özel boyut:',
               style: TextStyle(
-                color: compliant
-                    ? const Color(0xFF0F6E56)
-                    : const Color(0xFF9A6207),
-                fontSize: 11.5,
+                color: AppColors.deepOcean,
                 fontWeight: FontWeight.w600,
+                fontSize: 12.5,
                 letterSpacing: 0,
               ),
             ),
-          ),
-      ],
+            const SizedBox(width: 10),
+            fields,
+            const SizedBox(width: 10),
+            Expanded(child: statusText),
+          ],
+        );
+      },
     );
   }
 
@@ -901,47 +1031,80 @@ class _AdCreativeEditorDialogState extends State<_AdCreativeEditorDialog> {
 
   Widget _previewHeader() {
     final ruler = _responsive ? 'Duyarlı' : '$_width × $_height px';
-    return Row(
-      children: [
-        const SymbolIcon(
-          Symbols.crop_square_outlined,
-          color: AppColors.deepOcean,
-          size: 18,
-        ),
-        const SizedBox(width: 7),
-        const Text(
-          'Gerçek boyut önizleme',
-          style: TextStyle(
-            color: AppColors.deepOcean,
-            fontWeight: FontWeight.w700,
-            fontSize: 13,
-            letterSpacing: 0,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(
-            color: const Color(0xFFEEF2F4),
-            borderRadius: BorderRadius.circular(AppRadius.value),
-          ),
-          child: Text(
-            ruler,
-            style: const TextStyle(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 390;
+        final title = Row(
+          children: [
+            const SymbolIcon(
+              Symbols.crop_square_outlined,
               color: AppColors.deepOcean,
-              fontWeight: FontWeight.w600,
-              fontSize: 11,
-              letterSpacing: 0,
+              size: 18,
             ),
-          ),
-        ),
-        const Spacer(),
-        if (!_responsive) _scaleToggle(),
-      ],
+            const SizedBox(width: 7),
+            const Expanded(
+              child: Text(
+                'Gerçek boyut önizleme',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: AppColors.deepOcean,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                  letterSpacing: 0,
+                ),
+              ),
+            ),
+          ],
+        );
+        final meta = Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            _previewMetaChip(ruler),
+            if (!_responsive) _scaleToggle(compact: compact),
+          ],
+        );
+
+        if (compact) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [title, const SizedBox(height: 8), meta],
+          );
+        }
+
+        return Row(
+          children: [
+            Expanded(child: title),
+            const SizedBox(width: 8),
+            Flexible(child: meta),
+          ],
+        );
+      },
     );
   }
 
-  Widget _scaleToggle() {
+  Widget _previewMetaChip(String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEEF2F4),
+        borderRadius: BorderRadius.circular(AppRadius.value),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: AppColors.deepOcean,
+          fontWeight: FontWeight.w600,
+          fontSize: 11,
+          letterSpacing: 0,
+        ),
+      ),
+    );
+  }
+
+  Widget _scaleToggle({bool compact = false}) {
     return Container(
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
@@ -949,29 +1112,40 @@ class _AdCreativeEditorDialogState extends State<_AdCreativeEditorDialog> {
         borderRadius: BorderRadius.circular(AppRadius.value),
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
           _scaleButton(
             '%100',
             !_fitToWidth,
             () => setState(() => _fitToWidth = false),
+            compact: compact,
           ),
           _scaleButton(
             'Sığdır',
             _fitToWidth,
             () => setState(() => _fitToWidth = true),
+            compact: compact,
           ),
         ],
       ),
     );
   }
 
-  Widget _scaleButton(String label, bool selected, VoidCallback onTap) {
+  Widget _scaleButton(
+    String label,
+    bool selected,
+    VoidCallback onTap, {
+    bool compact = false,
+  }) {
     return InkWell(
       mouseCursor: SystemMouseCursors.click,
       borderRadius: BorderRadius.circular(AppRadius.value),
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: EdgeInsets.symmetric(
+          horizontal: compact ? 9 : 12,
+          vertical: 6,
+        ),
         decoration: BoxDecoration(
           color: selected ? Colors.white : Colors.transparent,
           borderRadius: BorderRadius.circular(AppRadius.value),
@@ -981,7 +1155,7 @@ class _AdCreativeEditorDialogState extends State<_AdCreativeEditorDialog> {
           style: TextStyle(
             color: selected ? AppColors.deepOcean : AppColors.inkSoft,
             fontWeight: FontWeight.w600,
-            fontSize: 11.5,
+            fontSize: compact ? 11 : 11.5,
             letterSpacing: 0,
           ),
         ),
@@ -990,22 +1164,98 @@ class _AdCreativeEditorDialogState extends State<_AdCreativeEditorDialog> {
   }
 
   Widget _footer(bool isEdit) {
+    final mobile = MediaQuery.sizeOf(context).width < 700;
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
       decoration: const BoxDecoration(
         border: Border(top: BorderSide(color: AppColors.line)),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          _DialogTextButton(
-            label: 'İptal',
-            onPressed: () => Navigator.of(context).maybePop(),
-          ),
-          const SizedBox(width: 12),
-          _DialogPrimaryButton(label: 'Kaydet', onPressed: _save),
-        ],
-      ),
+      child: mobile
+          ? Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 38,
+                    child: TextButton.icon(
+                      onPressed: () => Navigator.of(context).maybePop(),
+                      icon: const SymbolIcon(
+                        Symbols.close,
+                        color: AppColors.deepOcean,
+                        size: 16,
+                      ),
+                      label: const Text('İptal'),
+                      style:
+                          TextButton.styleFrom(
+                            foregroundColor: AppColors.deepOcean,
+                            backgroundColor: Colors.white,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(
+                                AppRadius.value,
+                              ),
+                              side: const BorderSide(color: AppColors.line),
+                            ),
+                            textStyle: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0,
+                            ),
+                          ).copyWith(
+                            mouseCursor: const WidgetStatePropertyAll(
+                              SystemMouseCursors.click,
+                            ),
+                          ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: SizedBox(
+                    height: 38,
+                    child: TextButton.icon(
+                      onPressed: _save,
+                      icon: const SymbolIcon(
+                        Symbols.save,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                      label: const Text('Kaydet'),
+                      style:
+                          TextButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            backgroundColor: AppColors.actionRed,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(
+                                AppRadius.value,
+                              ),
+                            ),
+                            textStyle: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0,
+                            ),
+                          ).copyWith(
+                            mouseCursor: const WidgetStatePropertyAll(
+                              SystemMouseCursors.click,
+                            ),
+                          ),
+                    ),
+                  ),
+                ),
+              ],
+            )
+          : Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                _DialogTextButton(
+                  label: 'İptal',
+                  onPressed: () => Navigator.of(context).maybePop(),
+                ),
+                const SizedBox(width: 12),
+                _DialogPrimaryButton(label: 'Kaydet', onPressed: _save),
+              ],
+            ),
     );
   }
 }

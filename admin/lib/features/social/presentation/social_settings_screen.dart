@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
+import 'package:pateeznews_admin/shared/widgets/admin_mobile_list.dart';
 import 'package:pateeznews_admin/shared/widgets/admin_table_chrome.dart';
 import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
 
@@ -14,6 +15,7 @@ import '../../../shared/widgets/sortable_table_header.dart';
 import '../../../shared/widgets/symbol_icon.dart';
 import '../../auth/data/admin_auth_models.dart';
 import '../data/admin_social_repository.dart';
+import 'social_mobile_chrome.dart';
 import 'social_platform_data.dart';
 import 'social_settings_models.dart';
 import 'widgets/social_brand_logo.dart';
@@ -311,19 +313,10 @@ class _SocialSettingsScreenState extends State<SocialSettingsScreen> {
   }
 
   Future<void> _openProviderPicker() async {
-    final preset = await showDialog<AdminSocialProviderPreset>(
+    final preset = await showSocialSideDrawer<AdminSocialProviderPreset>(
       context: context,
-      barrierDismissible: true,
-      builder: (context) {
-        return Dialog(
-          insetPadding: const EdgeInsets.symmetric(
-            horizontal: 24,
-            vertical: 32,
-          ),
-          backgroundColor: Colors.transparent,
-          child: const _ProviderPickerDialog(),
-        );
-      },
+      maxWidth: 860,
+      child: const _ProviderPickerDialog(),
     );
     if (preset == null || !mounted) return;
     await _openConnectionDialog(preset: preset);
@@ -342,19 +335,10 @@ class _SocialSettingsScreenState extends State<SocialSettingsScreen> {
     AdminSocialAccount? account,
     AdminSocialProviderPreset? preset,
   }) async {
-    final result = await showDialog<AdminSocialAccount>(
+    final result = await showSocialSideDrawer<AdminSocialAccount>(
       context: context,
-      barrierDismissible: true,
-      builder: (context) {
-        return Dialog(
-          insetPadding: const EdgeInsets.symmetric(
-            horizontal: 24,
-            vertical: 32,
-          ),
-          backgroundColor: Colors.transparent,
-          child: _ConnectionSettingsDialog(account: account, preset: preset),
-        );
-      },
+      maxWidth: 860,
+      child: _ConnectionSettingsDialog(account: account, preset: preset),
     );
     if (result == null || !mounted) return;
     setState(() => _saving = true);
@@ -380,7 +364,9 @@ class _SocialSettingsScreenState extends State<SocialSettingsScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final horizontalPadding = constraints.maxWidth < 640 ? 16.0 : 28.0;
+        final mobile = constraints.maxWidth < AdminMobile.breakpoint;
         final compact = constraints.maxWidth < 980;
+        final topPadding = mobile ? 18.0 : 28.0;
         final content = Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -388,7 +374,7 @@ class _SocialSettingsScreenState extends State<SocialSettingsScreen> {
               selectedCount: _selectedIds.length,
               onDeleteSelected: _deleteSelectedAccounts,
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: mobile ? 12 : 24),
             _SocialSettingsMetricGrid(
               totalAccounts: _accounts.length,
               bundleReady: _bundleReadyCount,
@@ -396,7 +382,7 @@ class _SocialSettingsScreenState extends State<SocialSettingsScreen> {
               webhookReady: _webhookReadyCount,
               approvalRequired: _approvalRequiredCount,
             ),
-            const SizedBox(height: 14),
+            SizedBox(height: mobile ? 12 : 14),
             if (_saving) ...[
               const LinearProgressIndicator(
                 minHeight: 2,
@@ -424,6 +410,7 @@ class _SocialSettingsScreenState extends State<SocialSettingsScreen> {
                       pageSize: _pageSize,
                       totalCount: _filteredAccounts.length,
                       searchController: _searchController,
+                      searchQuery: _searchQuery,
                       selectedIds: _selectedIds,
                       activeAccountId: _activeAccountId,
                       sortState: _sortState,
@@ -448,11 +435,23 @@ class _SocialSettingsScreenState extends State<SocialSettingsScreen> {
           ],
         );
 
+        if (mobile) {
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+              horizontalPadding,
+              topPadding,
+              horizontalPadding,
+              0,
+            ),
+            child: content,
+          );
+        }
+
         if (compact) {
           return SingleChildScrollView(
             padding: EdgeInsets.fromLTRB(
               horizontalPadding,
-              28,
+              topPadding,
               horizontalPadding,
               28,
             ),
@@ -463,7 +462,7 @@ class _SocialSettingsScreenState extends State<SocialSettingsScreen> {
         return Padding(
           padding: EdgeInsets.fromLTRB(
             horizontalPadding,
-            28,
+            topPadding,
             horizontalPadding,
             28,
           ),
@@ -520,41 +519,51 @@ class _SocialSettingsTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final mobile = constraints.maxWidth < AdminMobile.breakpoint;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Text(
-                context.t('social.settings.centerTitle'),
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: AppColors.deepOcean,
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    context.t('social.settings.centerTitle'),
+                    maxLines: mobile ? 1 : 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      color: AppColors.deepOcean,
+                      fontSize: mobile ? 24 : null,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ),
+                if (selectedCount > 0)
+                  _DangerTextButton(
+                    label: context.t(
+                      'social.settings.selectedDelete',
+                      values: {'count': selectedCount},
+                    ),
+                    onTap: onDeleteSelected,
+                  ),
+              ],
+            ),
+            if (!mobile) ...[
+              const SizedBox(height: 20),
+              Text(
+                context.t('social.settings.centerDescription'),
+                style: const TextStyle(
+                  color: AppColors.inkSoft,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0,
                 ),
               ),
-            ),
-            if (selectedCount > 0)
-              _DangerTextButton(
-                label: context.t(
-                  'social.settings.selectedDelete',
-                  values: {'count': selectedCount},
-                ),
-                onTap: onDeleteSelected,
-              ),
+            ],
           ],
-        ),
-        const SizedBox(height: 20),
-        Text(
-          context.t('social.settings.centerDescription'),
-          style: const TextStyle(
-            color: AppColors.inkSoft,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0,
-          ),
-        ),
-      ],
+        );
+      },
     );
   }
 }
@@ -623,6 +632,17 @@ class _SocialSettingsMetricGrid extends StatelessWidget {
           _MetricDensity.regular => 12.0,
         };
 
+        if (width < AdminMobile.breakpoint) {
+          return Row(
+            children: [
+              for (var index = 0; index < metrics.length; index++) ...[
+                Expanded(child: _MetricMiniBox(data: metrics[index])),
+                if (index != metrics.length - 1) const SizedBox(width: 5),
+              ],
+            ],
+          );
+        }
+
         return Row(
           children: [
             for (var index = 0; index < metrics.length; index++) ...[
@@ -645,6 +665,7 @@ class _SocialSettingsTableCard extends StatelessWidget {
     required this.pageSize,
     required this.totalCount,
     required this.searchController,
+    required this.searchQuery,
     required this.selectedIds,
     required this.activeAccountId,
     required this.sortState,
@@ -671,6 +692,7 @@ class _SocialSettingsTableCard extends StatelessWidget {
   final int pageSize;
   final int totalCount;
   final TextEditingController searchController;
+  final String searchQuery;
   final Set<int> selectedIds;
   final int? activeAccountId;
   final TableSortState sortState;
@@ -694,87 +716,125 @@ class _SocialSettingsTableCard extends StatelessWidget {
     final pageIds = accounts.map((account) => account.id).toSet();
     final allSelected = pageIds.isNotEmpty && selectedIds.containsAll(pageIds);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _SocialSettingsToolbar(
-          pageSize: pageSize,
-          searchController: searchController,
-          onPageSizeChanged: onPageSizeChanged,
-          onSearchChanged: onSearchChanged,
-          onRefresh: onRefresh,
-          onSettings: onSettings,
-          onCreate: onCreate,
-        ),
-        const SizedBox(height: 18),
-        Expanded(
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border.all(color: AppColors.line),
-              borderRadius: BorderRadius.circular(AppRadius.value),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final mobile = constraints.maxWidth < AdminMobile.breakpoint;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _SocialSettingsToolbar(
+              pageSize: pageSize,
+              totalCount: totalCount,
+              searchController: searchController,
+              searchQuery: searchQuery,
+              onPageSizeChanged: onPageSizeChanged,
+              onSearchChanged: onSearchChanged,
+              onRefresh: onRefresh,
+              onSettings: onSettings,
+              onCreate: onCreate,
             ),
-            clipBehavior: Clip.antiAlias,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final width = math.max(constraints.maxWidth, _minTableWidth);
-                return SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: SizedBox(
-                    width: width,
-                    height: constraints.hasBoundedHeight
-                        ? constraints.maxHeight
-                        : null,
-                    child: Column(
-                      children: [
-                        _SocialSettingsTableHeader(
-                          selected: allSelected,
-                          sortState: sortState,
-                          onToggle: onToggleAllAccounts,
-                          onSort: onSort,
-                        ),
-                        Expanded(
-                          child: accounts.isEmpty
-                              ? const _SocialSettingsEmptyState()
-                              : ListView.builder(
-                                  itemCount: accounts.length,
-                                  itemBuilder: (context, index) {
-                                    final account = accounts[index];
-                                    return _SocialSettingsTableRow(
-                                      account: account,
-                                      selected: selectedIds.contains(
-                                        account.id,
-                                      ),
-                                      active: account.id == activeAccountId,
-                                      onToggle: () =>
-                                          onToggleAccount(account.id),
-                                      onSelect: () => onSelectRow(account),
-                                      onEdit: () => onEdit(account),
-                                      onConnectionCheck: () =>
-                                          onConnectionCheck(account),
-                                      onToggleActive: () =>
-                                          onToggleActive(account),
-                                      onDelete: () => onDelete(account),
-                                    );
-                                  },
-                                ),
-                        ),
-                      ],
+            SizedBox(height: mobile ? 14 : 18),
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  if (constraints.maxWidth < AdminMobile.breakpoint) {
+                    return AdminMobileListView(
+                      loading: false,
+                      itemCount: accounts.length,
+                      emptyLabel: context.t('social.settings.empty'),
+                      itemBuilder: (context, index) {
+                        final account = accounts[index];
+                        return _SocialSettingsMobileCard(
+                          account: account,
+                          selected: selectedIds.contains(account.id),
+                          active: account.id == activeAccountId,
+                          onToggle: () => onToggleAccount(account.id),
+                          onSelect: () => onSelectRow(account),
+                          onEdit: () => onEdit(account),
+                          onConnectionCheck: () => onConnectionCheck(account),
+                          onToggleActive: () => onToggleActive(account),
+                          onDelete: () => onDelete(account),
+                        );
+                      },
+                    );
+                  }
+
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border.all(color: AppColors.line),
+                      borderRadius: BorderRadius.circular(AppRadius.value),
                     ),
-                  ),
-                );
-              },
+                    clipBehavior: Clip.antiAlias,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final tableWidth = math.max(
+                          constraints.maxWidth,
+                          _minTableWidth,
+                        );
+                        return SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: SizedBox(
+                            width: tableWidth,
+                            height: constraints.hasBoundedHeight
+                                ? constraints.maxHeight
+                                : null,
+                            child: Column(
+                              children: [
+                                _SocialSettingsTableHeader(
+                                  selected: allSelected,
+                                  sortState: sortState,
+                                  onToggle: onToggleAllAccounts,
+                                  onSort: onSort,
+                                ),
+                                Expanded(
+                                  child: accounts.isEmpty
+                                      ? const _SocialSettingsEmptyState()
+                                      : ListView.builder(
+                                          itemCount: accounts.length,
+                                          itemBuilder: (context, index) {
+                                            final account = accounts[index];
+                                            return _SocialSettingsTableRow(
+                                              account: account,
+                                              selected: selectedIds.contains(
+                                                account.id,
+                                              ),
+                                              active:
+                                                  account.id == activeAccountId,
+                                              onToggle: () =>
+                                                  onToggleAccount(account.id),
+                                              onSelect: () =>
+                                                  onSelectRow(account),
+                                              onEdit: () => onEdit(account),
+                                              onConnectionCheck: () =>
+                                                  onConnectionCheck(account),
+                                              onToggleActive: () =>
+                                                  onToggleActive(account),
+                                              onDelete: () => onDelete(account),
+                                            );
+                                          },
+                                        ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  );
+                },
+              ),
             ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        _SocialSettingsFooter(
-          page: page,
-          pageSize: pageSize,
-          totalCount: totalCount,
-          onPageChanged: onPageChanged,
-        ),
-      ],
+            SizedBox(height: mobile ? 4 : 16),
+            _SocialSettingsFooter(
+              page: page,
+              pageSize: pageSize,
+              totalCount: totalCount,
+              onPageChanged: onPageChanged,
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -782,7 +842,9 @@ class _SocialSettingsTableCard extends StatelessWidget {
 class _SocialSettingsToolbar extends StatelessWidget {
   const _SocialSettingsToolbar({
     required this.pageSize,
+    required this.totalCount,
     required this.searchController,
+    required this.searchQuery,
     required this.onPageSizeChanged,
     required this.onSearchChanged,
     required this.onRefresh,
@@ -791,7 +853,9 @@ class _SocialSettingsToolbar extends StatelessWidget {
   });
 
   final int pageSize;
+  final int totalCount;
   final TextEditingController searchController;
+  final String searchQuery;
   final ValueChanged<int?> onPageSizeChanged;
   final ValueChanged<String> onSearchChanged;
   final VoidCallback onRefresh;
@@ -803,6 +867,52 @@ class _SocialSettingsToolbar extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact = constraints.maxWidth < 840;
+        final mobile = constraints.maxWidth < AdminMobile.breakpoint;
+        if (mobile) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SocialMobileSearchPanel(
+                controller: searchController,
+                query: searchQuery,
+                hintText: context.t('social.settings.searchPlaceholder'),
+                onSearchChanged: onSearchChanged,
+                recordCount: totalCount,
+                pageSize: pageSize,
+                onPageSizeChanged: onPageSizeChanged,
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: _SecondaryActionButton(
+                      icon: Symbols.refresh,
+                      label: context.t('social.settings.refresh'),
+                      onPressed: onRefresh,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _SecondaryActionButton(
+                      icon: Symbols.settings_outlined,
+                      label: context.t('social.settings.settingsButton'),
+                      onPressed: onSettings,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _PrimaryActionButton(
+                      icon: Symbols.add,
+                      label: context.t('social.settings.addAccount'),
+                      onPressed: onCreate,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          );
+        }
+
         final actions = Wrap(
           spacing: 12,
           runSpacing: 10,
@@ -1223,6 +1333,172 @@ class _SocialSettingsTableRow extends StatelessWidget {
   }
 }
 
+class _SocialSettingsMobileCard extends StatelessWidget {
+  const _SocialSettingsMobileCard({
+    required this.account,
+    required this.selected,
+    required this.active,
+    required this.onToggle,
+    required this.onSelect,
+    required this.onEdit,
+    required this.onConnectionCheck,
+    required this.onToggleActive,
+    required this.onDelete,
+  });
+
+  final AdminSocialAccount account;
+  final bool selected;
+  final bool active;
+  final VoidCallback onToggle;
+  final VoidCallback onSelect;
+  final VoidCallback onEdit;
+  final VoidCallback onConnectionCheck;
+  final VoidCallback onToggleActive;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = adminSocialProviderById(account.providerId);
+    final statusColor = account.active
+        ? const Color(0xFF198754)
+        : AppColors.support;
+
+    return AdminMobileCard(
+      selected: active || selected,
+      onTap: onSelect,
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 1),
+                child: AdminMobileCheckbox(
+                  value: selected,
+                  onChanged: (_) => onToggle(),
+                ),
+              ),
+              const SizedBox(width: 12),
+              _ProviderLogo(preset: provider, size: 34, iconSize: 19),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      account.accountName,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF2F4053),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14.2,
+                        height: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      account.apiBaseUrl,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF7A7F85),
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        height: 1.18,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Transform.scale(
+                scale: 0.88,
+                alignment: Alignment.topRight,
+                child: AdminMobileMenuButton(
+                  tooltip: context.t('social.settings.actions'),
+                  actions: [
+                    AdminMobileMenuAction(
+                      icon: Symbols.edit_square,
+                      label: context.t('social.settings.action.edit'),
+                      onTap: onEdit,
+                    ),
+                    AdminMobileMenuAction(
+                      icon: Symbols.verified_outlined,
+                      label: context.t(
+                        'social.settings.action.connectionCheck',
+                      ),
+                      onTap: onConnectionCheck,
+                    ),
+                    AdminMobileMenuAction(
+                      icon: account.active
+                          ? Symbols.toggle_off_outlined
+                          : Symbols.toggle_on,
+                      label: context.t(
+                        account.active
+                            ? 'social.settings.action.deactivate'
+                            : 'social.settings.action.activate',
+                      ),
+                      onTap: onToggleActive,
+                    ),
+                    AdminMobileMenuAction(
+                      icon: Symbols.delete,
+                      label: context.t('social.settings.action.delete'),
+                      danger: true,
+                      onTap: onDelete,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              AdminMobileStatusPill(
+                label: account.active
+                    ? context.t('social.settings.status.active')
+                    : context.t('social.settings.status.passive'),
+                color: statusColor,
+              ),
+              AdminMobileChip(label: context.t(account.mode.labelKey)),
+              AdminMobileMeta(icon: Symbols.apps, value: account.platforms),
+              AdminMobileMeta(
+                icon: Symbols.group,
+                value: account.workspaceName,
+              ),
+              AdminMobileMeta(
+                icon: Symbols.schedule_send,
+                value: '${account.sentToday} / ${account.dailyLimit}',
+              ),
+              AdminMobileMeta(
+                icon: Symbols.schedule,
+                value:
+                    '${formatAdminFullDate(context, account.createdAt)} ${formatAdminTime(account.createdAt)}',
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 5,
+            runSpacing: 5,
+            children: [
+              _ConnectionChip(label: 'API', ready: account.apiReady),
+              _ConnectionChip(label: 'OAuth', ready: account.oauthReady),
+              _ConnectionChip(label: 'Webhook', ready: account.webhookReady),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ProviderPickerDialog extends StatelessWidget {
   const _ProviderPickerDialog();
 
@@ -1257,17 +1533,12 @@ class _ProviderPickerDialog extends StatelessWidget {
         )
         .toList();
 
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 860, maxHeight: 840),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(AppRadius.value),
-        ),
+    return Material(
+      color: Colors.white,
+      child: Padding(
         padding: const EdgeInsets.fromLTRB(28, 24, 28, 18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
           children: [
             Row(
               children: [
@@ -1308,7 +1579,7 @@ class _ProviderPickerDialog extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
-            Flexible(
+            Expanded(
               child: Container(
                 width: double.infinity,
                 decoration: BoxDecoration(
@@ -1677,17 +1948,12 @@ class _ConnectionSettingsDialogState extends State<_ConnectionSettingsDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 860, maxHeight: 840),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(AppRadius.value),
-        ),
+    return Material(
+      color: Colors.white,
+      child: Padding(
         padding: const EdgeInsets.fromLTRB(28, 24, 16, 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
           children: [
             Row(
               children: [
@@ -1731,7 +1997,7 @@ class _ConnectionSettingsDialogState extends State<_ConnectionSettingsDialog> {
               ],
             ),
             const SizedBox(height: 14),
-            Flexible(
+            Expanded(
               child: Container(
                 decoration: BoxDecoration(
                   border: Border.all(color: AppColors.line),
@@ -2057,6 +2323,74 @@ class _MetricBox extends StatelessWidget {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _MetricMiniBox extends StatelessWidget {
+  const _MetricMiniBox({required this.data});
+
+  final _MetricData data;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = context.t(data.label);
+    return Container(
+      height: 76,
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: AppColors.line.withValues(alpha: 0.72)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  color: data.color.withValues(alpha: 0.09),
+                  borderRadius: BorderRadius.circular(5),
+                ),
+                child: Icon(data.icon, color: data.color, size: 14),
+              ),
+              const SizedBox(width: 5),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.inkSoft,
+                    fontSize: 9,
+                    height: 1.05,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const Spacer(),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              data.value,
+              style: const TextStyle(
+                color: AppColors.deepOcean,
+                fontSize: 17,
+                height: 1,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -2882,28 +3216,44 @@ class _SocialSettingsFooter extends StatelessWidget {
     final start = totalCount == 0 ? 0 : page * pageSize + 1;
     final end = math.min((page + 1) * pageSize, totalCount);
     final maxPage = totalCount <= 0 ? 0 : ((totalCount - 1) / pageSize).floor();
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            context.t(
-              'social.settings.footer',
-              values: {'start': start, 'end': end, 'total': totalCount},
+    final rangeText = context.t(
+      'social.settings.footer',
+      values: {'start': start, 'end': end, 'total': totalCount},
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < AdminMobile.breakpoint) {
+          return AdminMobilePager(
+            page: page + 1,
+            lastPage: maxPage + 1,
+            rangeText: rangeText,
+            loading: false,
+            onPageChanged: (newPage) => onPageChanged(newPage - 1),
+          );
+        }
+
+        return Row(
+          children: [
+            Expanded(
+              child: Text(
+                rangeText,
+                style: const TextStyle(
+                  color: AppColors.inkSoft,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0,
+                ),
+              ),
             ),
-            style: const TextStyle(
-              color: AppColors.inkSoft,
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0,
+            AdminTablePagination(
+              page: page + 1,
+              pageCount: maxPage + 1,
+              onPageChanged: (newPage) => onPageChanged(newPage - 1),
             ),
-          ),
-        ),
-        AdminTablePagination(
-          page: page + 1,
-          pageCount: maxPage + 1,
-          onPageChanged: (newPage) => onPageChanged(newPage - 1),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 }

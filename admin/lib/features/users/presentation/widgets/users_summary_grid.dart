@@ -69,7 +69,7 @@ class _MetricCard extends StatelessWidget {
     final isTight = density == _SummaryDensity.tight;
     final isCompact = compact || density == _SummaryDensity.compact;
     final minHeight = isTight
-        ? 92.0
+        ? 118.0
         : isCompact
         ? 104.0
         : 146.0;
@@ -79,7 +79,7 @@ class _MetricCard extends StatelessWidget {
         ? 16.0
         : 24.0;
     final verticalPadding = isTight
-        ? 12.0
+        ? 10.0
         : isCompact
         ? 14.0
         : 24.0;
@@ -90,7 +90,7 @@ class _MetricCard extends StatelessWidget {
         : 42.0;
     final iconGap = isTight ? 8.0 : 12.0;
     final titleSize = isTight
-        ? 11.0
+        ? 10.5
         : isCompact
         ? 12.0
         : null;
@@ -105,7 +105,7 @@ class _MetricCard extends StatelessWidget {
         ? 11.0
         : null;
     final descriptionSize = isTight
-        ? 10.0
+        ? 9.5
         : isCompact
         ? 11.0
         : null;
@@ -141,8 +141,10 @@ class _MetricCard extends StatelessWidget {
               children: [
                 Text(
                   metric.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                  maxLines: isTight ? 2 : 1,
+                  overflow: isTight
+                      ? TextOverflow.visible
+                      : TextOverflow.ellipsis,
                   textAlign: centered ? TextAlign.center : TextAlign.start,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: AppColors.deepOcean,
@@ -198,8 +200,10 @@ class _MetricCard extends StatelessWidget {
                 SizedBox(height: isTight ? 10 : 14),
                 Text(
                   metric.description,
-                  maxLines: isTight ? 1 : 2,
-                  overflow: TextOverflow.ellipsis,
+                  maxLines: isTight ? 3 : 2,
+                  overflow: isTight
+                      ? TextOverflow.visible
+                      : TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AppColors.deepOcean,
                     fontSize: descriptionSize,

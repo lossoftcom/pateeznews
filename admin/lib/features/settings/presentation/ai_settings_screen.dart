@@ -10,6 +10,7 @@ import '../../../core/theme/app_radius.dart';
 import '../../../shared/widgets/symbol_icon.dart';
 import '../../auth/data/admin_auth_models.dart';
 import '../data/admin_ai_settings_repository.dart';
+import 'settings_mobile_chrome.dart';
 
 class AiSettingsScreen extends StatefulWidget {
   const AiSettingsScreen({
@@ -309,15 +310,8 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final horizontalPadding = constraints.maxWidth < 640 ? 16.0 : 28.0;
-
         return SingleChildScrollView(
-          padding: EdgeInsets.fromLTRB(
-            horizontalPadding,
-            28,
-            horizontalPadding,
-            28,
-          ),
+          padding: settingsPagePadding(constraints.maxWidth),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -386,10 +380,13 @@ Future<AiPromptFormData?> _showAiPromptDialog(
   BuildContext context, {
   AdminAiPrompt? item,
 }) {
-  return showDialog<AiPromptFormData>(
-    context: context,
-    barrierColor: Colors.black.withValues(alpha: 0.34),
-    builder: (context) => _AiDialogFrame(child: _AiPromptDialog(item: item)),
+  return showSettingsSideDialog<AiPromptFormData>(
+    context,
+    barrierLabel: 'AiPromptDialog',
+    builder: (mobile) => _AiDialogFrame(
+      mobileDrawer: mobile,
+      child: _AiPromptDialog(item: item),
+    ),
   );
 }
 
@@ -431,64 +428,13 @@ class _AiTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
+    return SettingsResponsiveTabs<_AiSettingsTab>(
+      selected: selected,
+      onSelected: onSelected,
+      items: [
         for (final tab in _AiSettingsTab.values)
-          _AiTabButton(
-            tab: tab,
-            selected: selected == tab,
-            onTap: () => onSelected(tab),
-          ),
+          SettingsTabItem(value: tab, label: tab.title),
       ],
-    );
-  }
-}
-
-class _AiTabButton extends StatelessWidget {
-  const _AiTabButton({
-    required this.tab,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final _AiSettingsTab tab;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 38,
-      child: TextButton(
-        onPressed: onTap,
-        style:
-            TextButton.styleFrom(
-              backgroundColor: selected ? AppColors.actionRed : Colors.white,
-              foregroundColor: selected ? Colors.white : AppColors.deepOcean,
-              side: BorderSide(
-                color: selected
-                    ? AppColors.actionRed
-                    : AppColors.line.withValues(alpha: 0.88),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppRadius.value),
-              ),
-              textStyle: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0,
-              ),
-            ).copyWith(
-              mouseCursor: const WidgetStatePropertyAll(
-                SystemMouseCursors.click,
-              ),
-            ),
-        child: Text(context.t(tab.title)),
-      ),
     );
   }
 }
@@ -1313,12 +1259,20 @@ class _NewPromptButton extends StatelessWidget {
 }
 
 class _AiDialogFrame extends StatelessWidget {
-  const _AiDialogFrame({required this.child});
+  const _AiDialogFrame({required this.child, required this.mobileDrawer});
 
   final Widget child;
+  final bool mobileDrawer;
 
   @override
   Widget build(BuildContext context) {
+    if (mobileDrawer) {
+      return ScrollConfiguration(
+        behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+        child: SingleChildScrollView(child: child),
+      );
+    }
+
     final height = MediaQuery.sizeOf(context).height;
 
     return Dialog(

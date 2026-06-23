@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
+import 'package:pateeznews_admin/shared/widgets/admin_mobile_list.dart';
 import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
 
 import '../../../core/localization/admin_language_controller.dart';
@@ -1991,6 +1992,18 @@ class _FontsTable extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        if (constraints.maxWidth < AdminMobile.breakpoint) {
+          return AdminMobileListView(
+            loading: false,
+            itemCount: fonts.length,
+            emptyLabel: context.t('fontSettings.table.empty'),
+            itemBuilder: (context, index) {
+              final font = fonts[index];
+              return _FontMobileCard(font: font, onEdit: () => onEdit(font));
+            },
+          );
+        }
+
         final tableWidth = constraints.maxWidth < _minWidth
             ? _minWidth
             : constraints.maxWidth;
@@ -2211,6 +2224,87 @@ class _FontTableRow extends StatelessWidget {
             child: Align(
               alignment: Alignment.center,
               child: _FontEditAction(onEdit: onEdit),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FontMobileCard extends StatelessWidget {
+  const _FontMobileCard({required this.font, required this.onEdit});
+
+  final AdminFontRow font;
+  final VoidCallback onEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    return AdminMobileCard(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: AppColors.deepOcean.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Center(
+              child: SymbolIcon(
+                Symbols.translate,
+                color: AppColors.deepOcean,
+                size: 18,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  font.name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF2F4053),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14.2,
+                    height: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    AdminMobileChip(label: '#${font.id}'),
+                    AdminMobileMeta(
+                      icon: Symbols.folder_open,
+                      value: context.t(font.labelSourceKey),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Transform.scale(
+            scale: 0.88,
+            alignment: Alignment.topRight,
+            child: AdminMobileMenuButton(
+              tooltip: context.t('fontSettings.table.options'),
+              actions: [
+                AdminMobileMenuAction(
+                  icon: Symbols.edit_square,
+                  label: context.t('fontSettings.table.edit'),
+                  onTap: onEdit,
+                ),
+              ],
             ),
           ),
         ],
@@ -2479,43 +2573,12 @@ class _FontFooter extends StatelessWidget {
         );
 
         if (mobile) {
-          final hasPrevious = page > 1;
-          final hasNext = page < lastPage;
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              IconButton(
-                onPressed: hasPrevious ? () => onPageChanged(page - 1) : null,
-                icon: const Icon(Symbols.chevron_left),
-                constraints: const BoxConstraints.tightFor(
-                  width: 32,
-                  height: 32,
-                ),
-                padding: EdgeInsets.zero,
-                splashRadius: 18,
-                visualDensity: VisualDensity.compact,
-              ),
-              Expanded(
-                child: Text(
-                  rangeText,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
-                ),
-              ),
-              IconButton(
-                onPressed: hasNext ? () => onPageChanged(page + 1) : null,
-                icon: const Icon(Symbols.chevron_right),
-                constraints: const BoxConstraints.tightFor(
-                  width: 32,
-                  height: 32,
-                ),
-                padding: EdgeInsets.zero,
-                splashRadius: 18,
-                visualDensity: VisualDensity.compact,
-              ),
-            ],
+          return AdminMobilePager(
+            page: page,
+            lastPage: lastPage,
+            rangeText: rangeText,
+            loading: false,
+            onPageChanged: onPageChanged,
           );
         }
 

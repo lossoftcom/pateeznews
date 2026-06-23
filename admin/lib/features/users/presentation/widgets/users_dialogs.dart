@@ -13,6 +13,39 @@ Future<UserFormData?> showUserFormDialog(
   required List<AdminUserRole> roles,
   ManagedUser? user,
 }) {
+  final screenWidth = MediaQuery.sizeOf(context).width;
+  if (screenWidth < 700) {
+    return showGeneralDialog<UserFormData>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: context.t('common.cancel'),
+      barrierColor: Colors.black.withValues(alpha: 0.5),
+      transitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return SafeArea(
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: Material(
+              color: Colors.transparent,
+              child: _UserDrawerFrame(
+                child: _UserFormDialog(roles: roles, user: user),
+              ),
+            ),
+          ),
+        );
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(1, 0),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOut)),
+          child: child,
+        );
+      },
+    );
+  }
+
   return showDialog<UserFormData>(
     context: context,
     barrierColor: Colors.black.withValues(alpha: 0.34),
@@ -21,6 +54,33 @@ Future<UserFormData?> showUserFormDialog(
       child: _UserFormDialog(roles: roles, user: user),
     ),
   );
+}
+
+class _UserDrawerFrame extends StatelessWidget {
+  const _UserDrawerFrame({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+
+    return Container(
+      width: size.width,
+      height: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            spreadRadius: 2,
+            blurRadius: 14,
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
 }
 
 class _UserDialogFrame extends StatelessWidget {
@@ -43,7 +103,7 @@ class _UserDialogFrame extends StatelessWidget {
           color: Colors.white,
           borderRadius: BorderRadius.circular(AppRadius.value),
           clipBehavior: Clip.antiAlias,
-          child: SingleChildScrollView(child: child),
+          child: child,
         ),
       ),
     );
@@ -128,171 +188,180 @@ class _UserFormDialogState extends State<_UserFormDialog> {
         ? 'Kullanıcı bilgilerini güncelleyin.'
         : 'Yeni bir yönetim kullanıcısı tanımlayın.';
 
-    return Form(
-      key: _formKey,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(28, 26, 28, 22),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+    final formFields = LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 680;
+        final nameField = _DialogLineField(
+          controller: _fullNameController,
+          label: 'Ad Soyad *',
+          hintText: 'Ad Soyad...',
+          icon: Symbols.person,
+          validator: _requiredValidator,
+        );
+        final accountFields = Column(
           children: [
-            _DialogHeader(title: title, subtitle: subtitle),
+            _DialogLineField(
+              controller: _usernameController,
+              label: 'Kullanıcı Adı *',
+              hintText: 'kullaniciadi',
+              icon: Symbols.alternate_email,
+              validator: _requiredValidator,
+            ),
             const SizedBox(height: 22),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final compact = constraints.maxWidth < 680;
-                final nameField = _DialogLineField(
-                  controller: _fullNameController,
-                  label: 'Ad Soyad *',
-                  hintText: 'Ad Soyad...',
-                  icon: Symbols.person,
-                  validator: _requiredValidator,
-                );
-                final accountFields = Column(
-                  children: [
-                    _DialogLineField(
-                      controller: _usernameController,
-                      label: 'Kullanıcı Adı *',
-                      hintText: 'kullaniciadi',
-                      icon: Symbols.alternate_email,
-                      validator: _requiredValidator,
-                    ),
-                    const SizedBox(height: 22),
-                    _DialogSelectLineField(
-                      label: 'Rol',
-                      value: _role,
-                      icon: Symbols.group,
-                      items: [
-                        for (final role in widget.roles)
-                          DropdownMenuItem(
-                            value: role.name,
-                            child: Text(context.t(role.label)),
-                          ),
-                      ],
-                      onChanged: (value) {
-                        if (value == null) return;
-                        setState(() => _role = value);
-                      },
-                    ),
-                    const SizedBox(height: 22),
-                    _DialogLineField(
-                      controller: _passwordController,
-                      label: _editing ? 'Şifre' : 'Şifre *',
-                      hintText: _editing
-                          ? 'Değişmeyecekse boş bırakın'
-                          : '********',
-                      icon: Symbols.lock,
-                      obscureText: true,
-                      validator: _passwordValidator,
-                    ),
-                  ],
-                );
-                final statusFields = Column(
-                  children: [
-                    _DialogLineField(
-                      controller: _emailController,
-                      label: 'E-posta *',
-                      hintText: 'E-posta...',
-                      icon: Symbols.alternate_email,
-                      keyboardType: TextInputType.emailAddress,
-                      validator: _emailValidator,
-                    ),
-                    const SizedBox(height: 22),
-                    _DialogSelectLineField(
-                      label: 'Şehir',
-                      value: _city,
-                      icon: Symbols.location_on_rounded,
-                      items: [
-                        for (final city in turkeyCities)
-                          DropdownMenuItem(value: city, child: Text(city)),
-                      ],
-                      onChanged: (value) {
-                        if (value == null) return;
-                        setState(() => _city = normalizeTurkeyCity(value));
-                      },
-                    ),
-                    const SizedBox(height: 22),
-                    _DialogSelectLineField(
-                      label: 'Durum',
-                      value: _status,
-                      icon: Symbols.verified,
-                      items: [
-                        DropdownMenuItem(
-                          value: 'Aktif',
-                          child: Text(context.t('Active')),
-                        ),
-                        DropdownMenuItem(
-                          value: 'Beklemede',
-                          child: Text(context.t('Pending')),
-                        ),
-                        DropdownMenuItem(
-                          value: 'Engelli',
-                          child: Text(context.t('Disabled')),
-                        ),
-                      ],
-                      onChanged: (value) {
-                        if (value == null) return;
-                        setState(() => _status = value);
-                      },
-                    ),
-                    const SizedBox(height: 22),
-                    _DialogLineField(
-                      controller: _confirmPasswordController,
-                      label: _editing ? 'Onayla' : 'Onayla *',
-                      hintText: _editing
-                          ? 'Değişmeyecekse boş bırakın'
-                          : '********',
-                      icon: Symbols.lock,
-                      obscureText: true,
-                      validator: _confirmPasswordValidator,
-                    ),
-                  ],
-                );
-
-                if (compact) {
-                  return Column(
-                    children: [
-                      nameField,
-                      const SizedBox(height: 22),
-                      accountFields,
-                      const SizedBox(height: 22),
-                      statusFields,
-                    ],
-                  );
-                }
-
-                return Column(
-                  children: [
-                    nameField,
-                    const SizedBox(height: 22),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(child: accountFields),
-                        const SizedBox(width: 24),
-                        Expanded(child: statusFields),
-                      ],
-                    ),
-                  ],
-                );
+            _DialogSelectLineField(
+              label: 'Rol',
+              value: _role,
+              icon: Symbols.group,
+              items: [
+                for (final role in widget.roles)
+                  DropdownMenuItem(
+                    value: role.name,
+                    child: Text(context.t(role.label)),
+                  ),
+              ],
+              onChanged: (value) {
+                if (value == null) return;
+                setState(() => _role = value);
               },
             ),
-            const SizedBox(height: 24),
-            _RewardCheckboxRow(
-              value: _rewardEnabled,
-              onChanged: (value) =>
-                  setState(() => _rewardEnabled = value ?? false),
-            ),
-            const SizedBox(height: 26),
-            Align(
-              alignment: Alignment.centerRight,
-              child: _DialogFooter(
-                primaryLabel: 'Kaydet',
-                onPrimaryPressed: _submit,
-              ),
+            const SizedBox(height: 22),
+            _DialogLineField(
+              controller: _passwordController,
+              label: _editing ? 'Şifre' : 'Şifre *',
+              hintText: _editing ? 'Değişmeyecekse boş bırakın' : '********',
+              icon: Symbols.lock,
+              obscureText: true,
+              validator: _passwordValidator,
             ),
           ],
+        );
+        final statusFields = Column(
+          children: [
+            _DialogLineField(
+              controller: _emailController,
+              label: 'E-posta *',
+              hintText: 'E-posta...',
+              icon: Symbols.alternate_email,
+              keyboardType: TextInputType.emailAddress,
+              validator: _emailValidator,
+            ),
+            const SizedBox(height: 22),
+            _DialogSelectLineField(
+              label: 'Şehir',
+              value: _city,
+              icon: Symbols.location_on_rounded,
+              items: [
+                for (final city in turkeyCities)
+                  DropdownMenuItem(value: city, child: Text(city)),
+              ],
+              onChanged: (value) {
+                if (value == null) return;
+                setState(() => _city = normalizeTurkeyCity(value));
+              },
+            ),
+            const SizedBox(height: 22),
+            _DialogSelectLineField(
+              label: 'Durum',
+              value: _status,
+              icon: Symbols.verified,
+              items: [
+                DropdownMenuItem(
+                  value: 'Aktif',
+                  child: Text(context.t('Active')),
+                ),
+                DropdownMenuItem(
+                  value: 'Beklemede',
+                  child: Text(context.t('Pending')),
+                ),
+                DropdownMenuItem(
+                  value: 'Engelli',
+                  child: Text(context.t('Disabled')),
+                ),
+              ],
+              onChanged: (value) {
+                if (value == null) return;
+                setState(() => _status = value);
+              },
+            ),
+            const SizedBox(height: 22),
+            _DialogLineField(
+              controller: _confirmPasswordController,
+              label: _editing ? 'Onayla' : 'Onayla *',
+              hintText: _editing ? 'Değişmeyecekse boş bırakın' : '********',
+              icon: Symbols.lock,
+              obscureText: true,
+              validator: _confirmPasswordValidator,
+            ),
+          ],
+        );
+
+        if (compact) {
+          return Column(
+            children: [
+              nameField,
+              const SizedBox(height: 22),
+              accountFields,
+              const SizedBox(height: 22),
+              statusFields,
+            ],
+          );
+        }
+
+        return Column(
+          children: [
+            nameField,
+            const SizedBox(height: 22),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: accountFields),
+                const SizedBox(width: 24),
+                Expanded(child: statusFields),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+
+    final formBody = Column(
+      children: [
+        formFields,
+        const SizedBox(height: 24),
+        _RewardCheckboxRow(
+          value: _rewardEnabled,
+          onChanged: (value) => setState(() => _rewardEnabled = value ?? false),
         ),
+      ],
+    );
+
+    return Form(
+      key: _formKey,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final mobile = constraints.maxWidth < 700;
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+              mobile ? 14 : 28,
+              mobile ? 26 : 26,
+              mobile ? 14 : 28,
+              mobile ? 14 : 22,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _DialogHeader(title: title, subtitle: subtitle),
+                const SizedBox(height: 22),
+                Expanded(child: SingleChildScrollView(child: formBody)),
+                SizedBox(height: mobile ? 12 : 26),
+                _DialogFooter(
+                  primaryLabel: 'Kaydet',
+                  onPrimaryPressed: _submit,
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -634,57 +703,138 @@ class _DialogFooter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        TextButton(
-          onPressed: () => Navigator.of(context).maybePop(),
-          style:
-              TextButton.styleFrom(
-                foregroundColor: AppColors.deepOcean,
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                textStyle: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0,
-                ),
-              ).copyWith(
-                mouseCursor: const WidgetStatePropertyAll(
-                  SystemMouseCursors.click,
+    final cancel = TextButton(
+      onPressed: () => Navigator.of(context).maybePop(),
+      style:
+          TextButton.styleFrom(
+            foregroundColor: AppColors.deepOcean,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            textStyle: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0,
+            ),
+          ).copyWith(
+            mouseCursor: const WidgetStatePropertyAll(SystemMouseCursors.click),
+          ),
+      child: Text(context.t('Cancel')),
+    );
+    final save = SizedBox(
+      width: 114,
+      height: 36,
+      child: TextButton(
+        onPressed: onPrimaryPressed,
+        style:
+            TextButton.styleFrom(
+              backgroundColor: AppColors.deepOcean,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.value),
+              ),
+              textStyle: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0,
+              ),
+            ).copyWith(
+              mouseCursor: const WidgetStatePropertyAll(
+                SystemMouseCursors.click,
+              ),
+            ),
+        child: Text(context.t(primaryLabel)),
+      ),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 700) {
+          return Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 38,
+                  child: TextButton.icon(
+                    onPressed: () => Navigator.of(context).maybePop(),
+                    icon: const SymbolIcon(
+                      Symbols.close,
+                      color: AppColors.deepOcean,
+                      size: 16,
+                    ),
+                    label: Text(context.t('Cancel')),
+                    style:
+                        TextButton.styleFrom(
+                          foregroundColor: AppColors.deepOcean,
+                          backgroundColor: Colors.white,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(
+                              AppRadius.value,
+                            ),
+                            side: const BorderSide(color: AppColors.line),
+                          ),
+                          textStyle: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0,
+                          ),
+                        ).copyWith(
+                          mouseCursor: const WidgetStatePropertyAll(
+                            SystemMouseCursors.click,
+                          ),
+                        ),
+                  ),
                 ),
               ),
-          child: Text(context.t('Cancel')),
-        ),
-        const SizedBox(width: 16),
-        SizedBox(
-          width: 114,
-          height: 36,
-          child: TextButton(
-            onPressed: onPrimaryPressed,
-            style:
-                TextButton.styleFrom(
-                  backgroundColor: AppColors.deepOcean,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 18),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppRadius.value),
-                  ),
-                  textStyle: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0,
-                  ),
-                ).copyWith(
-                  mouseCursor: const WidgetStatePropertyAll(
-                    SystemMouseCursors.click,
+              const SizedBox(width: 10),
+              Expanded(
+                child: SizedBox(
+                  height: 38,
+                  child: TextButton.icon(
+                    onPressed: onPrimaryPressed,
+                    icon: const SymbolIcon(
+                      Symbols.save,
+                      color: Colors.white,
+                      size: 16,
+                    ),
+                    label: Text(context.t(primaryLabel)),
+                    style:
+                        TextButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          backgroundColor: AppColors.actionRed,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(
+                              AppRadius.value,
+                            ),
+                          ),
+                          textStyle: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0,
+                          ),
+                        ).copyWith(
+                          mouseCursor: const WidgetStatePropertyAll(
+                            SystemMouseCursors.click,
+                          ),
+                        ),
                   ),
                 ),
-            child: Text(context.t(primaryLabel)),
+              ),
+            ],
+          );
+        }
+
+        return Align(
+          alignment: Alignment.centerRight,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [cancel, const SizedBox(width: 16), save],
           ),
-        ),
-      ],
+        );
+      },
     );
   }
 }

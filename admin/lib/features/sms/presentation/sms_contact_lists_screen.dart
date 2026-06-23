@@ -18,6 +18,7 @@ import '../../../shared/widgets/symbol_icon.dart';
 import '../../auth/data/admin_auth_models.dart';
 import '../data/admin_sms_repository.dart';
 import 'sms_contact_list_models.dart';
+import 'sms_mobile_chrome.dart';
 
 class SmsContactListsScreen extends StatefulWidget {
   const SmsContactListsScreen({
@@ -270,26 +271,11 @@ class _SmsContactListsScreenState extends State<SmsContactListsScreen> {
   }
 
   Future<void> _showListDialog({AdminSmsContactList? list}) async {
-    final result = await showDialog<_SmsContactListDialogResult>(
+    final result = await showSmsSideDrawer<_SmsContactListDialogResult>(
       context: context,
-      barrierDismissible: true,
-      builder: (context) {
-        final size = MediaQuery.sizeOf(context);
-        final width = (size.width - 48).clamp(740.0, 1180.0).toDouble();
-        final height = (size.height - 48).clamp(620.0, 840.0).toDouble();
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.symmetric(
-            horizontal: 24,
-            vertical: 24,
-          ),
-          child: SizedBox(
-            width: width,
-            height: height,
-            child: _SmsContactListDialog(list: list),
-          ),
-        );
-      },
+      minWidth: 740,
+      maxWidth: 1180,
+      child: _SmsContactListDialog(list: list),
     );
 
     if (result == null || !mounted) return;
@@ -371,6 +357,18 @@ class _SmsContactListsScreenState extends State<SmsContactListsScreen> {
             if (_loading) const LinearProgressIndicator(minHeight: 2),
           ],
         );
+
+        if (mobile) {
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+              horizontalPadding,
+              topPadding,
+              horizontalPadding,
+              0,
+            ),
+            child: content,
+          );
+        }
 
         if (compact) {
           return SingleChildScrollView(
@@ -495,6 +493,7 @@ class _SmsContactListsTableCard extends StatelessWidget {
             searchController: searchController,
             searchQuery: searchQuery,
             selectedIds: selectedIds,
+            onPageSizeChanged: onPageSizeChanged,
             onSearchChanged: onSearchChanged,
             onPageChanged: onPageChanged,
             onToggleList: onToggleList,
@@ -600,6 +599,7 @@ class _SmsContactListsMobileView extends StatelessWidget {
     required this.searchController,
     required this.searchQuery,
     required this.selectedIds,
+    required this.onPageSizeChanged,
     required this.onSearchChanged,
     required this.onPageChanged,
     required this.onToggleList,
@@ -617,6 +617,7 @@ class _SmsContactListsMobileView extends StatelessWidget {
   final TextEditingController searchController;
   final String searchQuery;
   final Set<int> selectedIds;
+  final ValueChanged<int?> onPageSizeChanged;
   final ValueChanged<String> onSearchChanged;
   final ValueChanged<int> onPageChanged;
   final ValueChanged<int> onToggleList;
@@ -637,16 +638,16 @@ class _SmsContactListsMobileView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        AdminMobileToolbar(
+        SmsMobileSearchPanel(
           controller: searchController,
           query: searchQuery,
           hintText: context.t('sms.contacts.searchPlaceholder'),
           onSearchChanged: onSearchChanged,
-          activeFilterCount: 0,
-          onOpenFilters: () {},
-          showFilters: false,
+          recordCount: totalCount,
+          pageSize: pageSize,
+          onPageSizeChanged: onPageSizeChanged,
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 4),
         AdminMobilePrimaryButton(
           icon: Symbols.add,
           label: context.t('sms.contacts.newList'),
@@ -673,7 +674,7 @@ class _SmsContactListsMobileView extends StatelessWidget {
             },
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 4),
         AdminMobilePager(
           page: page,
           lastPage: lastPage,

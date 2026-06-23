@@ -9,6 +9,7 @@ import '../../../core/theme/app_radius.dart';
 import '../../../shared/widgets/symbol_icon.dart';
 import '../../auth/data/admin_auth_models.dart';
 import '../data/admin_module_settings_repository.dart';
+import 'settings_mobile_chrome.dart';
 
 class PrayerSettingsScreen extends StatefulWidget {
   const PrayerSettingsScreen({
@@ -215,61 +216,71 @@ class _PrayerSettingsScreenState extends State<PrayerSettingsScreen> {
   Widget build(BuildContext context) {
     return ColoredBox(
       color: AppColors.surface,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(28, 28, 28, 40),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const _PrayerHeader(),
-            const SizedBox(height: 24),
-            _PrayerTabs(
-              selected: _tab,
-              onSelected: (tab) => setState(() => _tab = tab),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            padding: settingsPagePadding(
+              constraints.maxWidth,
+              desktopBottom: 40,
             ),
-            const SizedBox(height: 22),
-            if (_loading)
-              const _PrayerLoadingBox()
-            else if (_error != null)
-              _PrayerErrorBox(message: _error!, onRetry: _load)
-            else
-              _PrayerCard(
-                title: _tab.title,
-                icon: _tab.icon,
-                trailing: _tab == _PrayerSettingsTab.preview
-                    ? _PrimaryActionButton(
-                        label: _refreshing ? 'Yenileniyor' : 'Veriyi Yenile',
-                        icon: Symbols.send_rounded,
-                        onPressed: _refreshing ? null : _refreshPreview,
-                      )
-                    : null,
-                child: _tab == _PrayerSettingsTab.cities
-                    ? _PrayerSettingsForm(
-                        settings: _settings,
-                        saving: _saving,
-                        diyanetBaseController: _diyanetBaseController,
-                        locationNameController: _locationNameController,
-                        locationCountryController: _locationCountryController,
-                        stateIdController: _stateIdController,
-                        cityIdController: _cityIdController,
-                        timezoneController: _timezoneController,
-                        refreshLeadController: _refreshLeadController,
-                        cacheDaysController: _cacheDaysController,
-                        ayahStartController: _ayahStartController,
-                        quranBaseController: _quranBaseController,
-                        quranTokenController: _quranTokenController,
-                        onChanged: (settings) =>
-                            setState(() => _settings = settings),
-                        onSave: _save,
-                      )
-                    : _PrayerPreview(
-                        preview: _preview,
-                        error: _previewError,
-                        refreshing: _refreshing,
-                        onRefresh: _refreshPreview,
-                      ),
-              ),
-          ],
-        ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const _PrayerHeader(),
+                const SizedBox(height: 24),
+                _PrayerTabs(
+                  selected: _tab,
+                  onSelected: (tab) => setState(() => _tab = tab),
+                ),
+                const SizedBox(height: 22),
+                if (_loading)
+                  const _PrayerLoadingBox()
+                else if (_error != null)
+                  _PrayerErrorBox(message: _error!, onRetry: _load)
+                else
+                  _PrayerCard(
+                    title: _tab.title,
+                    icon: _tab.icon,
+                    trailing: _tab == _PrayerSettingsTab.preview
+                        ? _PrimaryActionButton(
+                            label: _refreshing
+                                ? 'Yenileniyor'
+                                : 'Veriyi Yenile',
+                            icon: Symbols.send_rounded,
+                            onPressed: _refreshing ? null : _refreshPreview,
+                          )
+                        : null,
+                    child: _tab == _PrayerSettingsTab.cities
+                        ? _PrayerSettingsForm(
+                            settings: _settings,
+                            saving: _saving,
+                            diyanetBaseController: _diyanetBaseController,
+                            locationNameController: _locationNameController,
+                            locationCountryController:
+                                _locationCountryController,
+                            stateIdController: _stateIdController,
+                            cityIdController: _cityIdController,
+                            timezoneController: _timezoneController,
+                            refreshLeadController: _refreshLeadController,
+                            cacheDaysController: _cacheDaysController,
+                            ayahStartController: _ayahStartController,
+                            quranBaseController: _quranBaseController,
+                            quranTokenController: _quranTokenController,
+                            onChanged: (settings) =>
+                                setState(() => _settings = settings),
+                            onSave: _save,
+                          )
+                        : _PrayerPreview(
+                            preview: _preview,
+                            error: _previewError,
+                            refreshing: _refreshing,
+                            onRefresh: _refreshPreview,
+                          ),
+                  ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -285,18 +296,18 @@ class _PrayerHeader extends StatelessWidget {
       children: [
         Text(
           'Namaz Vakitleri Ayarları',
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
             color: AppColors.deepOcean,
-            fontWeight: FontWeight.w900,
+            fontWeight: FontWeight.w800,
             letterSpacing: 0,
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         Text(
           'Mobildeki namaz vakitleri ve günün ayetini Diyanet kaynaklarıyla cache korumalı yönetin.',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             color: AppColors.inkSoft,
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w600,
             letterSpacing: 0,
           ),
         ),
@@ -313,64 +324,13 @@ class _PrayerTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
+    return SettingsResponsiveTabs<_PrayerSettingsTab>(
+      selected: selected,
+      onSelected: onSelected,
+      items: [
         for (final tab in _PrayerSettingsTab.values)
-          _SettingsTabButton(
-            label: tab.title,
-            selected: selected == tab,
-            onTap: () => onSelected(tab),
-          ),
+          SettingsTabItem(value: tab, label: tab.title),
       ],
-    );
-  }
-}
-
-class _SettingsTabButton extends StatelessWidget {
-  const _SettingsTabButton({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 38,
-      child: TextButton(
-        onPressed: onTap,
-        style:
-            TextButton.styleFrom(
-              backgroundColor: selected ? AppColors.actionRed : Colors.white,
-              foregroundColor: selected ? Colors.white : AppColors.deepOcean,
-              side: BorderSide(
-                color: selected
-                    ? AppColors.actionRed
-                    : AppColors.line.withValues(alpha: 0.88),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppRadius.value),
-              ),
-              textStyle: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0,
-              ),
-            ).copyWith(
-              mouseCursor: const WidgetStatePropertyAll(
-                SystemMouseCursors.click,
-              ),
-            ),
-        child: Text(label),
-      ),
     );
   }
 }

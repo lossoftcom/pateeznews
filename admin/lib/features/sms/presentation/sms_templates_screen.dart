@@ -17,6 +17,7 @@ import '../../../shared/widgets/symbol_icon.dart';
 import '../../auth/data/admin_auth_models.dart';
 import '../data/admin_sms_repository.dart';
 import 'sms_message_preview.dart';
+import 'sms_mobile_chrome.dart';
 import 'sms_template_models.dart';
 
 class SmsTemplatesScreen extends StatefulWidget {
@@ -324,39 +325,10 @@ class _SmsTemplatesScreenState extends State<SmsTemplatesScreen> {
   }
 
   void _showTemplateDetail(AdminSmsTemplate template) {
-    showGeneralDialog<void>(
+    showSmsSideDrawer<void>(
       context: context,
-      barrierDismissible: true,
-      barrierLabel: context.t('common.cancel'),
-      barrierColor: Colors.black.withValues(alpha: 0.48),
-      transitionDuration: const Duration(milliseconds: 280),
-      pageBuilder: (context, animation, secondaryAnimation) {
-        final width = MediaQuery.sizeOf(context).width;
-        final mobile = width < 620;
-        final drawerWidth = mobile ? width : math.min(440.0, width * 0.32);
-        return SafeArea(
-          child: Align(
-            alignment: mobile ? Alignment.center : Alignment.centerRight,
-            child: Material(
-              color: Colors.transparent,
-              child: SizedBox(
-                width: drawerWidth,
-                height: double.infinity,
-                child: _TemplateDetailDrawer(template: template),
-              ),
-            ),
-          ),
-        );
-      },
-      transitionBuilder: (context, animation, secondaryAnimation, child) {
-        return SlideTransition(
-          position: Tween<Offset>(
-            begin: const Offset(1, 0),
-            end: Offset.zero,
-          ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOut)),
-          child: child,
-        );
-      },
+      maxWidth: 440,
+      child: _TemplateDetailDrawer(template: template),
     );
   }
 
@@ -417,6 +389,18 @@ class _SmsTemplatesScreenState extends State<SmsTemplatesScreen> {
             if (_loading) const LinearProgressIndicator(minHeight: 2),
           ],
         );
+
+        if (mobile) {
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+              horizontalPadding,
+              topPadding,
+              horizontalPadding,
+              0,
+            ),
+            child: content,
+          );
+        }
 
         if (compact) {
           return SingleChildScrollView(
@@ -499,18 +483,61 @@ class _TemplateCategoryChips extends StatelessWidget {
       for (final category in AdminSmsTemplateCategory.values)
         _TemplateFilter(value: category.value, labelKey: category.labelKey),
     ];
+    final selectedFilter = filters.firstWhere(
+      (filter) => filter.value == selectedValue,
+      orElse: () => filters.first,
+    );
 
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        for (final filter in filters)
-          _TemplateFilterChip(
-            label: context.t(filter.labelKey),
-            selected: selectedValue == filter.value,
-            onTap: () => onChanged(filter.value),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final mobile = constraints.maxWidth < AdminMobile.breakpoint;
+        final width = mobile ? constraints.maxWidth : 280.0;
+
+        return Align(
+          alignment: Alignment.centerLeft,
+          child: SizedBox(
+            width: width,
+            child: Container(
+              height: 44,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(AppRadius.value),
+                border: Border.all(
+                  color: AppColors.line.withValues(alpha: 0.86),
+                ),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: selectedFilter.value,
+                  isExpanded: true,
+                  borderRadius: BorderRadius.circular(AppRadius.value),
+                  icon: const SymbolIcon(
+                    Symbols.keyboard_arrow_down,
+                    color: AppColors.iconMuted,
+                    size: 18,
+                  ),
+                  selectedItemBuilder: (context) {
+                    return filters.map((filter) {
+                      return _TemplateFilterSelectLabel(filter: filter);
+                    }).toList();
+                  },
+                  items: [
+                    for (final filter in filters)
+                      DropdownMenuItem<String>(
+                        value: filter.value,
+                        child: _TemplateFilterSelectLabel(filter: filter),
+                      ),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) onChanged(value);
+                  },
+                ),
+              ),
+            ),
           ),
-      ],
+        );
+      },
     );
   }
 }
@@ -522,50 +549,50 @@ class _TemplateFilter {
   final String labelKey;
 }
 
-class _TemplateFilterChip extends StatelessWidget {
-  const _TemplateFilterChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
+class _TemplateFilterSelectLabel extends StatelessWidget {
+  const _TemplateFilterSelectLabel({required this.filter});
 
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
+  final _TemplateFilter filter;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 34,
-      child: TextButton(
-        onPressed: onTap,
-        style:
-            TextButton.styleFrom(
-              backgroundColor: selected ? AppColors.deepOcean : Colors.white,
-              foregroundColor: selected ? Colors.white : AppColors.inkSoft,
-              minimumSize: const Size(0, 34),
-              padding: const EdgeInsets.symmetric(horizontal: 18),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppRadius.value),
-                side: BorderSide(
-                  color: selected ? AppColors.deepOcean : AppColors.line,
-                ),
-              ),
-              textStyle: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0,
-              ),
-            ).copyWith(
-              mouseCursor: const WidgetStatePropertyAll(
-                SystemMouseCursors.click,
-              ),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        SymbolIcon(
+          _iconForTemplateFilter(filter.value),
+          color: AppColors.deepOcean,
+          size: 18,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            context.t(filter.labelKey),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppColors.deepOcean,
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0,
             ),
-        child: Text(label),
-      ),
+          ),
+        ),
+      ],
     );
   }
+}
+
+IconData _iconForTemplateFilter(String value) {
+  return switch (value) {
+    smsTemplateFilterAll => Symbols.apps,
+    'campaign' => Symbols.campaign_outlined,
+    'info' => Symbols.info_outline,
+    'invitation' => Symbols.mail_outline,
+    'order' => Symbols.article,
+    'quote' => Symbols.draft,
+    _ => Symbols.article,
+  };
 }
 
 class _SmsTemplateTableCard extends StatelessWidget {
@@ -632,6 +659,7 @@ class _SmsTemplateTableCard extends StatelessWidget {
             searchController: searchController,
             searchQuery: searchQuery,
             selectedTemplateIds: selectedTemplateIds,
+            onPageSizeChanged: onPageSizeChanged,
             onSearchChanged: onSearchChanged,
             onPageChanged: onPageChanged,
             onToggleTemplate: onToggleTemplate,
@@ -740,6 +768,7 @@ class _SmsTemplateMobileView extends StatelessWidget {
     required this.searchController,
     required this.searchQuery,
     required this.selectedTemplateIds,
+    required this.onPageSizeChanged,
     required this.onSearchChanged,
     required this.onPageChanged,
     required this.onToggleTemplate,
@@ -758,6 +787,7 @@ class _SmsTemplateMobileView extends StatelessWidget {
   final TextEditingController searchController;
   final String searchQuery;
   final Set<int> selectedTemplateIds;
+  final ValueChanged<int?> onPageSizeChanged;
   final ValueChanged<String> onSearchChanged;
   final ValueChanged<int> onPageChanged;
   final ValueChanged<int> onToggleTemplate;
@@ -779,16 +809,16 @@ class _SmsTemplateMobileView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        AdminMobileToolbar(
+        SmsMobileSearchPanel(
           controller: searchController,
           query: searchQuery,
           hintText: context.t('sms.templates.searchPlaceholder'),
           onSearchChanged: onSearchChanged,
-          activeFilterCount: 0,
-          onOpenFilters: () {},
-          showFilters: false,
+          recordCount: totalCount,
+          pageSize: pageSize,
+          onPageSizeChanged: onPageSizeChanged,
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 4),
         AdminMobilePrimaryButton(
           icon: Symbols.add,
           label: context.t('sms.templates.new'),
@@ -816,7 +846,7 @@ class _SmsTemplateMobileView extends StatelessWidget {
             },
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 4),
         AdminMobilePager(
           page: page,
           lastPage: lastPage,
@@ -4823,16 +4853,10 @@ class _TemplateSaveDialogState extends State<_TemplateSaveDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      insetPadding: const EdgeInsets.all(24),
-      backgroundColor: Colors.transparent,
-      child: Container(
-        width: 520,
+    return Material(
+      color: Colors.white,
+      child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(26, 24, 26, 22),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(AppRadius.value),
-        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,

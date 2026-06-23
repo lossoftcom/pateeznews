@@ -1058,12 +1058,18 @@ class AdminMobileMeta extends StatelessWidget {
       children: [
         SymbolIcon(icon, color: color, size: 14),
         const SizedBox(width: 5),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: color,
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 220),
+          child: Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            softWrap: false,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
           ),
         ),
       ],
@@ -1320,61 +1326,63 @@ class _AdminMobileSkeletonCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 88,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.line.withValues(alpha: 0.6)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 54,
-            height: 54,
-            decoration: BoxDecoration(
-              color: _bar,
-              borderRadius: BorderRadius.circular(12),
-            ),
+          height: 88,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.line.withValues(alpha: 0.6)),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                FractionallySizedBox(
-                  alignment: Alignment.centerLeft,
-                  widthFactor: 0.7,
-                  child: Container(
-                    height: 13,
-                    decoration: BoxDecoration(
-                      color: _bar,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                  ),
+          child: Row(
+            children: [
+              Container(
+                width: 54,
+                height: 54,
+                decoration: BoxDecoration(
+                  color: _bar,
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                const SizedBox(height: 10),
-                FractionallySizedBox(
-                  alignment: Alignment.centerLeft,
-                  widthFactor: 0.45,
-                  child: Container(
-                    height: 11,
-                    decoration: BoxDecoration(
-                      color: _bar,
-                      borderRadius: BorderRadius.circular(6),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    FractionallySizedBox(
+                      alignment: Alignment.centerLeft,
+                      widthFactor: 0.7,
+                      child: Container(
+                        height: 13,
+                        decoration: BoxDecoration(
+                          color: _bar,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 10),
+                    FractionallySizedBox(
+                      alignment: Alignment.centerLeft,
+                      widthFactor: 0.45,
+                      child: Container(
+                        height: 11,
+                        decoration: BoxDecoration(
+                          color: _bar,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
-    ).animate(onPlay: (controller) => controller.repeat()).shimmer(
-      duration: const Duration(milliseconds: 1100),
-      color: Colors.white,
-    );
+        )
+        .animate(onPlay: (controller) => controller.repeat())
+        .shimmer(
+          duration: const Duration(milliseconds: 1100),
+          color: Colors.white,
+        );
   }
 }
 
@@ -1477,42 +1485,38 @@ class AdminMobilePager extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasPrevious = page > 1 && !loading;
     final hasNext = page < lastPage && !loading;
-    return Container(
-      height: AdminMobile.controlHeight,
-      padding: const EdgeInsets.symmetric(horizontal: 6),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(AdminMobile.controlRadius),
-        border: Border.all(color: AppColors.line.withValues(alpha: 0.9)),
-      ),
-      child: Row(
-        children: [
-          _PagerArrow(
-            icon: Symbols.arrow_forward,
-            flip: true,
-            enabled: hasPrevious,
-            onTap: () => onPageChanged(page - 1),
-          ),
-          Expanded(
-            child: Text(
-              rangeText,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 12.5,
-                color: AppColors.inkSoft,
-                fontWeight: FontWeight.w600,
+    return Transform.translate(
+      offset: const Offset(0, 14),
+      child: SizedBox(
+        height: 28,
+        child: Row(
+          children: [
+            _PagerArrow(
+              icon: Symbols.chevron_left_rounded,
+              enabled: hasPrevious,
+              onTap: () => onPageChanged(page - 1),
+            ),
+            Expanded(
+              child: Text(
+                rangeText,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Color(0xFFB8BDC3),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 0,
+                ),
               ),
             ),
-          ),
-          _PagerArrow(
-            icon: Symbols.arrow_forward,
-            flip: false,
-            enabled: hasNext,
-            onTap: () => onPageChanged(page + 1),
-          ),
-        ],
+            _PagerArrow(
+              icon: Symbols.chevron_right,
+              enabled: hasNext,
+              onTap: () => onPageChanged(page + 1),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1521,49 +1525,28 @@ class AdminMobilePager extends StatelessWidget {
 class _PagerArrow extends StatelessWidget {
   const _PagerArrow({
     required this.icon,
-    required this.flip,
     required this.enabled,
     required this.onTap,
   });
 
   final IconData icon;
-  final bool flip;
   final bool enabled;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final child = SizedBox(
-      width: 38,
-      height: 38,
-      child: Center(
-        child: Opacity(
-          opacity: enabled ? 1 : 0.32,
-          child: flip
-              ? Transform.flip(
-                  flipX: true,
-                  child: const SymbolIcon(
-                    Symbols.arrow_forward,
-                    color: AppColors.deepOcean,
-                    size: 20,
-                  ),
-                )
-              : const SymbolIcon(
-                  Symbols.arrow_forward,
-                  color: AppColors.deepOcean,
-                  size: 20,
-                ),
-        ),
-      ),
+    final child = Icon(
+      icon,
+      color: enabled ? AppColors.deepOcean : const Color(0xFFC5CAD0),
+      size: 18,
     );
-    if (!enabled) return child;
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: child,
-      ),
+    return IconButton(
+      onPressed: enabled ? onTap : null,
+      icon: child,
+      constraints: const BoxConstraints.tightFor(width: 30, height: 28),
+      padding: EdgeInsets.zero,
+      splashRadius: 16,
+      visualDensity: VisualDensity.compact,
     );
   }
 }

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:pateeznews_admin/shared/widgets/admin_mobile_list.dart';
 import 'package:http/http.dart' as http;
 import 'package:pateeznews_admin/shared/widgets/admin_table_chrome.dart';
 import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
@@ -21,6 +22,7 @@ import '../data/admin_mail_repository.dart';
 import 'builder/posta_mjml_builder.dart';
 import 'bulk_mail_models.dart';
 import 'contact_list_models.dart';
+import 'mail_mobile_chrome.dart';
 import 'mail_settings_models.dart';
 import 'mail_template_models.dart';
 
@@ -413,9 +415,10 @@ class _BulkMailScreenState extends State<BulkMailScreen> {
   }
 
   void _showDetail(AdminBulkMailCampaign campaign) {
-    showDialog<void>(
+    showMailSideDrawer<void>(
       context: context,
-      builder: (context) => _BulkMailDetailDialog(campaign: campaign),
+      maxWidth: 760,
+      child: _BulkMailDetailDialog(campaign: campaign),
     );
   }
 
@@ -432,33 +435,18 @@ class _BulkMailScreenState extends State<BulkMailScreen> {
       return;
     }
 
-    final created = await showDialog<AdminBulkMailCampaign>(
+    final created = await showMailSideDrawer<AdminBulkMailCampaign>(
       context: context,
-      barrierDismissible: true,
-      builder: (context) {
-        final size = MediaQuery.sizeOf(context);
-        final width = (size.width - 48).clamp(740.0, 1180.0).toDouble();
-        final height = (size.height - 48).clamp(620.0, 840.0).toDouble();
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.symmetric(
-            horizontal: 24,
-            vertical: 24,
-          ),
-          child: SizedBox(
-            width: width,
-            height: height,
-            child: _BulkMailCreateDialog(
-              campaign: campaign,
-              session: widget.session,
-              repository: widget.repository,
-              templates: _templates,
-              accounts: _accounts,
-              lists: _lists,
-            ),
-          ),
-        );
-      },
+      minWidth: 740,
+      maxWidth: 1180,
+      child: _BulkMailCreateDialog(
+        campaign: campaign,
+        session: widget.session,
+        repository: widget.repository,
+        templates: _templates,
+        accounts: _accounts,
+        lists: _lists,
+      ),
     );
 
     if (created == null || !mounted) return;
@@ -489,12 +477,14 @@ class _BulkMailScreenState extends State<BulkMailScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final horizontalPadding = constraints.maxWidth < 640 ? 16.0 : 28.0;
+        final mobile = constraints.maxWidth < AdminMobile.breakpoint;
         final compact = constraints.maxWidth < 900;
+        final topPadding = mobile ? 18.0 : 28.0;
         final content = Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _BulkMailTitle(title: context.t('nav.mail.campaigns')),
-            const SizedBox(height: 24),
+            SizedBox(height: mobile ? 12 : 24),
             Expanded(
               child: _BulkMailContent(
                 campaigns: _campaigns,
@@ -531,11 +521,23 @@ class _BulkMailScreenState extends State<BulkMailScreen> {
           ],
         );
 
+        if (mobile) {
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+              horizontalPadding,
+              topPadding,
+              horizontalPadding,
+              0,
+            ),
+            child: content,
+          );
+        }
+
         if (compact) {
           return SingleChildScrollView(
             padding: EdgeInsets.fromLTRB(
               horizontalPadding,
-              28,
+              topPadding,
               horizontalPadding,
               28,
             ),
@@ -546,7 +548,7 @@ class _BulkMailScreenState extends State<BulkMailScreen> {
         return Padding(
           padding: EdgeInsets.fromLTRB(
             horizontalPadding,
-            28,
+            topPadding,
             horizontalPadding,
             28,
           ),
@@ -636,53 +638,59 @@ class _BulkMailContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _BulkMailMetricGrid(campaigns: campaigns),
-        const SizedBox(height: 18),
-        _BulkMailStatusFilters(
-          selected: statusFilter,
-          onChanged: onStatusChanged,
-        ),
-        const SizedBox(height: 12),
-        _BulkMailToolbar(
-          pageSize: pageSize,
-          selectedCount: selectedIds.length,
-          searchController: searchController,
-          onPageSizeChanged: onPageSizeChanged,
-          onSearchChanged: onSearchChanged,
-          onDeleteSelected: onDeleteSelected,
-          onRefresh: onRefresh,
-          onCreate: onCreate,
-        ),
-        const SizedBox(height: 18),
-        Expanded(
-          child: _BulkMailTable(
-            campaigns: visibleCampaigns,
-            selectedIds: selectedIds,
-            sortState: sortState,
-            onToggleCampaign: onToggleCampaign,
-            onToggleAllCampaigns: onToggleAllCampaigns,
-            onSort: onSort,
-            onDetail: onDetail,
-            onEdit: onEdit,
-            onStart: onStart,
-            onPause: onPause,
-            onResume: onResume,
-            onSchedule: onSchedule,
-            onCancel: onCancel,
-            onDelete: onDelete,
-          ),
-        ),
-        const SizedBox(height: 16),
-        _BulkMailFooter(
-          page: page,
-          pageSize: pageSize,
-          totalCount: totalCount,
-          onPageChanged: onPageChanged,
-        ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final mobile = constraints.maxWidth < AdminMobile.breakpoint;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _BulkMailMetricGrid(campaigns: campaigns),
+            SizedBox(height: mobile ? 12 : 18),
+            _BulkMailStatusFilters(
+              selected: statusFilter,
+              onChanged: onStatusChanged,
+            ),
+            const SizedBox(height: 12),
+            _BulkMailToolbar(
+              pageSize: pageSize,
+              totalCount: totalCount,
+              selectedCount: selectedIds.length,
+              searchController: searchController,
+              onPageSizeChanged: onPageSizeChanged,
+              onSearchChanged: onSearchChanged,
+              onDeleteSelected: onDeleteSelected,
+              onRefresh: onRefresh,
+              onCreate: onCreate,
+            ),
+            SizedBox(height: mobile ? 14 : 18),
+            Expanded(
+              child: _BulkMailTable(
+                campaigns: visibleCampaigns,
+                selectedIds: selectedIds,
+                sortState: sortState,
+                onToggleCampaign: onToggleCampaign,
+                onToggleAllCampaigns: onToggleAllCampaigns,
+                onSort: onSort,
+                onDetail: onDetail,
+                onEdit: onEdit,
+                onStart: onStart,
+                onPause: onPause,
+                onResume: onResume,
+                onSchedule: onSchedule,
+                onCancel: onCancel,
+                onDelete: onDelete,
+              ),
+            ),
+            SizedBox(height: mobile ? 4 : 16),
+            _BulkMailFooter(
+              page: page,
+              pageSize: pageSize,
+              totalCount: totalCount,
+              onPageChanged: onPageChanged,
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -942,18 +950,61 @@ class _BulkMailStatusFilters extends StatelessWidget {
         ),
       ),
     ];
+    final selectedFilter = filters.firstWhere(
+      (filter) => filter.value == selected,
+      orElse: () => filters.first,
+    );
 
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        for (final filter in filters)
-          _BulkMailStatusChip(
-            filter: filter,
-            selected: selected == filter.value,
-            onTap: () => onChanged(filter.value),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final mobile = constraints.maxWidth < AdminMobile.breakpoint;
+        final width = mobile ? constraints.maxWidth : 280.0;
+
+        return Align(
+          alignment: Alignment.centerLeft,
+          child: SizedBox(
+            width: width,
+            child: Container(
+              height: 44,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(AppRadius.value),
+                border: Border.all(
+                  color: AppColors.line.withValues(alpha: 0.86),
+                ),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: selectedFilter.value,
+                  isExpanded: true,
+                  borderRadius: BorderRadius.circular(AppRadius.value),
+                  icon: const SymbolIcon(
+                    Symbols.keyboard_arrow_down,
+                    color: AppColors.iconMuted,
+                    size: 18,
+                  ),
+                  selectedItemBuilder: (context) {
+                    return filters.map((filter) {
+                      return _StatusSelectLabel(filter: filter);
+                    }).toList();
+                  },
+                  items: [
+                    for (final filter in filters)
+                      DropdownMenuItem<String>(
+                        value: filter.value,
+                        child: _StatusSelectLabel(filter: filter),
+                      ),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) onChanged(value);
+                  },
+                ),
+              ),
+            ),
           ),
-      ],
+        );
+      },
     );
   }
 }
@@ -972,56 +1023,31 @@ class _StatusFilterData {
   final int? count;
 }
 
-class _BulkMailStatusChip extends StatelessWidget {
-  const _BulkMailStatusChip({
-    required this.filter,
-    required this.selected,
-    required this.onTap,
-  });
+class _StatusSelectLabel extends StatelessWidget {
+  const _StatusSelectLabel({required this.filter});
 
   final _StatusFilterData filter;
-  final bool selected;
-  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final foreground = selected ? AppColors.deepOcean : AppColors.inkSoft;
-
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: Container(
-          height: 42,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          decoration: BoxDecoration(
-            color: selected ? AppColors.surface : Colors.white,
-            borderRadius: BorderRadius.circular(AppRadius.value),
-            border: Border.all(
-              color: selected
-                  ? AppColors.deepOcean.withValues(alpha: 0.22)
-                  : AppColors.line.withValues(alpha: 0.82),
+    return Row(
+      children: [
+        SymbolIcon(filter.icon, color: AppColors.deepOcean, size: 18),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            context.t(filter.label),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppColors.deepOcean,
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0,
             ),
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SymbolIcon(filter.icon, color: foreground, size: 18),
-              const SizedBox(width: 8),
-              Text(
-                context.t(filter.label),
-                style: TextStyle(
-                  color: foreground,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0,
-                ),
-              ),
-            ],
-          ),
         ),
-      ),
+      ],
     );
   }
 }
@@ -1029,6 +1055,7 @@ class _BulkMailStatusChip extends StatelessWidget {
 class _BulkMailToolbar extends StatelessWidget {
   const _BulkMailToolbar({
     required this.pageSize,
+    required this.totalCount,
     required this.selectedCount,
     required this.searchController,
     required this.onPageSizeChanged,
@@ -1039,6 +1066,7 @@ class _BulkMailToolbar extends StatelessWidget {
   });
 
   final int pageSize;
+  final int totalCount;
   final int selectedCount;
   final TextEditingController searchController;
   final ValueChanged<int?> onPageSizeChanged;
@@ -1090,6 +1118,50 @@ class _BulkMailToolbar extends StatelessWidget {
             ),
           ],
         );
+
+        if (constraints.maxWidth < AdminMobile.breakpoint) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              MailMobileSearchPanel(
+                controller: searchController,
+                query: searchController.text,
+                hintText: context.t('mail.campaign.searchPlaceholder'),
+                onSearchChanged: onSearchChanged,
+                recordCount: totalCount,
+                pageSize: pageSize,
+                onPageSizeChanged: onPageSizeChanged,
+              ),
+              const SizedBox(height: 10),
+              if (selectedCount > 0) ...[
+                _SelectedDeleteButton(
+                  count: selectedCount,
+                  onPressed: onDeleteSelected,
+                ),
+                const SizedBox(height: 10),
+              ],
+              Row(
+                children: [
+                  Expanded(
+                    child: _SoftActionButton(
+                      icon: Symbols.redo,
+                      label: 'mail.action.refresh',
+                      onPressed: onRefresh,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _PrimaryActionButton(
+                      icon: Symbols.add,
+                      label: 'mail.campaign.new',
+                      onPressed: onCreate,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          );
+        }
 
         if (compact) {
           return Column(
@@ -1324,6 +1396,30 @@ class _BulkMailTable extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
+        if (constraints.maxWidth < AdminMobile.breakpoint) {
+          return AdminMobileListView(
+            loading: false,
+            itemCount: campaigns.length,
+            emptyLabel: context.t('mail.campaign.empty'),
+            itemBuilder: (context, index) {
+              final campaign = campaigns[index];
+              return _BulkMailMobileCard(
+                campaign: campaign,
+                selected: selectedIds.contains(campaign.id),
+                onToggle: () => onToggleCampaign(campaign.id),
+                onDetail: onDetail,
+                onEdit: onEdit,
+                onStart: onStart,
+                onPause: onPause,
+                onResume: onResume,
+                onSchedule: onSchedule,
+                onCancel: onCancel,
+                onDelete: onDelete,
+              );
+            },
+          );
+        }
+
         final tableWidth = constraints.maxWidth < _minWidth
             ? _minWidth
             : constraints.maxWidth;
@@ -1799,6 +1895,222 @@ class _BulkMailRow extends StatelessWidget {
                 onDelete: () => onDelete(campaign),
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BulkMailMobileCard extends StatelessWidget {
+  const _BulkMailMobileCard({
+    required this.campaign,
+    required this.selected,
+    required this.onToggle,
+    required this.onDetail,
+    required this.onEdit,
+    required this.onStart,
+    required this.onPause,
+    required this.onResume,
+    required this.onSchedule,
+    required this.onCancel,
+    required this.onDelete,
+  });
+
+  final AdminBulkMailCampaign campaign;
+  final bool selected;
+  final VoidCallback onToggle;
+  final ValueChanged<AdminBulkMailCampaign> onDetail;
+  final ValueChanged<AdminBulkMailCampaign> onEdit;
+  final ValueChanged<AdminBulkMailCampaign> onStart;
+  final ValueChanged<AdminBulkMailCampaign> onPause;
+  final ValueChanged<AdminBulkMailCampaign> onResume;
+  final ValueChanged<AdminBulkMailCampaign> onSchedule;
+  final ValueChanged<AdminBulkMailCampaign> onCancel;
+  final ValueChanged<AdminBulkMailCampaign> onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final status = campaign.status;
+    final date =
+        '${formatAdminFullDate(context, campaign.tableDate)} ${formatAdminTime(campaign.tableDate)}';
+
+    return AdminMobileCard(
+      selected: selected,
+      onTap: () => onDetail(campaign),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 1),
+                child: AdminMobileCheckbox(
+                  value: selected,
+                  onChanged: (_) => onToggle(),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      campaign.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF2F4053),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14.2,
+                        height: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      campaign.subject,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF7A7F85),
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        height: 1.18,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Transform.scale(
+                scale: 0.88,
+                alignment: Alignment.topRight,
+                child: AdminMobileMenuButton(
+                  tooltip: context.t('mail.campaign.actions'),
+                  actions: [
+                    AdminMobileMenuAction(
+                      icon: Symbols.visibility,
+                      label: context.t('mail.campaign.action.detail'),
+                      onTap: () => onDetail(campaign),
+                    ),
+                    AdminMobileMenuAction(
+                      icon: Symbols.edit_square,
+                      label: context.t('mail.campaign.action.edit'),
+                      onTap: () => onEdit(campaign),
+                    ),
+                    if (status.canStart)
+                      AdminMobileMenuAction(
+                        icon: Symbols.schedule_send,
+                        label: context.t('mail.campaign.action.start'),
+                        onTap: () => onStart(campaign),
+                      ),
+                    if (status.canSchedule)
+                      AdminMobileMenuAction(
+                        icon: Symbols.schedule,
+                        label: context.t('mail.campaign.action.schedule'),
+                        onTap: () => onSchedule(campaign),
+                      ),
+                    if (status.canPause)
+                      AdminMobileMenuAction(
+                        icon: Symbols.pending_actions,
+                        label: context.t('mail.campaign.action.pause'),
+                        onTap: () => onPause(campaign),
+                      ),
+                    if (status.canResume)
+                      AdminMobileMenuAction(
+                        icon: Symbols.schedule_send,
+                        label: context.t('mail.campaign.action.continue'),
+                        onTap: () => onResume(campaign),
+                      ),
+                    if (status != AdminBulkMailStatus.completed &&
+                        status != AdminBulkMailStatus.cancelled)
+                      AdminMobileMenuAction(
+                        icon: Symbols.close,
+                        label: context.t('mail.campaign.action.cancel'),
+                        onTap: () => onCancel(campaign),
+                      ),
+                    AdminMobileMenuAction(
+                      icon: Symbols.delete,
+                      label: context.t('common.delete'),
+                      danger: true,
+                      onTap: () => onDelete(campaign),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 13),
+          Row(
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(AppRadius.value),
+                  child: LinearProgressIndicator(
+                    value: campaign.progress,
+                    minHeight: 5,
+                    backgroundColor: AppColors.softLine,
+                    color: status.dotColor,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                '${(campaign.progress * 100).round()}%',
+                style: const TextStyle(
+                  color: AppColors.inkSoft,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              AdminMobileStatusPill(
+                label: context.t(status.labelKey),
+                color: status.dotColor,
+              ),
+              AdminMobileMeta(
+                icon: Symbols.group,
+                value:
+                    '${campaign.recipientCount} ${context.t('common.recipient')}',
+              ),
+              AdminMobileMeta(
+                icon: Symbols.check,
+                value: '${campaign.sentCount} ${context.t('common.sent')}',
+              ),
+              AdminMobileMeta(
+                icon: Symbols.visibility,
+                value:
+                    '${campaign.openCount} / ${(campaign.openRate * 100).toStringAsFixed(1)}%',
+              ),
+              AdminMobileMeta(
+                icon: Symbols.cursor_hand,
+                value:
+                    '${campaign.clickCount} / ${(campaign.clickRate * 100).toStringAsFixed(1)}%',
+              ),
+              AdminMobileMeta(
+                icon: Symbols.close,
+                value:
+                    '${campaign.bounceCount} / ${(campaign.bounceRate * 100).toStringAsFixed(1)}%',
+              ),
+              AdminMobileMeta(icon: Symbols.schedule, value: date),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _CampaignControlButton(
+            campaign: campaign,
+            onStart: () => onStart(campaign),
+            onPause: () => onPause(campaign),
+            onResume: () => onResume(campaign),
           ),
         ],
       ),
@@ -2502,11 +2814,12 @@ class _BulkMailFooter extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact = constraints.maxWidth < 640;
+        final rangeText = context.t(
+          'common.recordRange',
+          values: {'from': from, 'to': to, 'total': totalCount},
+        );
         final summary = Text(
-          context.t(
-            'common.recordRange',
-            values: {'from': from, 'to': to, 'total': totalCount},
-          ),
+          rangeText,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             color: AppColors.inkSoft,
             fontWeight: FontWeight.w500,
@@ -2520,15 +2833,12 @@ class _BulkMailFooter extends StatelessWidget {
         );
 
         if (compact) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Divider(height: 1, color: AppColors.line),
-              const SizedBox(height: 16),
-              summary,
-              const SizedBox(height: 14),
-              pager,
-            ],
+          return AdminMobilePager(
+            page: page,
+            lastPage: lastPage,
+            rangeText: rangeText,
+            loading: false,
+            onPageChanged: onPageChanged,
           );
         }
 
@@ -2572,104 +2882,93 @@ class _BulkMailDetailDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      insetPadding: const EdgeInsets.all(28),
-      backgroundColor: Colors.transparent,
-      child: Container(
-        width: 760,
-        constraints: const BoxConstraints(maxHeight: 680),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(AppRadius.value),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(28, 24, 20, 12),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      context.t('mail.campaign.detailTitle'),
-                      style: Theme.of(context).textTheme.headlineSmall
-                          ?.copyWith(
-                            color: AppColors.deepOcean,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0,
-                          ),
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    mouseCursor: SystemMouseCursors.click,
-                    icon: const SymbolIcon(
-                      Symbols.close,
+    return Material(
+      color: Colors.white,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(28, 24, 20, 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    context.t('mail.campaign.detailTitle'),
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       color: AppColors.deepOcean,
-                      size: 20,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0,
                     ),
                   ),
-                ],
-              ),
-            ),
-            Flexible(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(28, 8, 28, 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _DetailHeader(campaign: campaign),
-                    const SizedBox(height: 20),
-                    _DetailGrid(campaign: campaign),
-                    const SizedBox(height: 22),
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppColors.surface,
-                        borderRadius: BorderRadius.circular(AppRadius.value),
-                        border: Border.all(color: AppColors.line),
-                      ),
-                      child: Text(
-                        campaign.preview,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppColors.deepOcean,
-                          height: 1.55,
-                          fontWeight: FontWeight.w500,
-                          letterSpacing: 0,
-                        ),
-                      ),
-                    ),
-                  ],
                 ),
-              ),
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  mouseCursor: SystemMouseCursors.click,
+                  icon: const SymbolIcon(
+                    Symbols.close,
+                    color: AppColors.deepOcean,
+                    size: 20,
+                  ),
+                ),
+              ],
             ),
-            Container(
-              padding: const EdgeInsets.fromLTRB(28, 14, 28, 22),
-              decoration: BoxDecoration(
-                border: Border(top: BorderSide(color: AppColors.softLine)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
+          ),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(28, 8, 28, 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    style:
-                        TextButton.styleFrom(
-                          foregroundColor: AppColors.deepOcean,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        ).copyWith(
-                          mouseCursor: const WidgetStatePropertyAll(
-                            SystemMouseCursors.click,
-                          ),
-                        ),
-                    child: Text(context.t('common.cancel')),
+                  _DetailHeader(campaign: campaign),
+                  const SizedBox(height: 20),
+                  _DetailGrid(campaign: campaign),
+                  const SizedBox(height: 22),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(AppRadius.value),
+                      border: Border.all(color: AppColors.line),
+                    ),
+                    child: Text(
+                      campaign.preview,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppColors.deepOcean,
+                        height: 1.55,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: 0,
+                      ),
+                    ),
                   ),
                 ],
               ),
             ),
-          ],
-        ),
+          ),
+          Container(
+            padding: const EdgeInsets.fromLTRB(28, 14, 28, 22),
+            decoration: BoxDecoration(
+              border: Border(top: BorderSide(color: AppColors.softLine)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style:
+                      TextButton.styleFrom(
+                        foregroundColor: AppColors.deepOcean,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ).copyWith(
+                        mouseCursor: const WidgetStatePropertyAll(
+                          SystemMouseCursors.click,
+                        ),
+                      ),
+                  child: Text(context.t('common.cancel')),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -3338,6 +3637,9 @@ class _BulkMailCreateDialogState extends State<_BulkMailCreateDialog> {
                 child: LayoutBuilder(
                   builder: (context, constraints) {
                     if (constraints.maxWidth < 820) {
+                      final previewHeight = constraints.maxWidth < 480
+                          ? 430.0
+                          : 520.0;
                       return SingleChildScrollView(
                         padding: const EdgeInsets.all(16),
                         child: Column(
@@ -3363,7 +3665,7 @@ class _BulkMailCreateDialogState extends State<_BulkMailCreateDialog> {
                             ),
                             const SizedBox(height: 16),
                             SizedBox(
-                              height: 520,
+                              height: previewHeight,
                               child: _LivePreview(
                                 template: _selectedTemplate(),
                                 sampleContact: _previewContact,
@@ -4054,28 +4356,35 @@ class _LivePreview extends StatelessWidget {
             borderRadius: BorderRadius.circular(AppRadius.value),
             border: Border.all(color: AppColors.line),
           ),
-          child: Row(
-            children: [
-              const SymbolIcon(
-                Symbols.visibility,
-                color: AppColors.deepOcean,
-                size: 17,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  context.t('mail.campaign.livePreview'),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 330;
+              final title = Row(
+                children: [
+                  const SymbolIcon(
+                    Symbols.visibility,
                     color: AppColors.deepOcean,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0,
+                    size: 17,
                   ),
-                ),
-              ),
-              Text(
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      context.t('mail.campaign.livePreview'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.deepOcean,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  _LivePreviewBadge(label: context.t('mail.campaign.live')),
+                ],
+              );
+              final hint = Text(
                 context.t('mail.campaign.variableHint'),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -4085,27 +4394,24 @@ class _LivePreview extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                   letterSpacing: 0,
                 ),
-              ),
-              const SizedBox(width: 10),
-              Container(
-                height: 22,
-                padding: const EdgeInsets.symmetric(horizontal: 9),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF198754).withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(AppRadius.value),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  context.t('mail.campaign.live'),
-                  style: const TextStyle(
-                    color: Color(0xFF198754),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0,
-                  ),
-                ),
-              ),
-            ],
+              );
+
+              if (compact) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [title, const SizedBox(height: 5), hint],
+                );
+              }
+
+              return Row(
+                children: [
+                  Expanded(flex: 5, child: title),
+                  const SizedBox(width: 10),
+                  Expanded(flex: 4, child: hint),
+                ],
+              );
+            },
           ),
         ),
         const SizedBox(height: 8),
@@ -4129,6 +4435,36 @@ class _LivePreview extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _LivePreviewBadge extends StatelessWidget {
+  const _LivePreviewBadge({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 22,
+      padding: const EdgeInsets.symmetric(horizontal: 9),
+      decoration: BoxDecoration(
+        color: const Color(0xFF198754).withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppRadius.value),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          color: Color(0xFF198754),
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0,
+        ),
+      ),
     );
   }
 }

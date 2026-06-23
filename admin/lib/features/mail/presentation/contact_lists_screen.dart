@@ -22,6 +22,7 @@ import '../data/admin_mail_repository.dart';
 import 'contact_import_parser.dart';
 import 'contact_list_contacts_dialog.dart';
 import 'contact_list_models.dart';
+import 'mail_mobile_chrome.dart';
 
 class ContactListsScreen extends StatefulWidget {
   const ContactListsScreen({
@@ -276,29 +277,14 @@ class _ContactListsScreenState extends State<ContactListsScreen> {
   }
 
   Future<void> _showListDialog({AdminContactList? list}) async {
-    final result = await showDialog<_ContactListDialogResult>(
+    final result = await showMailSideDrawer<_ContactListDialogResult>(
       context: context,
-      barrierDismissible: true,
-      builder: (context) {
-        final size = MediaQuery.sizeOf(context);
-        final width = (size.width - 48).clamp(740.0, 1180.0).toDouble();
-        final height = (size.height - 48).clamp(620.0, 840.0).toDouble();
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.symmetric(
-            horizontal: 24,
-            vertical: 24,
-          ),
-          child: SizedBox(
-            width: width,
-            height: height,
-            child: _ContactListDialog(
-              list: list,
-              subscribersRepository: widget.subscribersRepository,
-            ),
-          ),
-        );
-      },
+      minWidth: 740,
+      maxWidth: 1180,
+      child: _ContactListDialog(
+        list: list,
+        subscribersRepository: widget.subscribersRepository,
+      ),
     );
 
     if (result == null || !mounted) return;
@@ -339,21 +325,14 @@ class _ContactListsScreenState extends State<ContactListsScreen> {
   }
 
   Future<void> _showContacts(AdminContactList list) async {
-    final size = MediaQuery.sizeOf(context);
-    await showDialog<void>(
+    await showMailSideDrawer<void>(
       context: context,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.all(24),
-        child: SizedBox(
-          width: (size.width - 48).clamp(640.0, 980.0).toDouble(),
-          height: (size.height - 48).clamp(520.0, 760.0).toDouble(),
-          child: ContactListContactsDialog(
-            session: widget.session,
-            repository: widget.repository,
-            list: list,
-          ),
-        ),
+      minWidth: 640,
+      maxWidth: 980,
+      child: ContactListContactsDialog(
+        session: widget.session,
+        repository: widget.repository,
+        list: list,
       ),
     );
     if (mounted) await _loadLists();
@@ -404,6 +383,17 @@ class _ContactListsScreenState extends State<ContactListsScreen> {
         );
 
         if (compact) {
+          if (mobile) {
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                horizontalPadding,
+                topPadding,
+                horizontalPadding,
+                0,
+              ),
+              child: content,
+            );
+          }
           return SingleChildScrollView(
             padding: EdgeInsets.fromLTRB(
               horizontalPadding,
@@ -527,6 +517,7 @@ class _ContactListsTableCard extends StatelessWidget {
             totalCount: totalCount,
             searchController: searchController,
             searchQuery: searchQuery,
+            onPageSizeChanged: onPageSizeChanged,
             selectedIds: selectedIds,
             onSearchChanged: onSearchChanged,
             onPageChanged: onPageChanged,
@@ -634,6 +625,7 @@ class _ContactListsMobileView extends StatelessWidget {
     required this.totalCount,
     required this.searchController,
     required this.searchQuery,
+    required this.onPageSizeChanged,
     required this.selectedIds,
     required this.onSearchChanged,
     required this.onPageChanged,
@@ -652,6 +644,7 @@ class _ContactListsMobileView extends StatelessWidget {
   final int totalCount;
   final TextEditingController searchController;
   final String searchQuery;
+  final ValueChanged<int?> onPageSizeChanged;
   final Set<int> selectedIds;
   final ValueChanged<String> onSearchChanged;
   final ValueChanged<int> onPageChanged;
@@ -674,16 +667,16 @@ class _ContactListsMobileView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        AdminMobileToolbar(
+        MailMobileSearchPanel(
           controller: searchController,
           query: searchQuery,
           hintText: context.t('mail.contacts.searchPlaceholder'),
           onSearchChanged: onSearchChanged,
-          activeFilterCount: 0,
-          onOpenFilters: () {},
-          showFilters: false,
+          recordCount: totalCount,
+          pageSize: pageSize,
+          onPageSizeChanged: onPageSizeChanged,
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 4),
         AdminMobilePrimaryButton(
           icon: Symbols.add,
           label: context.t('mail.contacts.newList'),
@@ -1462,21 +1455,11 @@ class _ContactListDialogState extends State<_ContactListDialog> {
   }
 
   Future<void> _chooseSubscribers() async {
-    final size = MediaQuery.sizeOf(context);
-    final rows = await showDialog<List<AdminContactImportRow>>(
+    final rows = await showMailSideDrawer<List<AdminContactImportRow>>(
       context: context,
-      barrierDismissible: true,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.all(24),
-        child: SizedBox(
-          width: (size.width - 48).clamp(640.0, 980.0).toDouble(),
-          height: (size.height - 48).clamp(560.0, 760.0).toDouble(),
-          child: _SubscriberPickerDialog(
-            repository: widget.subscribersRepository,
-          ),
-        ),
-      ),
+      minWidth: 640,
+      maxWidth: 980,
+      child: _SubscriberPickerDialog(repository: widget.subscribersRepository),
     );
     if (rows == null || !mounted) return;
     setState(() {

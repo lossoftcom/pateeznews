@@ -8,6 +8,7 @@ import '../../../core/localization/admin_language_controller.dart';
 import '../../../shared/icons/symbols.dart';
 import '../../auth/data/admin_auth_models.dart';
 import '../data/admin_whatsapp_repository.dart';
+import 'whatsapp_mobile_chrome.dart';
 import 'whatsapp_models.dart';
 import 'whatsapp_template_models.dart';
 
@@ -165,11 +166,11 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
   }
 
   Future<void> _openManualChatDialog() async {
-    final request = await showDialog<_ManualWhatsappChatRequest>(
+    final request = await showWhatsappSideDrawer<_ManualWhatsappChatRequest>(
       context: context,
-      barrierDismissible: true,
-      builder: (context) =>
-          _ManualWhatsappChatDialog(templates: _readyTemplates),
+      minWidth: 380,
+      maxWidth: 540,
+      child: _ManualWhatsappChatDialog(templates: _readyTemplates),
     );
     if (request == null || !mounted) return;
 
@@ -346,56 +347,52 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
         // Title and Info
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Row(
-            children: [
-              Text(
-                context.t('nav.whatsapp.messaging'),
-                style: const TextStyle(
-                  color: AppColors.deepOcean,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 18,
-                ),
-              ),
-              const Spacer(),
-              Tooltip(
-                message: context.t('whatsapp.messaging.newChat'),
-                child: IconButton(
-                  onPressed: _openManualChatDialog,
-                  mouseCursor: SystemMouseCursors.click,
-                  icon: const Icon(
-                    Symbols.add,
-                    color: AppColors.deepOcean,
-                    size: 20,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 4),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF25D366).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(AppRadius.value),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(
-                      Symbols.check_circle,
-                      color: Color(0xFF25D366),
-                      size: 12,
-                    ),
-                    SizedBox(width: 4),
-                    Text(
-                      'API AKTİF',
-                      style: TextStyle(
-                        color: Color(0xFF25D366),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final compactHeader = constraints.maxWidth < 360;
+
+              return Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      context.t('nav.whatsapp.messaging'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.deepOcean,
                         fontWeight: FontWeight.w800,
-                        fontSize: 10,
+                        fontSize: 18,
+                        letterSpacing: 0,
                       ),
                     ),
-                  ],
-                ),
-              ),
-            ],
+                  ),
+                  const SizedBox(width: 8),
+                  Tooltip(
+                    message: context.t('whatsapp.messaging.newChat'),
+                    child: SizedBox(
+                      width: 34,
+                      height: 34,
+                      child: IconButton(
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints.tightFor(
+                          width: 34,
+                          height: 34,
+                        ),
+                        onPressed: _openManualChatDialog,
+                        mouseCursor: SystemMouseCursors.click,
+                        icon: const Icon(
+                          Symbols.add,
+                          color: AppColors.deepOcean,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  _buildApiStatusBadge(compact: compactHeader),
+                ],
+              );
+            },
           ),
         ),
         if (_loading) const LinearProgressIndicator(minHeight: 2),
@@ -568,6 +565,53 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
     );
   }
 
+  Widget _buildApiStatusBadge({required bool compact}) {
+    return Tooltip(
+      message: 'API AKTİF',
+      child: SizedBox(
+        width: compact ? 34 : 86,
+        height: 28,
+        child: Container(
+          padding: EdgeInsets.symmetric(horizontal: compact ? 0 : 9),
+          decoration: BoxDecoration(
+            color: const Color(0xFF25D366).withValues(alpha: 0.11),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: const Color(0xFF25D366).withValues(alpha: 0.18),
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Symbols.check_circle,
+                color: Color(0xFF25D366),
+                size: 13,
+              ),
+              if (!compact) ...[
+                const SizedBox(width: 5),
+                const Flexible(
+                  child: Text(
+                    'API AKTİF',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Color(0xFF25D366),
+                      fontWeight: FontWeight.w900,
+                      fontSize: 10,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildChatWindow(WhatsappChat chat, {required bool isCompact}) {
     final canSendFreeform = chat.canSendFreeform;
     return Column(
@@ -608,10 +652,13 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
                   children: [
                     Text(
                       chat.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: AppColors.deepOcean,
                         fontWeight: FontWeight.w700,
                         fontSize: 14,
+                        letterSpacing: 0,
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -632,24 +679,31 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
                           ),
                         ),
                         const SizedBox(width: 6),
-                        Text(
-                          !canSendFreeform
-                              ? context.t('whatsapp.messaging.templateRequired')
-                              : _isSendingMessage
-                              ? context.t('whatsapp.typing')
-                              : chat.isOnline
-                              ? context.t('whatsapp.online')
-                              : 'Çevrim dışı',
-                          style: TextStyle(
-                            color: !canSendFreeform
-                                ? AppColors.warmHorizon
+                        Expanded(
+                          child: Text(
+                            !canSendFreeform
+                                ? context.t(
+                                    'whatsapp.messaging.templateRequired',
+                                  )
                                 : _isSendingMessage
-                                ? Colors.amber[800]
+                                ? context.t('whatsapp.typing')
                                 : chat.isOnline
-                                ? const Color(0xFF25D366)
-                                : AppColors.support,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
+                                ? context.t('whatsapp.online')
+                                : 'Çevrim dışı',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: !canSendFreeform
+                                  ? AppColors.warmHorizon
+                                  : _isSendingMessage
+                                  ? Colors.amber[800]
+                                  : chat.isOnline
+                                  ? const Color(0xFF25D366)
+                                  : AppColors.support,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0,
+                            ),
                           ),
                         ),
                       ],
@@ -681,20 +735,23 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
 
         // Message stream Area
         Expanded(
-          child: Container(
-            color: AppColors.surface,
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.all(16),
-              itemCount: chat.messages.length + (_isSendingMessage ? 1 : 0),
-              itemBuilder: (context, index) {
-                if (index == chat.messages.length && _isSendingMessage) {
-                  return _buildTypingIndicatorBubble();
-                }
+          child: DecoratedBox(
+            decoration: const BoxDecoration(color: Color(0xFFEAF2EA)),
+            child: CustomPaint(
+              painter: const _WhatsappWallpaperPainter(),
+              child: ListView.builder(
+                controller: _scrollController,
+                padding: const EdgeInsets.fromLTRB(14, 16, 14, 18),
+                itemCount: chat.messages.length + (_isSendingMessage ? 1 : 0),
+                itemBuilder: (context, index) {
+                  if (index == chat.messages.length && _isSendingMessage) {
+                    return _buildTypingIndicatorBubble();
+                  }
 
-                final message = chat.messages[index];
-                return _buildMessageBubble(message);
-              },
+                  final message = chat.messages[index];
+                  return _buildMessageBubble(message);
+                },
+              ),
             ),
           ),
         ),
@@ -704,103 +761,171 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
 
         if (!canSendFreeform) _buildTemplateGate(chat),
 
-        // Bottom Input typing bar
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            border: Border(top: BorderSide(color: AppColors.line)),
-          ),
-          child: Row(
+        _buildComposerBar(canSendFreeform),
+      ],
+    );
+  }
+
+  Widget _buildComposerBar(bool canSendFreeform) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(10, 9, 10, 10),
+      decoration: const BoxDecoration(
+        color: Color(0xFFF5F0E8),
+        border: Border(top: BorderSide(color: AppColors.line)),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 430;
+          final aiActive = canSendFreeform && _showAiHelper;
+          final aiButton = SizedBox(
+            width: compact ? 40 : 128,
+            height: 40,
+            child: TextButton(
+              onPressed: canSendFreeform
+                  ? () => setState(() => _showAiHelper = !_showAiHelper)
+                  : null,
+              style: TextButton.styleFrom(
+                backgroundColor: aiActive
+                    ? AppColors.deepOcean
+                    : canSendFreeform
+                    ? Colors.white
+                    : AppColors.softLine,
+                foregroundColor: aiActive
+                    ? Colors.white
+                    : canSendFreeform
+                    ? AppColors.deepOcean
+                    : AppColors.support,
+                disabledForegroundColor: AppColors.placeholder,
+                padding: EdgeInsets.symmetric(horizontal: compact ? 0 : 10),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(999),
+                  side: BorderSide(
+                    color: aiActive
+                        ? AppColors.deepOcean
+                        : AppColors.line.withValues(alpha: 0.88),
+                  ),
+                ),
+                textStyle: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0,
+                ),
+              ),
+              child: compact
+                  ? const Icon(Symbols.auto_awesome, size: 16)
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Symbols.auto_awesome, size: 14),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            context.t('whatsapp.aiWriter'),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+            ),
+          );
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              // Attach button
-              IconButton(
-                icon: const Icon(
-                  Symbols.attach_file,
-                  color: AppColors.iconMuted,
-                ),
-                onPressed: canSendFreeform ? () {} : null,
-              ),
-
-              // AI Assist button
-              ElevatedButton.icon(
-                onPressed: canSendFreeform
-                    ? () {
-                        setState(() {
-                          _showAiHelper = !_showAiHelper;
-                        });
-                      }
-                    : null,
-                icon: const Icon(Symbols.auto_awesome, size: 14),
-                label: Text(context.t('whatsapp.aiWriter')),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.deepOcean,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  shadowColor: Colors.transparent,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 12,
+              SizedBox(
+                width: 40,
+                height: 40,
+                child: IconButton(
+                  padding: EdgeInsets.zero,
+                  icon: Icon(
+                    Symbols.attach_file,
+                    color: canSendFreeform
+                        ? AppColors.iconMuted
+                        : AppColors.placeholder,
+                    size: 20,
                   ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppRadius.value),
-                  ),
-                  textStyle: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 0,
-                  ),
+                  onPressed: canSendFreeform ? () {} : null,
+                  mouseCursor: SystemMouseCursors.click,
                 ),
               ),
-              const SizedBox(width: 8),
-
-              // Text Field Input
+              if (!compact) ...[aiButton, const SizedBox(width: 8)],
               Expanded(
-                child: TextField(
-                  controller: _messageController,
-                  enabled: canSendFreeform,
-                  onSubmitted: (_) => _sendMessage(),
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: AppColors.deepOcean,
+                child: Container(
+                  constraints: const BoxConstraints(minHeight: 40),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(color: AppColors.line),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.025),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
-                  decoration: InputDecoration(
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                    fillColor: AppColors.surface,
-                    filled: true,
-                    hintText: canSendFreeform
-                        ? context.t('whatsapp.placeholder')
-                        : context.t('whatsapp.messaging.templateRequiredInput'),
-                    hintStyle: const TextStyle(
-                      color: AppColors.placeholder,
+                  child: TextField(
+                    controller: _messageController,
+                    enabled: canSendFreeform,
+                    minLines: 1,
+                    maxLines: 4,
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) => _sendMessage(),
+                    style: const TextStyle(
                       fontSize: 13,
+                      color: AppColors.deepOcean,
+                      height: 1.35,
+                      letterSpacing: 0,
                     ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(AppRadius.value),
-                      borderSide: const BorderSide(color: AppColors.line),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(AppRadius.value),
-                      borderSide: const BorderSide(color: AppColors.line),
+                    decoration: InputDecoration(
+                      isDense: true,
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 11,
+                      ),
+                      hintText: canSendFreeform
+                          ? context.t('whatsapp.placeholder')
+                          : context.t(
+                              'whatsapp.messaging.templateRequiredInput',
+                            ),
+                      hintStyle: const TextStyle(
+                        color: AppColors.placeholder,
+                        fontSize: 13,
+                        letterSpacing: 0,
+                      ),
                     ),
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
-
-              // Send button
-              IconButton(
-                icon: const Icon(Symbols.send, color: AppColors.actionRed),
-                onPressed: canSendFreeform ? _sendMessage : null,
+              if (compact) ...[const SizedBox(width: 7), aiButton],
+              const SizedBox(width: 7),
+              SizedBox(
+                width: 42,
+                height: 42,
+                child: TextButton(
+                  onPressed: canSendFreeform ? _sendMessage : null,
+                  style: TextButton.styleFrom(
+                    backgroundColor: canSendFreeform
+                        ? AppColors.actionRed
+                        : AppColors.softLine,
+                    foregroundColor: canSendFreeform
+                        ? Colors.white
+                        : AppColors.placeholder,
+                    disabledForegroundColor: AppColors.placeholder,
+                    padding: EdgeInsets.zero,
+                    shape: const CircleBorder(),
+                  ),
+                  child: const Icon(Symbols.send, size: 20),
+                ),
               ),
             ],
-          ),
-        ),
-      ],
+          );
+        },
+      ),
     );
   }
 
@@ -860,98 +985,137 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
         color: Color(0xFFFFFBEB),
         border: Border(top: BorderSide(color: AppColors.line)),
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(
-              color: AppColors.warmHorizon.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(AppRadius.value),
-            ),
-            child: const Icon(
-              Symbols.lock,
-              color: AppColors.warmHorizon,
-              size: 18,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              context.t('whatsapp.messaging.templateGate'),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: AppColors.deepOcean,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                height: 1.35,
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          if (templates.isEmpty)
-            Text(
-              context.t('whatsapp.messaging.noReadyTemplate'),
-              style: const TextStyle(
-                color: AppColors.support,
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-              ),
-            )
-          else
-            PopupMenuButton<AdminWhatsappTemplate>(
-              tooltip: context.t('whatsapp.messaging.sendTemplate'),
-              enabled: !_isSendingTemplate,
-              onSelected: (template) => _sendTemplate(chat, template),
-              itemBuilder: (context) => [
-                for (final template in templates)
-                  PopupMenuItem<AdminWhatsappTemplate>(
-                    value: template,
-                    child: Text(
-                      template.nameKey,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 380;
+          final action = templates.isEmpty
+              ? Text(
+                  context.t('whatsapp.messaging.noReadyTemplate'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.support,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                )
+              : PopupMenuButton<AdminWhatsappTemplate>(
+                  tooltip: context.t('whatsapp.messaging.sendTemplate'),
+                  enabled: !_isSendingTemplate,
+                  onSelected: (template) => _sendTemplate(chat, template),
+                  itemBuilder: (context) => [
+                    for (final template in templates)
+                      PopupMenuItem<AdminWhatsappTemplate>(
+                        value: template,
+                        child: Text(
+                          template.nameKey,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
+                  child: Container(
+                    height: 36,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: _isSendingTemplate
+                          ? AppColors.softLine
+                          : AppColors.deepOcean,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Symbols.verified,
+                          color: _isSendingTemplate
+                              ? AppColors.support
+                              : Colors.white,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 7),
+                        ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: compact ? 108 : 128,
+                          ),
+                          child: Text(
+                            _isSendingTemplate
+                                ? context.t(
+                                    'whatsapp.messaging.sendingTemplate',
+                                  )
+                                : context.t('whatsapp.messaging.sendTemplate'),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: _isSendingTemplate
+                                  ? AppColors.support
+                                  : Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-              ],
-              child: Container(
-                height: 36,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
+                );
+
+          final note = Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
                 decoration: BoxDecoration(
-                  color: _isSendingTemplate
-                      ? AppColors.softLine
-                      : AppColors.deepOcean,
+                  color: AppColors.warmHorizon.withValues(alpha: 0.14),
                   borderRadius: BorderRadius.circular(AppRadius.value),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Symbols.verified,
-                      color: _isSendingTemplate
-                          ? AppColors.support
-                          : Colors.white,
-                      size: 16,
-                    ),
-                    const SizedBox(width: 7),
-                    Text(
-                      _isSendingTemplate
-                          ? context.t('whatsapp.messaging.sendingTemplate')
-                          : context.t('whatsapp.messaging.sendTemplate'),
-                      style: TextStyle(
-                        color: _isSendingTemplate
-                            ? AppColors.support
-                            : Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ],
+                child: const Icon(
+                  Symbols.lock,
+                  color: AppColors.warmHorizon,
+                  size: 18,
                 ),
               ),
-            ),
-        ],
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  context.t('whatsapp.messaging.templateGate'),
+                  maxLines: compact ? 3 : 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.deepOcean,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    height: 1.35,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ),
+            ],
+          );
+
+          if (compact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                note,
+                const SizedBox(height: 8),
+                Align(alignment: Alignment.centerRight, child: action),
+              ],
+            );
+          }
+
+          return Row(
+            children: [
+              Expanded(child: note),
+              const SizedBox(width: 10),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 170),
+                child: action,
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -990,70 +1154,104 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
   }
 
   Widget _buildMessageBubble(WhatsappMessage message) {
-    return Align(
-      alignment: message.isOutgoing
-          ? Alignment.centerRight
-          : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        constraints: const BoxConstraints(maxWidth: 480),
-        decoration: BoxDecoration(
-          color: message.isOutgoing ? Colors.white : AppColors.softLine,
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(8),
-            topRight: const Radius.circular(8),
-            bottomLeft: Radius.circular(message.isOutgoing ? 8 : 0),
-            bottomRight: Radius.circular(message.isOutgoing ? 0 : 8),
-          ),
-          border: Border.all(
-            color: message.isOutgoing ? AppColors.line : Colors.transparent,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.015),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              message.text,
-              style: const TextStyle(
-                color: AppColors.deepOcean,
-                fontSize: 13,
-                height: 1.45,
-                fontWeight: FontWeight.w500,
+    final outgoing = message.isOutgoing;
+    final bubbleColor = outgoing ? const Color(0xFFE1FFC7) : Colors.white;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxWidth = constraints.maxWidth < 540
+            ? constraints.maxWidth * 0.82
+            : 430.0;
+
+        return Align(
+          alignment: outgoing ? Alignment.centerRight : Alignment.centerLeft,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Positioned(
+                top: 2,
+                right: outgoing ? 2 : null,
+                left: outgoing ? null : 2,
+                child: _BubbleTail(outgoing: outgoing, color: bubbleColor),
               ),
-            ),
-            const SizedBox(height: 4),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Text(
-                  _formatTime(message.timestamp),
-                  style: const TextStyle(
-                    color: AppColors.placeholder,
-                    fontSize: 9,
-                  ),
+              Container(
+                margin: EdgeInsets.only(
+                  left: outgoing ? 0 : 8,
+                  right: outgoing ? 8 : 0,
+                  bottom: 7,
                 ),
-                if (message.isOutgoing) ...[
-                  const SizedBox(width: 4),
-                  Icon(
-                    message.isRead ? Symbols.done_all : Symbols.done,
-                    size: 13,
-                    color: message.isRead ? Colors.blue : AppColors.placeholder,
+                constraints: BoxConstraints(maxWidth: maxWidth),
+                decoration: BoxDecoration(
+                  color: bubbleColor,
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(outgoing ? 17 : 4),
+                    topRight: Radius.circular(outgoing ? 4 : 17),
+                    bottomLeft: const Radius.circular(17),
+                    bottomRight: const Radius.circular(17),
                   ),
-                ],
-              ],
-            ),
-          ],
-        ),
-      ),
+                  border: Border.all(
+                    color: outgoing
+                        ? const Color(0xFFCDEDBB)
+                        : AppColors.line.withValues(alpha: 0.78),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.045),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                padding: const EdgeInsets.fromLTRB(12, 8, 10, 6),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      message.text,
+                      style: const TextStyle(
+                        color: AppColors.deepOcean,
+                        fontSize: 13,
+                        height: 1.36,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _formatTime(message.timestamp),
+                            style: const TextStyle(
+                              color: AppColors.placeholder,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0,
+                            ),
+                          ),
+                          if (outgoing) ...[
+                            const SizedBox(width: 4),
+                            Icon(
+                              message.isRead ? Symbols.done_all : Symbols.done,
+                              size: 13,
+                              color: message.isRead
+                                  ? const Color(0xFF34B7F1)
+                                  : AppColors.placeholder,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -1061,15 +1259,24 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
     return Align(
       alignment: Alignment.centerLeft,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: const BoxDecoration(
-          color: AppColors.softLine,
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(8),
-            topRight: Radius.circular(8),
-            bottomRight: Radius.circular(8),
+        margin: const EdgeInsets.only(left: 8, bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(4),
+            topRight: Radius.circular(17),
+            bottomLeft: Radius.circular(17),
+            bottomRight: Radius.circular(17),
           ),
+          border: Border.all(color: AppColors.line.withValues(alpha: 0.78)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -1184,6 +1391,94 @@ class _WhatsappMessagingScreenState extends State<WhatsappMessagingScreen> {
   }
 }
 
+class _BubbleTail extends StatelessWidget {
+  const _BubbleTail({required this.outgoing, required this.color});
+
+  final bool outgoing;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      size: const Size(10, 12),
+      painter: _BubbleTailPainter(outgoing: outgoing, color: color),
+    );
+  }
+}
+
+class _BubbleTailPainter extends CustomPainter {
+  const _BubbleTailPainter({required this.outgoing, required this.color});
+
+  final bool outgoing;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+    final path = Path();
+
+    if (outgoing) {
+      path
+        ..moveTo(0, 0)
+        ..lineTo(size.width, 0)
+        ..lineTo(0, size.height)
+        ..close();
+    } else {
+      path
+        ..moveTo(size.width, 0)
+        ..lineTo(0, 0)
+        ..lineTo(size.width, size.height)
+        ..close();
+    }
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _BubbleTailPainter oldDelegate) {
+    return oldDelegate.outgoing != outgoing || oldDelegate.color != color;
+  }
+}
+
+class _WhatsappWallpaperPainter extends CustomPainter {
+  const _WhatsappWallpaperPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.18)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+    final mutedPaint = Paint()
+      ..color = const Color(0xFF7FA38E).withValues(alpha: 0.08)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+
+    for (var y = 28.0; y < size.height; y += 76) {
+      for (var x = 22.0; x < size.width; x += 92) {
+        canvas.drawCircle(Offset(x, y), 7, paint);
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromLTWH(x + 34, y + 12, 18, 10),
+            const Radius.circular(5),
+          ),
+          mutedPaint,
+        );
+        canvas.drawLine(
+          Offset(x + 10, y + 36),
+          Offset(x + 28, y + 50),
+          mutedPaint,
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _WhatsappWallpaperPainter oldDelegate) => false;
+}
+
 class _ManualWhatsappChatRequest {
   const _ManualWhatsappChatRequest({
     required this.phone,
@@ -1288,137 +1583,141 @@ class _ManualWhatsappChatDialogState extends State<_ManualWhatsappChatDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 520),
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(AppRadius.value),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(22, 20, 14, 10),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        context.t('whatsapp.messaging.newChatTitle'),
-                        style: const TextStyle(
-                          color: AppColors.deepOcean,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
+    return Material(
+      color: Colors.white,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(22, 20, 14, 10),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    context.t('whatsapp.messaging.newChatTitle'),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.deepOcean,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
                     ),
-                    IconButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      mouseCursor: SystemMouseCursors.click,
-                      icon: const Icon(
-                        Symbols.close,
-                        color: AppColors.deepOcean,
-                        size: 20,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(22, 6, 22, 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  mouseCursor: SystemMouseCursors.click,
+                  icon: const Icon(
+                    Symbols.close,
+                    color: AppColors.deepOcean,
+                    size: 20,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(22, 6, 22, 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _ManualChatField(
+                    label: context.t('whatsapp.messaging.phone'),
+                    hint: context.t('whatsapp.messaging.phoneHint'),
+                    controller: _phoneController,
+                    icon: Symbols.phone_outlined,
+                    requiredField: true,
+                    keyboardType: TextInputType.phone,
+                  ),
+                  const SizedBox(height: 14),
+                  _ManualChatField(
+                    label: context.t('whatsapp.messaging.name'),
+                    hint: context.t('whatsapp.messaging.nameHint'),
+                    controller: _nameController,
+                    icon: Symbols.person_outline,
+                    requiredField: false,
+                  ),
+                  const SizedBox(height: 14),
+                  _ManualTemplateSelect(
+                    templates: widget.templates,
+                    value: _templateId,
+                    onChanged: _changeTemplate,
+                  ),
+                  if (_templateId != null) ...[
+                    const SizedBox(height: 14),
                     _ManualChatField(
-                      label: context.t('whatsapp.messaging.phone'),
-                      hint: context.t('whatsapp.messaging.phoneHint'),
-                      controller: _phoneController,
-                      icon: Symbols.phone_outlined,
+                      label: context.t('whatsapp.messaging.languageCode'),
+                      hint: 'tr',
+                      controller: _languageController,
+                      icon: Symbols.language,
                       requiredField: true,
-                      keyboardType: TextInputType.phone,
-                    ),
-                    const SizedBox(height: 14),
-                    _ManualChatField(
-                      label: context.t('whatsapp.messaging.name'),
-                      hint: context.t('whatsapp.messaging.nameHint'),
-                      controller: _nameController,
-                      icon: Symbols.person_outline,
-                      requiredField: false,
-                    ),
-                    const SizedBox(height: 14),
-                    _ManualTemplateSelect(
-                      templates: widget.templates,
-                      value: _templateId,
-                      onChanged: _changeTemplate,
-                    ),
-                    if (_templateId != null) ...[
-                      const SizedBox(height: 14),
-                      _ManualChatField(
-                        label: context.t('whatsapp.messaging.languageCode'),
-                        hint: 'tr',
-                        controller: _languageController,
-                        icon: Symbols.language,
-                        requiredField: true,
-                      ),
-                    ],
-                    const SizedBox(height: 14),
-                    _ManualComplianceNote(
-                      hasTemplate: _templateId != null,
-                      hasReadyTemplates: widget.templates.isNotEmpty,
                     ),
                   ],
-                ),
+                  const SizedBox(height: 14),
+                  _ManualComplianceNote(
+                    hasTemplate: _templateId != null,
+                    hasReadyTemplates: widget.templates.isNotEmpty,
+                  ),
+                ],
               ),
-              Container(
-                padding: const EdgeInsets.fromLTRB(22, 14, 22, 18),
-                decoration: const BoxDecoration(
-                  border: Border(top: BorderSide(color: AppColors.line)),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: Text(context.t('common.cancel')),
-                    ),
-                    const SizedBox(width: 10),
-                    SizedBox(
-                      height: 38,
-                      child: TextButton.icon(
-                        onPressed: _canSubmit ? _submit : null,
-                        icon: const Icon(Symbols.add, size: 16),
-                        label: Text(context.t('whatsapp.messaging.createChat')),
-                        style: TextButton.styleFrom(
-                          backgroundColor: _canSubmit
-                              ? AppColors.deepOcean
-                              : AppColors.softLine,
-                          foregroundColor: _canSubmit
-                              ? Colors.white
-                              : AppColors.support,
-                          disabledForegroundColor: AppColors.support,
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(
-                              AppRadius.value,
-                            ),
-                          ),
-                          textStyle: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
+          Container(
+            padding: const EdgeInsets.fromLTRB(22, 14, 22, 18),
+            decoration: const BoxDecoration(
+              border: Border(top: BorderSide(color: AppColors.line)),
+            ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final cancel = TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text(context.t('common.cancel')),
+                );
+                final create = SizedBox(
+                  height: 38,
+                  child: TextButton.icon(
+                    onPressed: _canSubmit ? _submit : null,
+                    icon: const Icon(Symbols.add, size: 16),
+                    label: Text(context.t('whatsapp.messaging.createChat')),
+                    style: TextButton.styleFrom(
+                      backgroundColor: _canSubmit
+                          ? AppColors.deepOcean
+                          : AppColors.softLine,
+                      foregroundColor: _canSubmit
+                          ? Colors.white
+                          : AppColors.support,
+                      disabledForegroundColor: AppColors.support,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.value),
+                      ),
+                      textStyle: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                );
+
+                if (constraints.maxWidth < 420) {
+                  return Row(
+                    children: [
+                      Expanded(child: cancel),
+                      const SizedBox(width: 10),
+                      Expanded(child: create),
+                    ],
+                  );
+                }
+
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [cancel, const SizedBox(width: 10), create],
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

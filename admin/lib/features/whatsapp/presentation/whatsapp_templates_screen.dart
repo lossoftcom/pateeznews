@@ -16,6 +16,7 @@ import '../../../shared/widgets/sortable_table_header.dart';
 import '../../../shared/widgets/symbol_icon.dart';
 import '../../auth/data/admin_auth_models.dart';
 import '../data/admin_whatsapp_repository.dart';
+import 'whatsapp_mobile_chrome.dart';
 import 'whatsapp_template_models.dart';
 
 class WhatsappTemplatesScreen extends StatefulWidget {
@@ -324,39 +325,10 @@ class _WhatsappTemplatesScreenState extends State<WhatsappTemplatesScreen> {
   }
 
   void _showTemplateDetail(AdminWhatsappTemplate template) {
-    showGeneralDialog<void>(
+    showWhatsappSideDrawer<void>(
       context: context,
-      barrierDismissible: true,
-      barrierLabel: context.t('common.cancel'),
-      barrierColor: Colors.black.withValues(alpha: 0.48),
-      transitionDuration: const Duration(milliseconds: 280),
-      pageBuilder: (context, animation, secondaryAnimation) {
-        final width = MediaQuery.sizeOf(context).width;
-        final mobile = width < 760;
-        final drawerWidth = mobile ? width : math.min(780.0, width * 0.42);
-        return SafeArea(
-          child: Align(
-            alignment: mobile ? Alignment.center : Alignment.centerRight,
-            child: Material(
-              color: Colors.transparent,
-              child: SizedBox(
-                width: drawerWidth,
-                height: double.infinity,
-                child: _TemplateDetailDrawer(template: template),
-              ),
-            ),
-          ),
-        );
-      },
-      transitionBuilder: (context, animation, secondaryAnimation, child) {
-        return SlideTransition(
-          position: Tween<Offset>(
-            begin: const Offset(1, 0),
-            end: Offset.zero,
-          ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOut)),
-          child: child,
-        );
-      },
+      maxWidth: 780,
+      child: _TemplateDetailDrawer(template: template),
     );
   }
 
@@ -417,6 +389,18 @@ class _WhatsappTemplatesScreenState extends State<WhatsappTemplatesScreen> {
             if (_loading) const LinearProgressIndicator(minHeight: 2),
           ],
         );
+
+        if (mobile) {
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+              horizontalPadding,
+              topPadding,
+              horizontalPadding,
+              0,
+            ),
+            child: content,
+          );
+        }
 
         if (compact) {
           return SingleChildScrollView(
@@ -499,18 +483,61 @@ class _TemplateCategoryChips extends StatelessWidget {
       for (final category in AdminWhatsappTemplateCategory.values)
         _TemplateFilter(value: category.value, labelKey: category.labelKey),
     ];
+    final selectedFilter = filters.firstWhere(
+      (filter) => filter.value == selectedValue,
+      orElse: () => filters.first,
+    );
 
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        for (final filter in filters)
-          _TemplateFilterChip(
-            label: context.t(filter.labelKey),
-            selected: selectedValue == filter.value,
-            onTap: () => onChanged(filter.value),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final mobile = constraints.maxWidth < AdminMobile.breakpoint;
+        final width = mobile ? constraints.maxWidth : 280.0;
+
+        return Align(
+          alignment: Alignment.centerLeft,
+          child: SizedBox(
+            width: width,
+            child: Container(
+              height: 44,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(AppRadius.value),
+                border: Border.all(
+                  color: AppColors.line.withValues(alpha: 0.86),
+                ),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: selectedFilter.value,
+                  isExpanded: true,
+                  borderRadius: BorderRadius.circular(AppRadius.value),
+                  icon: const SymbolIcon(
+                    Symbols.keyboard_arrow_down,
+                    color: AppColors.iconMuted,
+                    size: 18,
+                  ),
+                  selectedItemBuilder: (context) {
+                    return filters.map((filter) {
+                      return _TemplateFilterSelectLabel(filter: filter);
+                    }).toList();
+                  },
+                  items: [
+                    for (final filter in filters)
+                      DropdownMenuItem<String>(
+                        value: filter.value,
+                        child: _TemplateFilterSelectLabel(filter: filter),
+                      ),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) onChanged(value);
+                  },
+                ),
+              ),
+            ),
           ),
-      ],
+        );
+      },
     );
   }
 }
@@ -522,47 +549,22 @@ class _TemplateFilter {
   final String labelKey;
 }
 
-class _TemplateFilterChip extends StatelessWidget {
-  const _TemplateFilterChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
+class _TemplateFilterSelectLabel extends StatelessWidget {
+  const _TemplateFilterSelectLabel({required this.filter});
 
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
+  final _TemplateFilter filter;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 34,
-      child: TextButton(
-        onPressed: onTap,
-        style:
-            TextButton.styleFrom(
-              backgroundColor: selected ? AppColors.deepOcean : Colors.white,
-              foregroundColor: selected ? Colors.white : AppColors.inkSoft,
-              minimumSize: const Size(0, 34),
-              padding: const EdgeInsets.symmetric(horizontal: 18),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppRadius.value),
-                side: BorderSide(
-                  color: selected ? AppColors.deepOcean : AppColors.line,
-                ),
-              ),
-              textStyle: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0,
-              ),
-            ).copyWith(
-              mouseCursor: const WidgetStatePropertyAll(
-                SystemMouseCursors.click,
-              ),
-            ),
-        child: Text(label),
+    return Text(
+      context.t(filter.labelKey),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: const TextStyle(
+        color: AppColors.deepOcean,
+        fontSize: 13,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 0,
       ),
     );
   }
@@ -632,6 +634,7 @@ class _WhatsappTemplateTableCard extends StatelessWidget {
             searchController: searchController,
             searchQuery: searchQuery,
             selectedTemplateIds: selectedTemplateIds,
+            onPageSizeChanged: onPageSizeChanged,
             onSearchChanged: onSearchChanged,
             onPageChanged: onPageChanged,
             onToggleTemplate: onToggleTemplate,
@@ -740,6 +743,7 @@ class _WhatsappTemplateMobileView extends StatelessWidget {
     required this.searchController,
     required this.searchQuery,
     required this.selectedTemplateIds,
+    required this.onPageSizeChanged,
     required this.onSearchChanged,
     required this.onPageChanged,
     required this.onToggleTemplate,
@@ -758,6 +762,7 @@ class _WhatsappTemplateMobileView extends StatelessWidget {
   final TextEditingController searchController;
   final String searchQuery;
   final Set<int> selectedTemplateIds;
+  final ValueChanged<int?> onPageSizeChanged;
   final ValueChanged<String> onSearchChanged;
   final ValueChanged<int> onPageChanged;
   final ValueChanged<int> onToggleTemplate;
@@ -779,14 +784,14 @@ class _WhatsappTemplateMobileView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        AdminMobileToolbar(
+        WhatsappMobileSearchPanel(
           controller: searchController,
           query: searchQuery,
           hintText: context.t('whatsapp.templates.searchPlaceholder'),
           onSearchChanged: onSearchChanged,
-          activeFilterCount: 0,
-          onOpenFilters: () {},
-          showFilters: false,
+          recordCount: totalCount,
+          pageSize: pageSize,
+          onPageSizeChanged: onPageSizeChanged,
         ),
         const SizedBox(height: 12),
         AdminMobilePrimaryButton(
@@ -816,7 +821,7 @@ class _WhatsappTemplateMobileView extends StatelessWidget {
             },
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 4),
         AdminMobilePager(
           page: page,
           lastPage: lastPage,
@@ -5702,27 +5707,22 @@ class _TemplateSaveDialogState extends State<_TemplateSaveDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      insetPadding: const EdgeInsets.all(24),
-      backgroundColor: Colors.transparent,
-      child: Container(
-        width: 520,
-        padding: const EdgeInsets.fromLTRB(26, 24, 26, 22),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(AppRadius.value),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
+    return Material(
+      color: Colors.white,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(26, 24, 18, 14),
+            child: Row(
               children: [
                 Expanded(
                   child: Text(
                     widget.template == null
                         ? context.t('whatsapp.template.editor.saveTitle')
                         : context.t('whatsapp.template.editor.updateTitle'),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       color: AppColors.deepOcean,
                       fontWeight: FontWeight.w700,
@@ -5740,53 +5740,72 @@ class _TemplateSaveDialogState extends State<_TemplateSaveDialog> {
                 ),
               ],
             ),
-            const SizedBox(height: 6),
-            Text(
-              context.t('whatsapp.template.editor.formSubtitle'),
-              style: const TextStyle(
-                color: AppColors.inkSoft,
-                fontWeight: FontWeight.w500,
-                letterSpacing: 0,
+          ),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(26, 0, 26, 22),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    context.t('whatsapp.template.editor.formSubtitle'),
+                    style: const TextStyle(
+                      color: AppColors.inkSoft,
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  _DialogLabel(
+                    text: context.t('whatsapp.template.editor.name'),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _nameController,
+                    decoration: _dialogInputDecoration(
+                      context.t('whatsapp.template.editor.nameHint'),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _DialogLabel(
+                    text: context.t('whatsapp.template.editor.category'),
+                  ),
+                  const SizedBox(height: 8),
+                  MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child:
+                        DropdownButtonFormField<AdminWhatsappTemplateCategory>(
+                          initialValue: _category,
+                          borderRadius: BorderRadius.circular(AppRadius.value),
+                          decoration: _dialogInputDecoration(''),
+                          icon: const SymbolIcon(
+                            Symbols.keyboard_arrow_down,
+                            color: AppColors.iconMuted,
+                          ),
+                          items: AdminWhatsappTemplateCategory.values
+                              .map(
+                                (category) => DropdownMenuItem(
+                                  value: category,
+                                  child: Text(context.t(category.labelKey)),
+                                ),
+                              )
+                              .toList(growable: false),
+                          onChanged: (value) {
+                            if (value == null) return;
+                            setState(() => _category = value);
+                          },
+                        ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 20),
-            _DialogLabel(text: context.t('whatsapp.template.editor.name')),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _nameController,
-              decoration: _dialogInputDecoration(
-                context.t('whatsapp.template.editor.nameHint'),
-              ),
+          ),
+          Container(
+            padding: const EdgeInsets.fromLTRB(26, 14, 26, 20),
+            decoration: BoxDecoration(
+              border: Border(top: BorderSide(color: AppColors.softLine)),
             ),
-            const SizedBox(height: 16),
-            _DialogLabel(text: context.t('whatsapp.template.editor.category')),
-            const SizedBox(height: 8),
-            MouseRegion(
-              cursor: SystemMouseCursors.click,
-              child: DropdownButtonFormField<AdminWhatsappTemplateCategory>(
-                initialValue: _category,
-                borderRadius: BorderRadius.circular(AppRadius.value),
-                decoration: _dialogInputDecoration(''),
-                icon: const SymbolIcon(
-                  Symbols.keyboard_arrow_down,
-                  color: AppColors.iconMuted,
-                ),
-                items: AdminWhatsappTemplateCategory.values
-                    .map(
-                      (category) => DropdownMenuItem(
-                        value: category,
-                        child: Text(context.t(category.labelKey)),
-                      ),
-                    )
-                    .toList(growable: false),
-                onChanged: (value) {
-                  if (value == null) return;
-                  setState(() => _category = value);
-                },
-              ),
-            ),
-            const SizedBox(height: 24),
-            Row(
+            child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 _TemplateSecondaryButton(
@@ -5801,8 +5820,8 @@ class _TemplateSaveDialogState extends State<_TemplateSaveDialog> {
                 ),
               ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

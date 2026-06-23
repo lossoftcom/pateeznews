@@ -4705,7 +4705,7 @@ class _NewsMobileViewState extends State<_NewsMobileView> {
           ),
         ),
         if (!widget.videoOnly) ...[
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           _NewsMobileBottomPager(
             page: widget.page,
             lastPage: lastPage,
@@ -4739,13 +4739,13 @@ class _NewsMobileBottomPager extends StatelessWidget {
     final hasPrevious = page > 1 && !loading;
     final hasNext = page < lastPage && !loading;
     return Transform.translate(
-      offset: const Offset(0, 22),
+      offset: const Offset(0, 14),
       child: SizedBox(
-        height: 34,
+        height: 28,
         child: Row(
           children: [
             _NewsMobileBottomPagerArrow(
-              icon: Symbols.chevron_left,
+              icon: Symbols.chevron_left_rounded,
               enabled: hasPrevious,
               onPressed: () => onPageChanged(page - 1),
             ),
@@ -4793,11 +4793,11 @@ class _NewsMobileBottomPagerArrow extends StatelessWidget {
       icon: Icon(
         icon,
         color: enabled ? AppColors.deepOcean : const Color(0xFFC5CAD0),
-        size: 20,
+        size: 18,
       ),
-      constraints: const BoxConstraints.tightFor(width: 34, height: 34),
+      constraints: const BoxConstraints.tightFor(width: 30, height: 28),
       padding: EdgeInsets.zero,
-      splashRadius: 18,
+      splashRadius: 16,
       visualDensity: VisualDensity.compact,
     );
   }

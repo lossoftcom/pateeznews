@@ -555,6 +555,18 @@ class _UsersScreenState extends State<UsersScreen> {
           ],
         );
 
+        if (mobile) {
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+              horizontalPadding,
+              topPadding,
+              horizontalPadding,
+              0,
+            ),
+            child: content,
+          );
+        }
+
         if (compact) {
           return SingleChildScrollView(
             padding: EdgeInsets.fromLTRB(

@@ -468,7 +468,9 @@ class _CommentsScreenState extends State<CommentsScreen> {
           children: [
             const _CommentsTitle(),
             const SizedBox(height: 16),
-            UsersSummaryGrid(metrics: _metricCards, compact: true),
+            mobile
+                ? _CommentsMobileSummaryGrid(metrics: _metricCards)
+                : UsersSummaryGrid(metrics: _metricCards, compact: true),
             if (_errorText != null) ...[
               const SizedBox(height: 16),
               _CommentsErrorBanner(message: _errorText!),
@@ -514,6 +516,18 @@ class _CommentsScreenState extends State<CommentsScreen> {
             ),
           ],
         );
+
+        if (mobile) {
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+              horizontalPadding,
+              topPadding,
+              horizontalPadding,
+              0,
+            ),
+            child: content,
+          );
+        }
 
         if (compact) {
           return SingleChildScrollView(
@@ -711,6 +725,116 @@ class _CommentsTitle extends StatelessWidget {
         color: AppColors.deepOcean,
         fontWeight: FontWeight.w700,
         letterSpacing: 0,
+      ),
+    );
+  }
+}
+
+class _CommentsMobileSummaryGrid extends StatelessWidget {
+  const _CommentsMobileSummaryGrid({required this.metrics});
+
+  final List<UserMetric> metrics;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        for (var index = 0; index < metrics.length; index++) ...[
+          Expanded(child: _CommentsMobileMetricCard(metric: metrics[index])),
+          if (index != metrics.length - 1) const SizedBox(width: 6),
+        ],
+      ],
+    );
+  }
+}
+
+class _CommentsMobileMetricCard extends StatelessWidget {
+  const _CommentsMobileMetricCard({required this.metric});
+
+  final UserMetric metric;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 76,
+      padding: const EdgeInsets.fromLTRB(8, 7, 8, 7),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(7),
+        border: Border.all(color: AppColors.line.withValues(alpha: 0.72)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.deepOcean.withValues(alpha: 0.035),
+            blurRadius: 10,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            metric.title,
+            maxLines: 2,
+            style: const TextStyle(
+              color: AppColors.deepOcean,
+              fontSize: 8.6,
+              fontWeight: FontWeight.w800,
+              height: 1.05,
+              letterSpacing: 0,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    metric.value,
+                    maxLines: 1,
+                    style: const TextStyle(
+                      color: AppColors.deepOcean,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                      height: 1,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 3),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 2),
+                child: Text(
+                  metric.change,
+                  maxLines: 1,
+                  style: const TextStyle(
+                    color: AppColors.warmHorizon,
+                    fontSize: 7.8,
+                    fontWeight: FontWeight.w800,
+                    height: 1,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const Spacer(),
+          Text(
+            metric.description,
+            maxLines: 2,
+            style: const TextStyle(
+              color: AppColors.deepOcean,
+              fontSize: 7.7,
+              fontWeight: FontWeight.w700,
+              height: 1.05,
+              letterSpacing: 0,
+            ),
+          ),
+        ],
       ),
     );
   }

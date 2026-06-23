@@ -21,6 +21,7 @@ import '../../news/presentation/widgets/article_text_block.dart'
     show ArticleRichTextEditor;
 import '../data/admin_mail_repository.dart';
 import 'contact_list_models.dart';
+import 'mail_mobile_chrome.dart';
 import 'mail_settings_models.dart';
 import 'mail_template_models.dart';
 import 'mail_inbox_models.dart';
@@ -553,7 +554,7 @@ class _MailInboxScreenState extends State<MailInboxScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const _MailTitle(),
-            const SizedBox(height: 24),
+            SizedBox(height: mobile ? 12 : 24),
             Expanded(
               child: MailInboxTableCard(
                 allMessages: _messages,
@@ -606,7 +607,7 @@ class _MailInboxScreenState extends State<MailInboxScreen> {
               horizontalPadding,
               18,
               horizontalPadding,
-              28,
+              0,
             ),
             child: content,
           );
@@ -1372,9 +1373,11 @@ class _MailComposeDrawerState extends State<_MailComposeDrawer> {
   }
 
   Future<void> _pickContacts() async {
-    final selected = await showDialog<List<String>>(
+    final selected = await showMailSideDrawer<List<String>>(
       context: context,
-      builder: (context) => _MailContactPickerDialog(
+      minWidth: 520,
+      maxWidth: 720,
+      child: _MailContactPickerDialog(
         session: widget.session,
         repository: widget.repository,
       ),
@@ -2237,169 +2240,184 @@ class _MailContactPickerDialogState extends State<_MailContactPickerDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      insetPadding: const EdgeInsets.all(28),
-      backgroundColor: Colors.transparent,
-      child: Container(
-        width: 720,
-        constraints: const BoxConstraints(maxHeight: 620),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(AppRadius.value),
-        ),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(22, 18, 14, 12),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      context.t('mail.compose.contactPickerTitle'),
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: AppColors.deepOcean,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const SymbolIcon(
-                      Symbols.close,
+    return Material(
+      color: Colors.white,
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(22, 18, 14, 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    context.t('mail.compose.contactPickerTitle'),
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       color: AppColors.deepOcean,
-                      size: 20,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Container(height: 1, color: AppColors.softLine),
-            Expanded(
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 230,
-                    child: ListView(
-                      padding: const EdgeInsets.all(12),
-                      children: [
-                        for (final list in _lists)
-                          _ContactListButton(
-                            list: list,
-                            selected: list.id == _selectedListId,
-                            onTap: () => unawaited(_loadContacts(list.id)),
-                          ),
-                      ],
-                    ),
-                  ),
-                  Container(width: 1, color: AppColors.softLine),
-                  Expanded(
-                    child: Column(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: TextField(
-                            controller: _searchController,
-                            decoration: _composeInputDecoration(
-                              context,
-                              hint: 'mail.inbox.searchPlaceholder',
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          child: _loading
-                              ? const Center(
-                                  child: CircularProgressIndicator(
-                                    color: AppColors.deepOcean,
-                                  ),
-                                )
-                              : ListView(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    12,
-                                    0,
-                                    12,
-                                    12,
-                                  ),
-                                  children: [
-                                    for (final contact in _filteredContacts)
-                                      CheckboxListTile(
-                                        value: _selected.contains(
-                                          contact.email,
-                                        ),
-                                        onChanged: (_) =>
-                                            _toggle(contact.email),
-                                        controlAffinity:
-                                            ListTileControlAffinity.leading,
-                                        contentPadding: EdgeInsets.zero,
-                                        activeColor: AppColors.deepOcean,
-                                        title: Text(
-                                          [contact.firstName, contact.lastName]
-                                                  .where(
-                                                    (item) =>
-                                                        item.trim().isNotEmpty,
-                                                  )
-                                                  .join(' ')
-                                                  .trim()
-                                                  .isEmpty
-                                              ? contact.email
-                                              : [
-                                                  contact.firstName,
-                                                  contact.lastName,
-                                                ].join(' '),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        subtitle: Text(contact.email),
-                                      ),
-                                  ],
-                                ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
-              decoration: BoxDecoration(
-                border: Border(top: BorderSide(color: AppColors.softLine)),
-              ),
-              child: Row(
-                children: [
-                  Text(
-                    context.t(
-                      'mail.compose.selectedContacts',
-                      values: {'count': _selected.length},
-                    ),
-                    style: const TextStyle(
-                      color: AppColors.inkSoft,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w800,
                       letterSpacing: 0,
                     ),
                   ),
-                  const Spacer(),
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: Text(context.t('common.cancel')),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const SymbolIcon(
+                    Symbols.close,
+                    color: AppColors.deepOcean,
+                    size: 20,
                   ),
-                  const SizedBox(width: 10),
-                  _ComposeFooterButton(
-                    label: 'mail.compose.addSelectedContacts',
-                    icon: Symbols.add,
-                    primary: true,
-                    onPressed: _selected.isEmpty
-                        ? null
-                        : () => Navigator.of(
-                            context,
-                          ).pop(_selected.toList(growable: false)),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+          Container(height: 1, color: AppColors.softLine),
+          Expanded(
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 230,
+                  child: ListView(
+                    padding: const EdgeInsets.all(12),
+                    children: [
+                      for (final list in _lists)
+                        _ContactListButton(
+                          list: list,
+                          selected: list.id == _selectedListId,
+                          onTap: () => unawaited(_loadContacts(list.id)),
+                        ),
+                    ],
+                  ),
+                ),
+                Container(width: 1, color: AppColors.softLine),
+                Expanded(
+                  child: Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: TextField(
+                          controller: _searchController,
+                          decoration: _composeInputDecoration(
+                            context,
+                            hint: 'mail.inbox.searchPlaceholder',
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: _loading
+                            ? const Center(
+                                child: CircularProgressIndicator(
+                                  color: AppColors.deepOcean,
+                                ),
+                              )
+                            : ListView(
+                                padding: const EdgeInsets.fromLTRB(
+                                  12,
+                                  0,
+                                  12,
+                                  12,
+                                ),
+                                children: [
+                                  for (final contact in _filteredContacts)
+                                    CheckboxListTile(
+                                      value: _selected.contains(contact.email),
+                                      onChanged: (_) => _toggle(contact.email),
+                                      controlAffinity:
+                                          ListTileControlAffinity.leading,
+                                      contentPadding: EdgeInsets.zero,
+                                      activeColor: AppColors.deepOcean,
+                                      title: Text(
+                                        [contact.firstName, contact.lastName]
+                                                .where(
+                                                  (item) =>
+                                                      item.trim().isNotEmpty,
+                                                )
+                                                .join(' ')
+                                                .trim()
+                                                .isEmpty
+                                            ? contact.email
+                                            : [
+                                                contact.firstName,
+                                                contact.lastName,
+                                              ].join(' '),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      subtitle: Text(contact.email),
+                                    ),
+                                ],
+                              ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
+            decoration: BoxDecoration(
+              border: Border(top: BorderSide(color: AppColors.softLine)),
+            ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final selectedText = Text(
+                  context.t(
+                    'mail.compose.selectedContacts',
+                    values: {'count': _selected.length},
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.inkSoft,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0,
+                  ),
+                );
+                final cancel = TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text(context.t('common.cancel')),
+                );
+                final addSelected = _ComposeFooterButton(
+                  label: 'mail.compose.addSelectedContacts',
+                  icon: Symbols.add,
+                  primary: true,
+                  onPressed: _selected.isEmpty
+                      ? null
+                      : () => Navigator.of(
+                          context,
+                        ).pop(_selected.toList(growable: false)),
+                );
+
+                if (constraints.maxWidth < 420) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      selectedText,
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(child: cancel),
+                          const SizedBox(width: 10),
+                          Expanded(child: addSelected),
+                        ],
+                      ),
+                    ],
+                  );
+                }
+
+                return Row(
+                  children: [
+                    Expanded(child: selectedText),
+                    const SizedBox(width: 10),
+                    cancel,
+                    const SizedBox(width: 10),
+                    addSelected,
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -2510,14 +2528,20 @@ class _MailComposeActions extends StatelessWidget {
     );
 
     if (mobile) {
-      return Row(
-        children: [
-          Expanded(child: draft),
-          const SizedBox(width: 8),
-          Expanded(child: schedule),
-          const SizedBox(width: 8),
-          Expanded(child: send),
-        ],
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final gap = constraints.maxWidth < 340 ? 6.0 : 8.0;
+
+          return Row(
+            children: [
+              Expanded(flex: 4, child: draft),
+              SizedBox(width: gap),
+              Expanded(flex: 3, child: schedule),
+              SizedBox(width: gap),
+              Expanded(flex: 3, child: send),
+            ],
+          );
+        },
       );
     }
 
@@ -2557,7 +2581,7 @@ class _ComposeFooterButton extends StatelessWidget {
             TextButton.styleFrom(
               backgroundColor: primary ? AppColors.actionRed : Colors.white,
               foregroundColor: primary ? Colors.white : AppColors.deepOcean,
-              padding: const EdgeInsets.symmetric(horizontal: 18),
+              padding: const EdgeInsets.symmetric(horizontal: 10),
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(AppRadius.value),
@@ -2582,8 +2606,14 @@ class _ComposeFooterButton extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             SymbolIcon(icon, size: 18, color: primary ? Colors.white : null),
-            const SizedBox(width: 8),
-            Flexible(child: Text(context.t(label))),
+            const SizedBox(width: 6),
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(context.t(label), maxLines: 1, softWrap: false),
+              ),
+            ),
           ],
         ),
       ),

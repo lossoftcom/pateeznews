@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:pateeznews_admin/shared/widgets/admin_mobile_list.dart';
 import 'package:pateeznews_admin/shared/widgets/admin_table_chrome.dart';
 import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
 
@@ -567,18 +568,19 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact = constraints.maxWidth < 900;
+        final mobile = constraints.maxWidth < AdminMobile.breakpoint;
         final horizontalPadding = constraints.maxWidth < 640 ? 16.0 : 28.0;
         final content = Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _NotificationsHeader(section: widget.section),
-            const SizedBox(height: 24),
+            SizedBox(height: mobile ? 12 : 24),
             _MetricGrid(
               section: widget.section,
               stats: _stats,
               settings: _settings,
             ),
-            const SizedBox(height: 18),
+            SizedBox(height: mobile ? 12 : 18),
             if (widget.section == AdminNotificationSection.settings)
               Expanded(
                 child: _SettingsPanel(
@@ -591,6 +593,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               _Toolbar(
                 section: widget.section,
                 pageSize: _pageSize,
+                recordCount: _total,
                 searchController: _searchController,
                 onPageSizeChanged: _changePageSize,
                 onSearchChanged: _changeSearch,
@@ -601,9 +604,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     ? () => unawaited(_showTemplateDialog())
                     : null,
               ),
-              const SizedBox(height: 18),
-              Expanded(child: _buildTable()),
-              const SizedBox(height: 16),
+              SizedBox(height: mobile ? 14 : 18),
+              Expanded(child: mobile ? _buildMobileList() : _buildTable()),
+              SizedBox(height: mobile ? 4 : 16),
               _Footer(
                 page: _page,
                 pageSize: _pageSize,
@@ -614,6 +617,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             if (_loading) const LinearProgressIndicator(minHeight: 2),
           ],
         );
+
+        if (mobile) {
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+              horizontalPadding,
+              18,
+              horizontalPadding,
+              0,
+            ),
+            child: content,
+          );
+        }
 
         if (compact) {
           return SingleChildScrollView(
@@ -715,6 +730,55 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       AdminNotificationSection.settings => const SizedBox.shrink(),
     };
   }
+
+  Widget _buildMobileList() {
+    return switch (widget.section) {
+      AdminNotificationSection.campaigns => AdminMobileListView(
+        loading: _loading,
+        itemCount: _campaigns.length,
+        emptyLabel: context.t('notifications.empty'),
+        itemBuilder: (context, index) {
+          final campaign = _campaigns[index];
+          return _CampaignMobileCard(
+            campaign: campaign,
+            onDispatch: () => unawaited(_campaignAction(campaign, 'dispatch')),
+            onPause: () => unawaited(_campaignAction(campaign, 'pause')),
+            onResume: () => unawaited(_campaignAction(campaign, 'resume')),
+            onEdit: () => unawaited(_showCampaignDialog(campaign: campaign)),
+            onDelete: () => unawaited(_deleteCampaign(campaign)),
+          );
+        },
+      ),
+      AdminNotificationSection.templates => AdminMobileListView(
+        loading: _loading,
+        itemCount: _templates.length,
+        emptyLabel: context.t('notifications.templates.empty'),
+        itemBuilder: (context, index) {
+          final template = _templates[index];
+          return _TemplateMobileCard(
+            template: template,
+            onEdit: () => unawaited(_showTemplateDialog(template: template)),
+            onDelete: () => unawaited(_deleteTemplate(template)),
+          );
+        },
+      ),
+      AdminNotificationSection.devices => AdminMobileListView(
+        loading: _loading,
+        itemCount: _devices.length,
+        emptyLabel: context.t('notifications.devices.empty'),
+        itemBuilder: (context, index) {
+          final device = _devices[index];
+          return _DeviceMobileCard(
+            device: device,
+            onActivate: () => unawaited(_deviceAction(device, 'activate')),
+            onInvalidate: () => unawaited(_deviceAction(device, 'invalidate')),
+            onDelete: () => unawaited(_deleteDevice(device)),
+          );
+        },
+      ),
+      AdminNotificationSection.settings => const SizedBox.shrink(),
+    };
+  }
 }
 
 class _NotificationsHeader extends StatelessWidget {
@@ -724,43 +788,52 @@ class _NotificationsHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          context.t(switch (section) {
-            AdminNotificationSection.campaigns =>
-              'notifications.campaigns.title',
-            AdminNotificationSection.templates =>
-              'notifications.templates.title',
-            AdminNotificationSection.devices => 'notifications.devices.title',
-            AdminNotificationSection.settings => 'notifications.settings.title',
-          }),
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-            color: AppColors.deepOcean,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0,
-          ),
-        ),
-        const SizedBox(height: 24),
-        Text(
-          context.t(switch (section) {
-            AdminNotificationSection.campaigns =>
-              'notifications.campaigns.description',
-            AdminNotificationSection.templates =>
-              'notifications.templates.description',
-            AdminNotificationSection.devices =>
-              'notifications.devices.description',
-            AdminNotificationSection.settings =>
-              'notifications.settings.description',
-          }),
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            color: AppColors.inkSoft,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0,
-          ),
-        ),
-      ],
+    final title = context.t(switch (section) {
+      AdminNotificationSection.campaigns => 'notifications.campaigns.title',
+      AdminNotificationSection.templates => 'notifications.templates.title',
+      AdminNotificationSection.devices => 'notifications.devices.title',
+      AdminNotificationSection.settings => 'notifications.settings.title',
+    });
+    final description = context.t(switch (section) {
+      AdminNotificationSection.campaigns =>
+        'notifications.campaigns.description',
+      AdminNotificationSection.templates =>
+        'notifications.templates.description',
+      AdminNotificationSection.devices => 'notifications.devices.description',
+      AdminNotificationSection.settings => 'notifications.settings.description',
+    });
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final mobile = constraints.maxWidth < AdminMobile.breakpoint;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              maxLines: mobile ? 1 : 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                color: AppColors.deepOcean,
+                fontSize: mobile ? 24 : null,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0,
+              ),
+            ),
+            if (!mobile) ...[
+              const SizedBox(height: 24),
+              Text(
+                description,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: AppColors.inkSoft,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0,
+                ),
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
 }
@@ -890,13 +963,28 @@ class _MetricGrid extends StatelessWidget {
       ],
     };
 
-    return Row(
-      children: [
-        for (var index = 0; index < items.length; index++) ...[
-          Expanded(child: _MetricBox(data: items[index])),
-          if (index != items.length - 1) const SizedBox(width: 14),
-        ],
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < AdminMobile.breakpoint) {
+          return Row(
+            children: [
+              for (var index = 0; index < items.length; index++) ...[
+                Expanded(child: _MetricMiniBox(data: items[index])),
+                if (index != items.length - 1) const SizedBox(width: 6),
+              ],
+            ],
+          );
+        }
+
+        return Row(
+          children: [
+            for (var index = 0; index < items.length; index++) ...[
+              Expanded(child: _MetricBox(data: items[index])),
+              if (index != items.length - 1) const SizedBox(width: 14),
+            ],
+          ],
+        );
+      },
     );
   }
 }
@@ -976,10 +1064,88 @@ class _MetricBox extends StatelessWidget {
   }
 }
 
-class _Toolbar extends StatelessWidget {
+class _MetricMiniBox extends StatelessWidget {
+  const _MetricMiniBox({required this.data});
+
+  final _MetricData data;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 76,
+      padding: const EdgeInsets.fromLTRB(8, 7, 8, 7),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(7),
+        border: Border.all(color: AppColors.line.withValues(alpha: 0.72)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.deepOcean.withValues(alpha: 0.035),
+            blurRadius: 10,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            context.t(data.label),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppColors.deepOcean,
+              fontSize: 8.6,
+              fontWeight: FontWeight.w800,
+              height: 1.05,
+              letterSpacing: 0,
+            ),
+          ),
+          const Spacer(),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Container(
+                width: 20,
+                height: 20,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: data.color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: SymbolIcon(data.icon, color: data.color, size: 12),
+              ),
+              const SizedBox(width: 5),
+              Expanded(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    data.value,
+                    maxLines: 1,
+                    style: const TextStyle(
+                      color: AppColors.deepOcean,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                      height: 1,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Toolbar extends StatefulWidget {
   const _Toolbar({
     required this.section,
     required this.pageSize,
+    required this.recordCount,
     required this.searchController,
     required this.onPageSizeChanged,
     required this.onSearchChanged,
@@ -989,6 +1155,7 @@ class _Toolbar extends StatelessWidget {
 
   final AdminNotificationSection section;
   final int pageSize;
+  final int recordCount;
   final TextEditingController searchController;
   final ValueChanged<int?> onPageSizeChanged;
   final ValueChanged<String> onSearchChanged;
@@ -996,38 +1163,314 @@ class _Toolbar extends StatelessWidget {
   final VoidCallback? onCreate;
 
   @override
+  State<_Toolbar> createState() => _ToolbarState();
+}
+
+class _ToolbarState extends State<_Toolbar> {
+  var _expanded = false;
+
+  @override
+  void didUpdateWidget(covariant _Toolbar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.section != widget.section) {
+      _expanded = false;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        AdminTablePageSizeSelect(value: pageSize, onChanged: onPageSizeChanged),
-        const Spacer(),
-        SizedBox(
-          width: 348,
-          child: AdminTableSearchField(
-            controller: searchController,
-            hintText: context.t('common.searchPlaceholder'),
-            onChanged: onSearchChanged,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final searchField = AdminTableSearchField(
+          controller: widget.searchController,
+          hintText: context.t('common.searchPlaceholder'),
+          onChanged: widget.onSearchChanged,
+        );
+        final actionButtons = [
+          AdminTableSecondaryActionButton(
+            icon: Symbols.sync,
+            label: context.t('common.refresh'),
+            onPressed: widget.onRefresh,
           ),
-        ),
-        const SizedBox(width: 14),
-        AdminTableSecondaryActionButton(
-          icon: Symbols.sync,
-          label: context.t('common.refresh'),
-          onPressed: onRefresh,
-        ),
-        if (onCreate != null) ...[
-          const SizedBox(width: 14),
-          AdminTablePrimaryActionButton(
-            icon: Symbols.add,
-            label: context.t(
-              section == AdminNotificationSection.campaigns
-                  ? 'notifications.campaigns.add'
-                  : 'notifications.templates.add',
+          if (widget.onCreate != null)
+            AdminTablePrimaryActionButton(
+              icon: Symbols.add,
+              label: context.t(
+                widget.section == AdminNotificationSection.campaigns
+                    ? 'notifications.campaigns.add'
+                    : 'notifications.templates.add',
+              ),
+              onPressed: widget.onCreate!,
             ),
-            onPressed: onCreate!,
+        ];
+
+        if (constraints.maxWidth < AdminMobile.breakpoint) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _NotificationsMobileSearchPanel(
+                searchController: widget.searchController,
+                hintText: context.t('common.searchPlaceholder'),
+                onSearchChanged: widget.onSearchChanged,
+                isExpanded: _expanded,
+                onToggleExpanded: () => setState(() => _expanded = !_expanded),
+                recordCount: widget.recordCount,
+                pageSize: widget.pageSize,
+                onPageSizeChanged: widget.onPageSizeChanged,
+              ),
+              const SizedBox(height: 10),
+              if (actionButtons.length == 1)
+                actionButtons.first
+              else
+                Row(
+                  children: [
+                    Expanded(child: actionButtons.first),
+                    const SizedBox(width: 10),
+                    Expanded(child: actionButtons.last),
+                  ],
+                ),
+            ],
+          );
+        }
+
+        return Row(
+          children: [
+            AdminTablePageSizeSelect(
+              value: widget.pageSize,
+              onChanged: widget.onPageSizeChanged,
+            ),
+            const Spacer(),
+            SizedBox(width: 348, child: searchField),
+            const SizedBox(width: 14),
+            for (var index = 0; index < actionButtons.length; index++) ...[
+              actionButtons[index],
+              if (index != actionButtons.length - 1) const SizedBox(width: 14),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _NotificationsMobileSearchPanel extends StatelessWidget {
+  const _NotificationsMobileSearchPanel({
+    required this.searchController,
+    required this.hintText,
+    required this.onSearchChanged,
+    required this.isExpanded,
+    required this.onToggleExpanded,
+    required this.recordCount,
+    required this.pageSize,
+    required this.onPageSizeChanged,
+  });
+
+  static const _borderColor = Color(0xFFE6EAF0);
+  static const _muted = Color(0xFF9AA3AA);
+  static const _navy = Color(0xFF2F4053);
+
+  final TextEditingController searchController;
+  final String hintText;
+  final ValueChanged<String> onSearchChanged;
+  final bool isExpanded;
+  final VoidCallback onToggleExpanded;
+  final int recordCount;
+  final int pageSize;
+  final ValueChanged<int?> onPageSizeChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _borderColor),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            height: 72,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 10, 12, 9),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Row(
+                      children: [
+                        const SymbolIcon(
+                          Symbols.search,
+                          color: _muted,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              TextField(
+                                controller: searchController,
+                                onChanged: onSearchChanged,
+                                textAlignVertical: TextAlignVertical.center,
+                                cursorColor: _navy,
+                                style: const TextStyle(
+                                  fontSize: 14.5,
+                                  color: _navy,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                decoration: InputDecoration(
+                                  hintText: hintText,
+                                  hintStyle: const TextStyle(
+                                    color: _muted,
+                                    fontSize: 14.5,
+                                    fontWeight: FontWeight.w400,
+                                  ),
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.zero,
+                                  border: InputBorder.none,
+                                  enabledBorder: InputBorder.none,
+                                  focusedBorder: InputBorder.none,
+                                ),
+                              ),
+                              Container(
+                                height: 1,
+                                color: const Color(0xFFB9BEC4),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: onToggleExpanded,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                isExpanded ? 'Gizle' : 'Göster',
+                                style: const TextStyle(
+                                  color: _navy,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                  height: 1,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              RotatedBox(
+                                quarterTurns: isExpanded ? 2 : 0,
+                                child: const SymbolIcon(
+                                  Symbols.keyboard_arrow_down,
+                                  color: _navy,
+                                  size: 17,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            '$recordCount kayıt',
+                            style: const TextStyle(
+                              color: _navy,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w800,
+                              height: 1,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          const Text(
+                            'Filtre yok',
+                            style: TextStyle(
+                              color: _muted,
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w500,
+                              height: 1,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
+          if (isExpanded) ...[
+            const Divider(height: 1, color: _borderColor),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: _NotificationsMobilePageSizeDropdown(
+                  value: pageSize,
+                  onChanged: onPageSizeChanged,
+                ),
+              ),
+            ),
+          ],
         ],
-      ],
+      ),
+    );
+  }
+}
+
+class _NotificationsMobilePageSizeDropdown extends StatelessWidget {
+  const _NotificationsMobilePageSizeDropdown({
+    required this.value,
+    required this.onChanged,
+  });
+
+  static const _values = ['25', '50', '100'];
+
+  final int value;
+  final ValueChanged<int?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = _values.contains(value.toString())
+        ? value.toString()
+        : '25';
+    return Container(
+      width: 66,
+      height: 42,
+      padding: const EdgeInsets.only(left: 10, right: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE6EAF0)),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: selected,
+          isDense: true,
+          isExpanded: true,
+          borderRadius: BorderRadius.circular(10),
+          icon: const SymbolIcon(
+            Symbols.keyboard_arrow_down,
+            color: Color(0xFF6F7780),
+            size: 16,
+          ),
+          style: const TextStyle(
+            color: Color(0xFF2F4053),
+            fontSize: 14.5,
+            fontWeight: FontWeight.w500,
+          ),
+          items: const [
+            DropdownMenuItem(value: '25', child: Text('25')),
+            DropdownMenuItem(value: '50', child: Text('50')),
+            DropdownMenuItem(value: '100', child: Text('100')),
+          ],
+          onChanged: (value) => onChanged(int.tryParse(value ?? '')),
+        ),
+      ),
     );
   }
 }
@@ -1382,6 +1825,379 @@ class _DeviceRow extends StatelessWidget {
           child: _TwoLineCell(
             title: formatAdminFullDate(context, device.lastSeenAt),
             subtitle: formatAdminTime(device.lastSeenAt),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CampaignMobileCard extends StatelessWidget {
+  const _CampaignMobileCard({
+    required this.campaign,
+    required this.onDispatch,
+    required this.onPause,
+    required this.onResume,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final AdminNotificationCampaign campaign;
+  final VoidCallback onDispatch;
+  final VoidCallback onPause;
+  final VoidCallback onResume;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final status = campaign.status;
+    return AdminMobileCard(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _NotificationMobileHeader(
+            icon: Symbols.notifications,
+            color: AppColors.actionRed,
+            title: campaign.name,
+            subtitle: campaign.title,
+            menuActions: [
+              AdminMobileMenuAction(
+                icon: Symbols.edit_square,
+                label: context.t('common.edit'),
+                onTap: onEdit,
+              ),
+              if (status == AdminNotificationStatus.paused)
+                AdminMobileMenuAction(
+                  icon: Symbols.schedule_send,
+                  label: context.t('notifications.actions.resume'),
+                  onTap: onResume,
+                )
+              else
+                AdminMobileMenuAction(
+                  icon: Symbols.send_rounded,
+                  label: context.t('notifications.actions.dispatch'),
+                  onTap: onDispatch,
+                ),
+              if (status == AdminNotificationStatus.sending)
+                AdminMobileMenuAction(
+                  icon: Symbols.pending_actions,
+                  label: context.t('notifications.actions.pause'),
+                  onTap: onPause,
+                ),
+              AdminMobileMenuAction(
+                icon: Symbols.delete,
+                label: context.t('common.delete'),
+                danger: true,
+                onTap: onDelete,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              _StatusBadge(
+                label: context.t(notificationStatusLabelKey(status)),
+                tone: _toneForStatus(status),
+              ),
+              AdminMobileMeta(
+                icon: Symbols.notifications,
+                value: context.t('notifications.target.${campaign.targetType}'),
+              ),
+              AdminMobileMeta(
+                icon: Symbols.public_rounded,
+                value: campaign.targetPlatforms.isEmpty
+                    ? context.t('notifications.target.all')
+                    : campaign.targetPlatforms.join(', '),
+              ),
+              AdminMobileMeta(
+                icon: Symbols.check,
+                value: '${campaign.sentCount} / ${campaign.recipientCount}',
+              ),
+              AdminMobileMeta(
+                icon: Symbols.close,
+                value:
+                    '${context.t('notifications.table.failed')}: ${campaign.failedCount}',
+              ),
+              AdminMobileMeta(
+                icon: Symbols.schedule,
+                value:
+                    '${formatAdminFullDate(context, campaign.createdAt)} ${formatAdminTime(campaign.createdAt)}',
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TemplateMobileCard extends StatelessWidget {
+  const _TemplateMobileCard({
+    required this.template,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final AdminNotificationTemplate template;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return AdminMobileCard(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _NotificationMobileHeader(
+            icon: Symbols.draft,
+            color: const Color(0xFF3B82F6),
+            title: template.name,
+            subtitle: template.category,
+            menuActions: [
+              AdminMobileMenuAction(
+                icon: Symbols.edit_square,
+                label: context.t('common.edit'),
+                onTap: onEdit,
+              ),
+              AdminMobileMenuAction(
+                icon: Symbols.delete,
+                label: context.t('common.delete'),
+                danger: true,
+                onTap: onDelete,
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            template.title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppColors.deepOcean,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              height: 1.22,
+              letterSpacing: 0,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            template.body,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppColors.inkSoft,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              height: 1.22,
+              letterSpacing: 0,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              _StatusBadge(
+                label: context.t(
+                  template.ready
+                      ? 'notifications.templates.ready'
+                      : 'notifications.templates.notReady',
+                ),
+                tone: template.ready ? _BadgeTone.success : _BadgeTone.warning,
+              ),
+              _StatusBadge(
+                label: context.t(
+                  template.active ? 'common.active' : 'common.passive',
+                ),
+                tone: template.active ? _BadgeTone.success : _BadgeTone.muted,
+              ),
+              AdminMobileMeta(
+                icon: Symbols.language,
+                value: template.languageCode.toUpperCase(),
+              ),
+              AdminMobileMeta(
+                icon: Symbols.flag_outlined,
+                value: template.priority,
+              ),
+              AdminMobileMeta(
+                icon: Symbols.schedule,
+                value:
+                    '${formatAdminFullDate(context, template.createdAt)} ${formatAdminTime(template.createdAt)}',
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DeviceMobileCard extends StatelessWidget {
+  const _DeviceMobileCard({
+    required this.device,
+    required this.onActivate,
+    required this.onInvalidate,
+    required this.onDelete,
+  });
+
+  final AdminNotificationDevice device;
+  final VoidCallback onActivate;
+  final VoidCallback onInvalidate;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final active = device.active;
+    return AdminMobileCard(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _NotificationMobileHeader(
+            icon: Symbols.notifications,
+            color: const Color(0xFF0F766E),
+            title: device.platform,
+            subtitle: device.appSurface,
+            menuActions: [
+              if (active)
+                AdminMobileMenuAction(
+                  icon: Symbols.visibility_off,
+                  label: context.t('notifications.actions.invalidate'),
+                  onTap: onInvalidate,
+                )
+              else
+                AdminMobileMenuAction(
+                  icon: Symbols.check_circle,
+                  label: context.t('notifications.actions.activate'),
+                  onTap: onActivate,
+                ),
+              AdminMobileMenuAction(
+                icon: Symbols.delete,
+                label: context.t('common.delete'),
+                danger: true,
+                onTap: onDelete,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              _StatusBadge(
+                label: context.t(active ? 'common.active' : 'common.passive'),
+                tone: active ? _BadgeTone.success : _BadgeTone.muted,
+              ),
+              AdminMobileMeta(
+                icon: Symbols.notifications,
+                value: _shortToken(device.fcmToken),
+              ),
+              AdminMobileMeta(
+                icon: Symbols.person,
+                value: device.deviceModel.isEmpty
+                    ? device.appVersion
+                    : device.deviceModel,
+              ),
+              AdminMobileMeta(
+                icon: Symbols.check,
+                value: _permissionStatusLabel(device.permissionStatus),
+              ),
+              AdminMobileMeta(
+                icon: Symbols.language,
+                value: device.languageCode.toUpperCase(),
+              ),
+              AdminMobileMeta(
+                icon: Symbols.schedule,
+                value:
+                    '${formatAdminFullDate(context, device.lastSeenAt)} ${formatAdminTime(device.lastSeenAt)}',
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NotificationMobileHeader extends StatelessWidget {
+  const _NotificationMobileHeader({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.subtitle,
+    required this.menuActions,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String subtitle;
+  final List<AdminMobileMenuAction> menuActions;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Center(child: SymbolIcon(icon, color: color, size: 18)),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Color(0xFF2F4053),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14.2,
+                  height: 1.2,
+                ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                subtitle,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Color(0xFF7A7F85),
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  height: 1.18,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        Transform.scale(
+          scale: 0.88,
+          alignment: Alignment.topRight,
+          child: AdminMobileMenuButton(
+            tooltip: context.t('common.actions'),
+            actions: menuActions,
           ),
         ),
       ],
@@ -1776,26 +2592,42 @@ class _Footer extends StatelessWidget {
     final end = totalCount == 0
         ? 0
         : (start + pageSize - 1).clamp(1, totalCount);
-    return Row(
-      children: [
-        Text(
-          context.t(
-            'common.tableRange',
-            values: {'start': start, 'end': end, 'total': totalCount},
-          ),
-          style: const TextStyle(
-            color: AppColors.inkSoft,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0,
-          ),
-        ),
-        const Spacer(),
-        AdminTablePagination(
-          page: page,
-          pageCount: pageCount,
-          onPageChanged: onPageChanged,
-        ),
-      ],
+    final rangeText = context.t(
+      'common.tableRange',
+      values: {'start': start, 'end': end, 'total': totalCount},
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < AdminMobile.breakpoint) {
+          return AdminMobilePager(
+            page: page,
+            lastPage: pageCount,
+            rangeText: rangeText,
+            loading: false,
+            onPageChanged: onPageChanged,
+          );
+        }
+
+        return Row(
+          children: [
+            Text(
+              rangeText,
+              style: const TextStyle(
+                color: AppColors.inkSoft,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0,
+              ),
+            ),
+            const Spacer(),
+            AdminTablePagination(
+              page: page,
+              pageCount: pageCount,
+              onPageChanged: onPageChanged,
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -2232,19 +3064,22 @@ class _CampaignDialogState extends State<_CampaignDialog> {
                       children: [
                         Text(
                           title,
+                          maxLines: mobile ? 1 : 2,
+                          overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.headlineSmall
                               ?.copyWith(
                                 color: AppColors.deepOcean,
+                                fontSize: mobile ? 20 : null,
                                 fontWeight: FontWeight.w800,
                                 letterSpacing: 0,
                               ),
                         ),
                         const SizedBox(height: 3),
-                        const Text(
+                        Text(
                           'Haberi seç, şablon ve gönderim alanları otomatik dolsun.',
-                          maxLines: 1,
+                          maxLines: mobile ? 2 : 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
+                          style: const TextStyle(
                             color: AppColors.inkSoft,
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
@@ -3059,9 +3894,12 @@ class _TemplateDialogState extends State<_TemplateDialog> {
                   Expanded(
                     child: Text(
                       title,
+                      maxLines: mobile ? 2 : 1,
+                      overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.headlineSmall
                           ?.copyWith(
                             color: AppColors.deepOcean,
+                            fontSize: mobile ? 20 : null,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 0,
                           ),
@@ -3455,22 +4293,29 @@ class _SwitchRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 48,
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              context.t(label),
-              style: const TextStyle(
-                color: AppColors.deepOcean,
-                fontWeight: FontWeight.w700,
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 48),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                context.t(label),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.deepOcean,
+                  fontWeight: FontWeight.w700,
+                  height: 1.14,
+                  letterSpacing: 0,
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 12),
-          _NotificationToggleSwitch(value: value, onChanged: onChanged),
-        ],
+            const SizedBox(width: 12),
+            _NotificationToggleSwitch(value: value, onChanged: onChanged),
+          ],
+        ),
       ),
     );
   }
@@ -3609,181 +4454,222 @@ class _SettingsPanelState extends State<_SettingsPanel> {
     super.dispose();
   }
 
+  AdminNotificationSettings _settingsFromFields(
+    AdminNotificationSettings settings,
+  ) {
+    return AdminNotificationSettings(
+      id: settings.id,
+      projectId: _projectId.text.trim(),
+      clientEmail: _clientEmail.text.trim(),
+      webVapidKey: _vapid.text.trim(),
+      apiBaseUrl: _apiBaseUrl.text.trim().isEmpty
+          ? 'https://fcm.googleapis.com/v1'
+          : _apiBaseUrl.text.trim(),
+      defaultLanguageCode: settings.defaultLanguageCode,
+      dailyLimit: settings.dailyLimit,
+      monthlyLimit: settings.monthlyLimit,
+      hourlyLimit: settings.hourlyLimit,
+      batchSize: int.tryParse(_batchSize.text.trim()) ?? settings.batchSize,
+      androidEnabled: _android,
+      iosEnabled: _ios,
+      flutterWebEnabled: _flutterWeb,
+      astroWebEnabled: _astroWeb,
+      tokenVerified: settings.tokenVerified,
+      active: _active,
+      connectionStatus: settings.connectionStatus,
+      hasPrivateKey: settings.hasPrivateKey,
+      serverCredentialsConfigured: settings.serverCredentialsConfigured,
+      lastErrorMessage: settings.lastErrorMessage,
+    );
+  }
+
+  void _submit(AdminNotificationSettings settings) {
+    widget.onSave(_settingsFromFields(settings), _privateKey.text);
+  }
+
   @override
   Widget build(BuildContext context) {
     final settings = widget.settings;
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(AppRadius.value),
-        border: Border.all(color: AppColors.line),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(22, 18, 22, 14),
-            child: Row(
-              children: [
-                _StatusBadge(
-                  label: context.t(
-                    settings.tokenVerified
-                        ? 'notifications.settings.ready'
-                        : 'notifications.settings.pending',
-                  ),
-                  tone: settings.tokenVerified
-                      ? _BadgeTone.success
-                      : _BadgeTone.warning,
-                ),
-                const SizedBox(width: 10),
-                if (settings.hasPrivateKey ||
-                    settings.serverCredentialsConfigured)
-                  _StatusBadge(
-                    label: context.t('notifications.settings.secretReady'),
-                    tone: _BadgeTone.success,
-                  ),
-                const Spacer(),
-                AdminTableSecondaryActionButton(
-                  icon: Symbols.sync,
-                  label: context.t('notifications.settings.check'),
-                  onPressed: widget.onCheck,
-                ),
-                const SizedBox(width: 10),
-                AdminTablePrimaryActionButton(
-                  icon: Symbols.save,
-                  label: context.t('common.save'),
-                  onPressed: () {
-                    widget.onSave(
-                      AdminNotificationSettings(
-                        id: settings.id,
-                        projectId: _projectId.text.trim(),
-                        clientEmail: _clientEmail.text.trim(),
-                        webVapidKey: _vapid.text.trim(),
-                        apiBaseUrl: _apiBaseUrl.text.trim().isEmpty
-                            ? 'https://fcm.googleapis.com/v1'
-                            : _apiBaseUrl.text.trim(),
-                        defaultLanguageCode: settings.defaultLanguageCode,
-                        dailyLimit: settings.dailyLimit,
-                        monthlyLimit: settings.monthlyLimit,
-                        hourlyLimit: settings.hourlyLimit,
-                        batchSize:
-                            int.tryParse(_batchSize.text.trim()) ??
-                            settings.batchSize,
-                        androidEnabled: _android,
-                        iosEnabled: _ios,
-                        flutterWebEnabled: _flutterWeb,
-                        astroWebEnabled: _astroWeb,
-                        tokenVerified: settings.tokenVerified,
-                        active: _active,
-                        connectionStatus: settings.connectionStatus,
-                        hasPrivateKey: settings.hasPrivateKey,
-                        serverCredentialsConfigured:
-                            settings.serverCredentialsConfigured,
-                        lastErrorMessage: settings.lastErrorMessage,
-                      ),
-                      _privateKey.text,
-                    );
-                  },
-                ),
-              ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final mobile = constraints.maxWidth < AdminMobile.breakpoint;
+        final badges = <Widget>[
+          _StatusBadge(
+            label: context.t(
+              settings.tokenVerified
+                  ? 'notifications.settings.ready'
+                  : 'notifications.settings.pending',
             ),
+            tone: settings.tokenVerified
+                ? _BadgeTone.success
+                : _BadgeTone.warning,
           ),
-          const Divider(height: 1, color: AppColors.line),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(22),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _DialogTextField(
-                          label: 'notifications.settings.projectId',
-                          controller: _projectId,
-                        ),
+          if (settings.hasPrivateKey || settings.serverCredentialsConfigured)
+            _StatusBadge(
+              label: context.t('notifications.settings.secretReady'),
+              tone: _BadgeTone.success,
+            ),
+        ];
+        final checkButton = AdminTableSecondaryActionButton(
+          icon: Symbols.sync,
+          label: context.t('notifications.settings.check'),
+          onPressed: widget.onCheck,
+        );
+        final saveButton = AdminTablePrimaryActionButton(
+          icon: Symbols.save,
+          label: context.t('common.save'),
+          onPressed: () => _submit(settings),
+        );
+
+        final projectField = _DialogTextField(
+          label: 'notifications.settings.projectId',
+          controller: _projectId,
+        );
+        final emailField = _DialogTextField(
+          label: 'notifications.settings.clientEmail',
+          controller: _clientEmail,
+        );
+        final privateKeyField = _DialogTextField(
+          label: settings.hasPrivateKey
+              ? 'notifications.settings.privateKeyUpdate'
+              : 'notifications.settings.privateKey',
+          controller: _privateKey,
+          maxLines: mobile ? 3 : 4,
+        );
+        final vapidField = _DialogTextField(
+          label: 'notifications.settings.vapidKey',
+          controller: _vapid,
+        );
+        final apiField = _DialogTextField(
+          label: 'notifications.settings.apiBaseUrl',
+          controller: _apiBaseUrl,
+        );
+        final batchField = _DialogTextField(
+          label: 'notifications.settings.batchSize',
+          controller: _batchSize,
+        );
+
+        return Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(AppRadius.value),
+            border: Border.all(color: AppColors.line),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  mobile ? 14 : 22,
+                  mobile ? 14 : 18,
+                  mobile ? 14 : 22,
+                  mobile ? 12 : 14,
+                ),
+                child: mobile
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Wrap(spacing: 8, runSpacing: 8, children: badges),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(child: checkButton),
+                              const SizedBox(width: 10),
+                              Expanded(child: saveButton),
+                            ],
+                          ),
+                        ],
+                      )
+                    : Row(
+                        children: [
+                          Wrap(spacing: 10, runSpacing: 8, children: badges),
+                          const Spacer(),
+                          checkButton,
+                          const SizedBox(width: 10),
+                          saveButton,
+                        ],
                       ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: _DialogTextField(
-                          label: 'notifications.settings.clientEmail',
-                          controller: _clientEmail,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  _DialogTextField(
-                    label: settings.hasPrivateKey
-                        ? 'notifications.settings.privateKeyUpdate'
-                        : 'notifications.settings.privateKey',
-                    controller: _privateKey,
-                    maxLines: 4,
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _DialogTextField(
-                          label: 'notifications.settings.vapidKey',
-                          controller: _vapid,
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: _DialogTextField(
-                          label: 'notifications.settings.apiBaseUrl',
-                          controller: _apiBaseUrl,
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      SizedBox(
-                        width: 140,
-                        child: _DialogTextField(
-                          label: 'notifications.settings.batchSize',
-                          controller: _batchSize,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  _SwitchRow(
-                    label: 'notifications.settings.android',
-                    value: _android,
-                    onChanged: (value) => setState(() => _android = value),
-                  ),
-                  _SwitchRow(
-                    label: 'notifications.settings.ios',
-                    value: _ios,
-                    onChanged: (value) => setState(() => _ios = value),
-                  ),
-                  _SwitchRow(
-                    label: 'notifications.settings.flutterWeb',
-                    value: _flutterWeb,
-                    onChanged: (value) => setState(() => _flutterWeb = value),
-                  ),
-                  _SwitchRow(
-                    label: 'notifications.settings.astroWeb',
-                    value: _astroWeb,
-                    onChanged: (value) => setState(() => _astroWeb = value),
-                  ),
-                  _SwitchRow(
-                    label: 'common.active',
-                    value: _active,
-                    onChanged: (value) => setState(() => _active = value),
-                  ),
-                  if (settings.lastErrorMessage.trim().isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    _StatusBadge(
-                      label: settings.lastErrorMessage,
-                      tone: _BadgeTone.danger,
-                    ),
-                  ],
-                ],
               ),
-            ),
+              const Divider(height: 1, color: AppColors.line),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.all(mobile ? 14 : 22),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (mobile) ...[
+                        projectField,
+                        const SizedBox(height: 12),
+                        emailField,
+                      ] else
+                        Row(
+                          children: [
+                            Expanded(child: projectField),
+                            const SizedBox(width: 14),
+                            Expanded(child: emailField),
+                          ],
+                        ),
+                      const SizedBox(height: 14),
+                      privateKeyField,
+                      const SizedBox(height: 14),
+                      if (mobile) ...[
+                        vapidField,
+                        const SizedBox(height: 12),
+                        apiField,
+                        const SizedBox(height: 12),
+                        batchField,
+                      ] else
+                        Row(
+                          children: [
+                            Expanded(child: vapidField),
+                            const SizedBox(width: 14),
+                            Expanded(child: apiField),
+                            const SizedBox(width: 14),
+                            SizedBox(width: 140, child: batchField),
+                          ],
+                        ),
+                      const SizedBox(height: 16),
+                      _SwitchRow(
+                        label: 'notifications.settings.android',
+                        value: _android,
+                        onChanged: (value) => setState(() => _android = value),
+                      ),
+                      _SwitchRow(
+                        label: 'notifications.settings.ios',
+                        value: _ios,
+                        onChanged: (value) => setState(() => _ios = value),
+                      ),
+                      _SwitchRow(
+                        label: 'notifications.settings.flutterWeb',
+                        value: _flutterWeb,
+                        onChanged: (value) =>
+                            setState(() => _flutterWeb = value),
+                      ),
+                      _SwitchRow(
+                        label: 'notifications.settings.astroWeb',
+                        value: _astroWeb,
+                        onChanged: (value) => setState(() => _astroWeb = value),
+                      ),
+                      _SwitchRow(
+                        label: 'common.active',
+                        value: _active,
+                        onChanged: (value) => setState(() => _active = value),
+                      ),
+                      if (settings.lastErrorMessage.trim().isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        _StatusBadge(
+                          label: settings.lastErrorMessage,
+                          tone: _BadgeTone.danger,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

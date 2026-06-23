@@ -16,6 +16,7 @@ import '../../auth/data/admin_auth_models.dart';
 import '../../news/data/admin_news_repository.dart';
 import '../../news/presentation/news_models.dart';
 import '../data/admin_module_settings_repository.dart';
+import 'settings_mobile_chrome.dart';
 
 const _announcementDistrictLabels = {
   'merkez': 'Merkez',
@@ -128,10 +129,10 @@ class _AnnouncementsSettingsScreenState
   }
 
   Future<void> _openSourceDialog([AnnouncementSourceData? source]) async {
-    final result = await showDialog<AnnouncementSourceData>(
-      context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.34),
-      builder: (context) => _SourceDialog(source: source),
+    final result = await showSettingsSideDialog<AnnouncementSourceData>(
+      context,
+      barrierLabel: 'AnnouncementSourceDialog',
+      builder: (mobile) => _SourceDialog(source: source, mobileDrawer: mobile),
     );
     if (!mounted || result == null) return;
 
@@ -178,12 +179,13 @@ class _AnnouncementsSettingsScreenState
   }
 
   Future<void> _openAnnouncementDialog(AnnouncementPreviewItem item) async {
-    final result = await showDialog<AnnouncementPreviewItem>(
-      context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.34),
-      builder: (context) => _AnnouncementDialog(
+    final result = await showSettingsSideDialog<AnnouncementPreviewItem>(
+      context,
+      barrierLabel: 'AnnouncementDialog',
+      builder: (mobile) => _AnnouncementDialog(
         item: item,
         newsRepository: widget.newsRepository,
+        mobileDrawer: mobile,
       ),
     );
     if (!mounted || result == null) return;
@@ -213,10 +215,13 @@ class _AnnouncementsSettingsScreenState
   }
 
   Future<void> _openManualAnnouncementAiDialog() async {
-    final saved = await showDialog<AnnouncementPreviewItem>(
-      context: context,
-      barrierColor: AppColors.deepOcean.withValues(alpha: 0.58),
-      builder: (context) => _ManualAnnouncementAiDialog(
+    final saved = await showSettingsSideDialog<AnnouncementPreviewItem>(
+      context,
+      barrierLabel: 'ManualAnnouncementAiDialog',
+      desktopBarrierColor: AppColors.deepOcean.withValues(alpha: 0.58),
+      mobileBarrierColor: AppColors.deepOcean.withValues(alpha: 0.58),
+      builder: (mobile) => _ManualAnnouncementAiDialog(
+        mobileDrawer: mobile,
         onCreate: (request) => widget.repository.createManualAnnouncementWithAi(
           session: widget.session,
           request: request,
@@ -425,14 +430,8 @@ class _AnnouncementsSettingsScreenState
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final horizontalPadding = constraints.maxWidth < 640 ? 16.0 : 28.0;
         return SingleChildScrollView(
-          padding: EdgeInsets.fromLTRB(
-            horizontalPadding,
-            28,
-            horizontalPadding,
-            28,
-          ),
+          padding: settingsPagePadding(constraints.maxWidth),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -543,40 +542,12 @@ class _Tabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
+    return SettingsResponsiveTabs<_AnnouncementsTab>(
+      selected: selected,
+      onSelected: onSelected,
+      items: [
         for (final tab in _AnnouncementsTab.values)
-          SizedBox(
-            height: 38,
-            child: TextButton(
-              onPressed: () => onSelected(tab),
-              style: TextButton.styleFrom(
-                backgroundColor: selected == tab
-                    ? AppColors.actionRed
-                    : Colors.white,
-                foregroundColor: selected == tab
-                    ? Colors.white
-                    : AppColors.deepOcean,
-                side: BorderSide(
-                  color: selected == tab
-                      ? AppColors.actionRed
-                      : AppColors.line.withValues(alpha: 0.88),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.value),
-                ),
-                textStyle: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0,
-                ),
-              ),
-              child: Text(tab.title),
-            ),
-          ),
+          SettingsTabItem(value: tab, label: tab.title),
       ],
     );
   }
@@ -1082,12 +1053,16 @@ class _PreviewSelectAllRow extends StatelessWidget {
 }
 
 class _ManualAnnouncementAiDialog extends StatefulWidget {
-  const _ManualAnnouncementAiDialog({required this.onCreate});
+  const _ManualAnnouncementAiDialog({
+    required this.onCreate,
+    required this.mobileDrawer,
+  });
 
   final Future<AnnouncementPreviewItem> Function(
     ManualAnnouncementAiRequest request,
   )
   onCreate;
+  final bool mobileDrawer;
 
   @override
   State<_ManualAnnouncementAiDialog> createState() =>
@@ -1174,22 +1149,32 @@ class _ManualAnnouncementAiDialogState
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
-    final horizontalInset = size.width < 720 ? 16.0 : 48.0;
-    final verticalInset = size.height < 700 ? 16.0 : 42.0;
+    final horizontalInset = widget.mobileDrawer
+        ? 0.0
+        : size.width < 720
+        ? 16.0
+        : 48.0;
+    final verticalInset = widget.mobileDrawer
+        ? 0.0
+        : size.height < 700
+        ? 16.0
+        : 42.0;
     final availableWidth = size.width - (horizontalInset * 2);
     final availableHeight = size.height - (verticalInset * 2);
-    final dialogWidth =
-        (size.width < 1060
-                ? availableWidth
-                : (size.width * 0.66).clamp(920.0, 1120.0))
-            .clamp(0.0, availableWidth)
-            .toDouble();
-    final dialogHeight =
-        (size.height < 700
-                ? availableHeight
-                : (size.height * 0.70).clamp(560.0, 640.0))
-            .clamp(0.0, availableHeight)
-            .toDouble();
+    final dialogWidth = widget.mobileDrawer
+        ? availableWidth
+        : (size.width < 1060
+                  ? availableWidth
+                  : (size.width * 0.66).clamp(920.0, 1120.0))
+              .clamp(0.0, availableWidth)
+              .toDouble();
+    final dialogHeight = widget.mobileDrawer
+        ? availableHeight
+        : (size.height < 700
+                  ? availableHeight
+                  : (size.height * 0.70).clamp(560.0, 640.0))
+              .clamp(0.0, availableHeight)
+              .toDouble();
 
     return Dialog(
       insetPadding: EdgeInsets.symmetric(
@@ -1204,7 +1189,9 @@ class _ManualAnnouncementAiDialogState
         child: Container(
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(AppRadius.value),
+            borderRadius: BorderRadius.circular(
+              widget.mobileDrawer ? 0 : AppRadius.value,
+            ),
             border: Border.all(color: AppColors.line.withValues(alpha: 0.9)),
             boxShadow: [
               BoxShadow(
@@ -2549,10 +2536,15 @@ Future<void> _openExternalUrl(String value) async {
 }
 
 class _AnnouncementDialog extends StatefulWidget {
-  const _AnnouncementDialog({required this.item, required this.newsRepository});
+  const _AnnouncementDialog({
+    required this.item,
+    required this.newsRepository,
+    required this.mobileDrawer,
+  });
 
   final AnnouncementPreviewItem item;
   final AdminNewsRepository newsRepository;
+  final bool mobileDrawer;
 
   @override
   State<_AnnouncementDialog> createState() => _AnnouncementDialogState();
@@ -2654,12 +2646,13 @@ class _AnnouncementDialogState extends State<_AnnouncementDialog> {
   }
 
   Future<void> _selectLinkedPost() async {
-    final post = await showDialog<AdminNewsPost>(
-      context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.34),
-      builder: (context) => _AnnouncementNewsPickerDialog(
+    final post = await showSettingsSideDialog<AdminNewsPost>(
+      context,
+      barrierLabel: 'AnnouncementNewsPickerDialog',
+      builder: (mobile) => _AnnouncementNewsPickerDialog(
         repository: widget.newsRepository,
         selectedPostId: _linkedPostId,
+        mobileDrawer: mobile,
       ),
     );
     if (!mounted || post == null) return;
@@ -2683,12 +2676,17 @@ class _AnnouncementDialogState extends State<_AnnouncementDialog> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
+      insetPadding: widget.mobileDrawer ? EdgeInsets.zero : null,
       backgroundColor: Colors.white,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadius.value),
+        borderRadius: BorderRadius.circular(
+          widget.mobileDrawer ? 0 : AppRadius.value,
+        ),
       ),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 860),
+        constraints: widget.mobileDrawer
+            ? const BoxConstraints.expand()
+            : const BoxConstraints(maxWidth: 860),
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(
@@ -2976,10 +2974,12 @@ class _AnnouncementNewsPickerDialog extends StatefulWidget {
   const _AnnouncementNewsPickerDialog({
     required this.repository,
     required this.selectedPostId,
+    required this.mobileDrawer,
   });
 
   final AdminNewsRepository repository;
   final String selectedPostId;
+  final bool mobileDrawer;
 
   @override
   State<_AnnouncementNewsPickerDialog> createState() =>
@@ -3055,12 +3055,17 @@ class _AnnouncementNewsPickerDialogState
   @override
   Widget build(BuildContext context) {
     return Dialog(
+      insetPadding: widget.mobileDrawer ? EdgeInsets.zero : null,
       backgroundColor: Colors.white,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadius.value),
+        borderRadius: BorderRadius.circular(
+          widget.mobileDrawer ? 0 : AppRadius.value,
+        ),
       ),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 760, maxHeight: 640),
+        constraints: widget.mobileDrawer
+            ? const BoxConstraints.expand()
+            : const BoxConstraints(maxWidth: 760, maxHeight: 640),
         child: Padding(
           padding: const EdgeInsets.all(22),
           child: Column(
@@ -3370,9 +3375,10 @@ class _RunRow extends StatelessWidget {
 }
 
 class _SourceDialog extends StatefulWidget {
-  const _SourceDialog({this.source});
+  const _SourceDialog({this.source, this.mobileDrawer = false});
 
   final AnnouncementSourceData? source;
+  final bool mobileDrawer;
 
   @override
   State<_SourceDialog> createState() => _SourceDialogState();
@@ -3457,12 +3463,17 @@ class _SourceDialogState extends State<_SourceDialog> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
+      insetPadding: widget.mobileDrawer ? EdgeInsets.zero : null,
       backgroundColor: Colors.white,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadius.value),
+        borderRadius: BorderRadius.circular(
+          widget.mobileDrawer ? 0 : AppRadius.value,
+        ),
       ),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 680),
+        constraints: widget.mobileDrawer
+            ? const BoxConstraints.expand()
+            : const BoxConstraints(maxWidth: 680),
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(

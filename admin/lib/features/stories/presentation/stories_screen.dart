@@ -335,6 +335,18 @@ class _StoriesScreenState extends State<StoriesScreen> {
           ],
         );
 
+        if (mobile) {
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+              horizontalPadding,
+              topPadding,
+              horizontalPadding,
+              0,
+            ),
+            child: content,
+          );
+        }
+
         if (compact) {
           return SingleChildScrollView(
             padding: EdgeInsets.fromLTRB(
@@ -465,6 +477,7 @@ class _StoriesTableCard extends StatelessWidget {
             totalCount: totalCount,
             searchQuery: searchQuery,
             selectedStoryIds: selectedStoryIds,
+            onPageSizeChanged: onPageSizeChanged,
             onSearchChanged: onSearchChanged,
             onPageChanged: onPageChanged,
             onToggleStory: onToggleStory,
@@ -521,7 +534,7 @@ class _StoriesTableCard extends StatelessWidget {
   }
 }
 
-class _StoriesMobileView extends StatelessWidget {
+class _StoriesMobileView extends StatefulWidget {
   const _StoriesMobileView({
     required this.stories,
     required this.loading,
@@ -530,6 +543,7 @@ class _StoriesMobileView extends StatelessWidget {
     required this.totalCount,
     required this.searchQuery,
     required this.selectedStoryIds,
+    required this.onPageSizeChanged,
     required this.onSearchChanged,
     required this.onPageChanged,
     required this.onToggleStory,
@@ -549,6 +563,7 @@ class _StoriesMobileView extends StatelessWidget {
   final int totalCount;
   final String searchQuery;
   final Set<String> selectedStoryIds;
+  final ValueChanged<int?> onPageSizeChanged;
   final ValueChanged<String> onSearchChanged;
   final ValueChanged<int> onPageChanged;
   final ValueChanged<String> onToggleStory;
@@ -561,80 +576,346 @@ class _StoriesMobileView extends StatelessWidget {
   final VoidCallback onDeleteSelected;
 
   @override
+  State<_StoriesMobileView> createState() => _StoriesMobileViewState();
+}
+
+class _StoriesMobileViewState extends State<_StoriesMobileView> {
+  late final TextEditingController _searchController;
+  var _lengthExpanded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController = TextEditingController(text: widget.searchQuery);
+  }
+
+  @override
+  void didUpdateWidget(covariant _StoriesMobileView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.searchQuery != _searchController.text) {
+      _searchController.value = TextEditingValue(
+        text: widget.searchQuery,
+        selection: TextSelection.collapsed(offset: widget.searchQuery.length),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _toggleLength() {
+    setState(() => _lengthExpanded = !_lengthExpanded);
+    FocusScope.of(context).unfocus();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final lastPage = totalCount == 0 ? 1 : ((totalCount - 1) ~/ pageSize) + 1;
-    final from = totalCount == 0 ? 0 : ((page - 1) * pageSize) + 1;
-    final to = totalCount == 0
+    final lastPage = widget.totalCount == 0
+        ? 1
+        : ((widget.totalCount - 1) ~/ widget.pageSize) + 1;
+    final from = widget.totalCount == 0
         ? 0
-        : (page * pageSize > totalCount ? totalCount : page * pageSize);
+        : ((widget.page - 1) * widget.pageSize) + 1;
+    final to = widget.totalCount == 0
+        ? 0
+        : (widget.page * widget.pageSize > widget.totalCount
+              ? widget.totalCount
+              : widget.page * widget.pageSize);
     final rangeText = context.t(
       'common.recordRange',
-      values: {'from': from, 'to': to, 'total': totalCount},
+      values: {'from': from, 'to': to, 'total': widget.totalCount},
     );
-    final hasSelection = selectedStoryIds.isNotEmpty;
+    final hasSelection = widget.selectedStoryIds.isNotEmpty;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        AdminMobileToolbar(
-          query: searchQuery,
+        _StoriesMobileSearchPanel(
+          searchController: _searchController,
           hintText: context.t('stories.searchPlaceholder'),
-          onSearchChanged: onSearchChanged,
-          activeFilterCount: 0,
-          onOpenFilters: () {},
-          showFilters: false,
+          onSearchChanged: widget.onSearchChanged,
+          isExpanded: _lengthExpanded,
+          onToggleExpanded: _toggleLength,
+          recordCount: widget.totalCount,
+          pageSize: widget.pageSize,
+          onPageSizeChanged: widget.onPageSizeChanged,
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
         hasSelection
             ? AdminMobileSelectionBar(
-                selectedCount: selectedStoryIds.length,
+                selectedCount: widget.selectedStoryIds.length,
                 label: context.t(
                   'stories.selectedDelete',
-                  values: {'count': selectedStoryIds.length},
+                  values: {'count': widget.selectedStoryIds.length},
                 ),
                 onClear: () {
-                  for (final id in selectedStoryIds.toList()) {
-                    onToggleStory(id);
+                  for (final id in widget.selectedStoryIds.toList()) {
+                    widget.onToggleStory(id);
                   }
                 },
-                onDelete: onDeleteSelected,
+                onDelete: widget.onDeleteSelected,
               )
             : AdminMobilePrimaryButton(
                 icon: Symbols.add,
                 label: context.t('stories.addButton'),
                 fullWidth: true,
-                onPressed: onAddStory,
+                onPressed: widget.onAddStory,
               ),
         const SizedBox(height: 14),
         Expanded(
           child: AdminMobileListView(
-            loading: loading,
-            itemCount: stories.length,
+            loading: widget.loading,
+            itemCount: widget.stories.length,
             emptyLabel: context.t('stories.empty'),
             itemBuilder: (context, index) {
-              final story = stories[index];
+              final story = widget.stories[index];
               return _StoriesMobileCard(
                 story: story,
-                selected: selectedStoryIds.contains(story.id),
-                onToggle: () => onToggleStory(story.id),
-                onEditStory: onEditStory,
-                onEditInEditor: onEditInEditor,
-                onToggleStatus: onToggleStatus,
-                onOpenMedia: onOpenMedia,
-                onDeleteStory: onDeleteStory,
+                selected: widget.selectedStoryIds.contains(story.id),
+                onToggle: () => widget.onToggleStory(story.id),
+                onEditStory: widget.onEditStory,
+                onEditInEditor: widget.onEditInEditor,
+                onToggleStatus: widget.onToggleStatus,
+                onOpenMedia: widget.onOpenMedia,
+                onDeleteStory: widget.onDeleteStory,
               );
             },
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 4),
         AdminMobilePager(
-          page: page,
+          page: widget.page,
           lastPage: lastPage,
           rangeText: rangeText,
-          loading: loading,
-          onPageChanged: onPageChanged,
+          loading: widget.loading,
+          onPageChanged: widget.onPageChanged,
         ),
       ],
+    );
+  }
+}
+
+class _StoriesMobileSearchPanel extends StatelessWidget {
+  const _StoriesMobileSearchPanel({
+    required this.searchController,
+    required this.hintText,
+    required this.onSearchChanged,
+    required this.isExpanded,
+    required this.onToggleExpanded,
+    required this.recordCount,
+    required this.pageSize,
+    required this.onPageSizeChanged,
+  });
+
+  static const _borderColor = Color(0xFFE6EAF0);
+  static const _muted = Color(0xFF9AA3AA);
+  static const _navy = Color(0xFF2F4053);
+
+  final TextEditingController searchController;
+  final String hintText;
+  final ValueChanged<String> onSearchChanged;
+  final bool isExpanded;
+  final VoidCallback onToggleExpanded;
+  final int recordCount;
+  final int pageSize;
+  final ValueChanged<int?> onPageSizeChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _borderColor),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            height: 72,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 10, 12, 9),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Row(
+                      children: [
+                        const SymbolIcon(
+                          Symbols.search,
+                          color: _muted,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              TextField(
+                                controller: searchController,
+                                onChanged: onSearchChanged,
+                                textAlignVertical: TextAlignVertical.center,
+                                cursorColor: _navy,
+                                style: const TextStyle(
+                                  fontSize: 14.5,
+                                  color: _navy,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                decoration: InputDecoration(
+                                  hintText: hintText,
+                                  hintStyle: const TextStyle(
+                                    color: _muted,
+                                    fontSize: 14.5,
+                                    fontWeight: FontWeight.w400,
+                                  ),
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.zero,
+                                  border: InputBorder.none,
+                                  enabledBorder: InputBorder.none,
+                                  focusedBorder: InputBorder.none,
+                                ),
+                              ),
+                              Container(
+                                height: 1,
+                                color: const Color(0xFFB9BEC4),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: onToggleExpanded,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                isExpanded ? 'Gizle' : 'Göster',
+                                style: const TextStyle(
+                                  color: _navy,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                  height: 1,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              RotatedBox(
+                                quarterTurns: isExpanded ? 2 : 0,
+                                child: const SymbolIcon(
+                                  Symbols.keyboard_arrow_down,
+                                  color: _navy,
+                                  size: 17,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            '$recordCount kayıt',
+                            style: const TextStyle(
+                              color: _navy,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w800,
+                              height: 1,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          const Text(
+                            'Filtre yok',
+                            style: TextStyle(
+                              color: _muted,
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w500,
+                              height: 1,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (isExpanded) ...[
+            const Divider(height: 1, color: _borderColor),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: _StoriesMobilePageSizeDropdown(
+                  value: pageSize,
+                  onChanged: onPageSizeChanged,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _StoriesMobilePageSizeDropdown extends StatelessWidget {
+  const _StoriesMobilePageSizeDropdown({
+    required this.value,
+    required this.onChanged,
+  });
+
+  static const _values = ['25', '50', '100'];
+
+  final int value;
+  final ValueChanged<int?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = _values.contains(value.toString())
+        ? value.toString()
+        : '25';
+    return Container(
+      width: 66,
+      height: 42,
+      padding: const EdgeInsets.only(left: 10, right: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE6EAF0)),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: selected,
+          isDense: true,
+          isExpanded: true,
+          borderRadius: BorderRadius.circular(10),
+          icon: const SymbolIcon(
+            Symbols.keyboard_arrow_down,
+            color: Color(0xFF6F7780),
+            size: 16,
+          ),
+          style: const TextStyle(
+            color: Color(0xFF2F4053),
+            fontSize: 14.5,
+            fontWeight: FontWeight.w500,
+          ),
+          items: const [
+            DropdownMenuItem(value: '25', child: Text('25')),
+            DropdownMenuItem(value: '50', child: Text('50')),
+            DropdownMenuItem(value: '100', child: Text('100')),
+          ],
+          onChanged: (value) => onChanged(int.tryParse(value ?? '')),
+        ),
+      ),
     );
   }
 }

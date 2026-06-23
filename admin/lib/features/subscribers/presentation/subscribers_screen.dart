@@ -243,18 +243,15 @@ class _SubscribersScreenState extends State<SubscribersScreen> {
     );
   }
 
-  Future<void> _showSubscriberDialog({
+  Future<void> _openSubscriberDrawer({
     AdminSubscriber? subscriber,
     bool updateMode = false,
   }) async {
-    final result = await showDialog<SubscriberFormData>(
+    final result = await _showSubscribersSideDrawer<SubscriberFormData>(
       context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.34),
-      builder: (context) => _SubscriberDialogFrame(
-        child: _SubscriberFormDialog(
-          subscriber: subscriber,
-          updateMode: updateMode,
-        ),
+      child: _SubscriberFormDialog(
+        subscriber: subscriber,
+        updateMode: updateMode,
       ),
     );
     if (result == null || !mounted) return;
@@ -339,10 +336,10 @@ class _SubscribersScreenState extends State<SubscribersScreen> {
                 onToggleSubscriber: _toggleSubscriber,
                 onToggleAllSubscribers: _toggleAllSubscribers,
                 onSort: _changeSort,
-                onCreate: () => _showSubscriberDialog(),
+                onCreate: () => _openSubscriberDrawer(),
                 onEdit: (subscriber) =>
-                    _showSubscriberDialog(subscriber: subscriber),
-                onUpdate: (subscriber) => _showSubscriberDialog(
+                    _openSubscriberDrawer(subscriber: subscriber),
+                onUpdate: (subscriber) => _openSubscriberDrawer(
                   subscriber: subscriber,
                   updateMode: true,
                 ),
@@ -351,6 +348,18 @@ class _SubscribersScreenState extends State<SubscribersScreen> {
             ),
           ],
         );
+
+        if (mobile) {
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+              horizontalPadding,
+              topPadding,
+              horizontalPadding,
+              0,
+            ),
+            child: content,
+          );
+        }
 
         if (compact) {
           return SingleChildScrollView(
@@ -502,8 +511,10 @@ class _SubscribersTableCard extends StatelessWidget {
               page: page,
               pageSize: pageSize,
               totalCount: totalCount,
+              searchController: searchController,
               searchQuery: searchQuery,
               selectedIds: selectedIds,
+              onPageSizeChanged: onPageSizeChanged,
               onSearchChanged: onSearchChanged,
               onPageChanged: onPageChanged,
               onToggleSubscriber: onToggleSubscriber,
@@ -615,8 +626,10 @@ class _SubscribersMobileView extends StatelessWidget {
     required this.page,
     required this.pageSize,
     required this.totalCount,
+    required this.searchController,
     required this.searchQuery,
     required this.selectedIds,
+    required this.onPageSizeChanged,
     required this.onSearchChanged,
     required this.onPageChanged,
     required this.onToggleSubscriber,
@@ -631,8 +644,10 @@ class _SubscribersMobileView extends StatelessWidget {
   final int page;
   final int pageSize;
   final int totalCount;
+  final TextEditingController searchController;
   final String searchQuery;
   final Set<String> selectedIds;
+  final ValueChanged<int?> onPageSizeChanged;
   final ValueChanged<String> onSearchChanged;
   final ValueChanged<int> onPageChanged;
   final ValueChanged<String> onToggleSubscriber;
@@ -656,19 +671,19 @@ class _SubscribersMobileView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        AdminMobileToolbar(
+        _SubscribersMobileSearchPanel(
+          controller: searchController,
           query: searchQuery,
           hintText: context.t('subscribers.searchPlaceholder'),
           onSearchChanged: onSearchChanged,
-          activeFilterCount: 0,
-          onOpenFilters: () {},
-          showFilters: false,
+          recordCount: totalCount,
+          pageSize: pageSize,
+          onPageSizeChanged: onPageSizeChanged,
         ),
-        const SizedBox(height: 12),
-        AdminMobilePrimaryButton(
+        const SizedBox(height: 8),
+        _SubscribersMobileActionButton(
           icon: Symbols.add,
           label: context.t('subscribers.addButton'),
-          fullWidth: true,
           onPressed: onCreate,
         ),
         const SizedBox(height: 14),
@@ -690,8 +705,8 @@ class _SubscribersMobileView extends StatelessWidget {
             },
           ),
         ),
-        const SizedBox(height: 12),
-        AdminMobilePager(
+        const SizedBox(height: 4),
+        _SubscribersMobileBottomPager(
           page: page,
           lastPage: lastPage,
           rangeText: rangeText,
@@ -699,6 +714,393 @@ class _SubscribersMobileView extends StatelessWidget {
           onPageChanged: onPageChanged,
         ),
       ],
+    );
+  }
+}
+
+class _SubscribersMobileSearchPanel extends StatefulWidget {
+  const _SubscribersMobileSearchPanel({
+    required this.controller,
+    required this.query,
+    required this.hintText,
+    required this.onSearchChanged,
+    required this.recordCount,
+    required this.pageSize,
+    required this.onPageSizeChanged,
+  });
+
+  final TextEditingController controller;
+  final String query;
+  final String hintText;
+  final ValueChanged<String> onSearchChanged;
+  final int recordCount;
+  final int pageSize;
+  final ValueChanged<int?> onPageSizeChanged;
+
+  @override
+  State<_SubscribersMobileSearchPanel> createState() =>
+      _SubscribersMobileSearchPanelState();
+}
+
+class _SubscribersMobileSearchPanelState
+    extends State<_SubscribersMobileSearchPanel> {
+  static const _borderColor = Color(0xFFE6EAF0);
+  static const _muted = Color(0xFF9AA3AA);
+  static const _navy = Color(0xFF2F4053);
+
+  var _expanded = false;
+
+  @override
+  void didUpdateWidget(covariant _SubscribersMobileSearchPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.query != widget.controller.text) {
+      widget.controller.value = TextEditingValue(
+        text: widget.query,
+        selection: TextSelection.collapsed(offset: widget.query.length),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _borderColor),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            height: 72,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 10, 12, 9),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Row(
+                      children: [
+                        const SymbolIcon(
+                          Symbols.search,
+                          color: _muted,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              TextField(
+                                controller: widget.controller,
+                                onChanged: widget.onSearchChanged,
+                                textAlignVertical: TextAlignVertical.center,
+                                cursorColor: _navy,
+                                style: const TextStyle(
+                                  fontSize: 14.5,
+                                  color: _navy,
+                                  fontWeight: FontWeight.w500,
+                                  letterSpacing: 0,
+                                ),
+                                decoration: InputDecoration(
+                                  hintText: widget.hintText,
+                                  hintStyle: const TextStyle(
+                                    color: _muted,
+                                    fontSize: 14.5,
+                                    fontWeight: FontWeight.w400,
+                                    letterSpacing: 0,
+                                  ),
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.zero,
+                                  border: InputBorder.none,
+                                  enabledBorder: InputBorder.none,
+                                  focusedBorder: InputBorder.none,
+                                ),
+                              ),
+                              Container(
+                                height: 1,
+                                color: const Color(0xFFB9BEC4),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 78),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: () => setState(() => _expanded = !_expanded),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 2),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    _expanded ? 'Gizle' : 'Göster',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: _navy,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                      height: 1,
+                                      letterSpacing: 0,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                RotatedBox(
+                                  quarterTurns: _expanded ? 2 : 0,
+                                  child: const SymbolIcon(
+                                    Symbols.keyboard_arrow_down,
+                                    color: _navy,
+                                    size: 17,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              '${widget.recordCount} kayıt',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: _navy,
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w800,
+                                height: 1,
+                                letterSpacing: 0,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            const Text(
+                              'Filtre yok',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: _muted,
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w500,
+                                height: 1,
+                                letterSpacing: 0,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_expanded) ...[
+            const Divider(height: 1, color: _borderColor),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: _SubscribersMobilePageSizeDropdown(
+                  value: widget.pageSize,
+                  onChanged: widget.onPageSizeChanged,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SubscribersMobilePageSizeDropdown extends StatelessWidget {
+  const _SubscribersMobilePageSizeDropdown({
+    required this.value,
+    required this.onChanged,
+  });
+
+  static const _values = ['25', '50', '100'];
+
+  final int value;
+  final ValueChanged<int?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = _values.contains(value.toString())
+        ? value.toString()
+        : '25';
+    return Container(
+      width: 66,
+      height: 42,
+      padding: const EdgeInsets.only(left: 10, right: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE6EAF0)),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: selected,
+          isDense: true,
+          isExpanded: true,
+          borderRadius: BorderRadius.circular(10),
+          icon: const SymbolIcon(
+            Symbols.keyboard_arrow_down,
+            color: Color(0xFF6F7780),
+            size: 16,
+          ),
+          style: const TextStyle(
+            color: Color(0xFF2F4053),
+            fontSize: 14.5,
+            fontWeight: FontWeight.w500,
+            letterSpacing: 0,
+          ),
+          items: const [
+            DropdownMenuItem(value: '25', child: Text('25')),
+            DropdownMenuItem(value: '50', child: Text('50')),
+            DropdownMenuItem(value: '100', child: Text('100')),
+          ],
+          onChanged: (value) => onChanged(int.tryParse(value ?? '')),
+        ),
+      ),
+    );
+  }
+}
+
+class _SubscribersMobileActionButton extends StatelessWidget {
+  const _SubscribersMobileActionButton({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 40,
+      child: TextButton(
+        onPressed: onPressed,
+        style: TextButton.styleFrom(
+          backgroundColor: AppColors.actionRed,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          minimumSize: const Size(0, 40),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          textStyle: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SymbolIcon(icon, color: Colors.white, size: 17),
+            const SizedBox(width: 7),
+            Flexible(
+              child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SubscribersMobileBottomPager extends StatelessWidget {
+  const _SubscribersMobileBottomPager({
+    required this.page,
+    required this.lastPage,
+    required this.rangeText,
+    required this.loading,
+    required this.onPageChanged,
+  });
+
+  final int page;
+  final int lastPage;
+  final String rangeText;
+  final bool loading;
+  final ValueChanged<int> onPageChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasPrevious = page > 1 && !loading;
+    final hasNext = page < lastPage && !loading;
+    return Transform.translate(
+      offset: const Offset(0, 14),
+      child: SizedBox(
+        height: 28,
+        child: Row(
+          children: [
+            _SubscribersMobileBottomPagerArrow(
+              icon: Symbols.chevron_left_rounded,
+              enabled: hasPrevious,
+              onPressed: () => onPageChanged(page - 1),
+            ),
+            Expanded(
+              child: Text(
+                rangeText,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Color(0xFFB8BDC3),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 0,
+                ),
+              ),
+            ),
+            _SubscribersMobileBottomPagerArrow(
+              icon: Symbols.chevron_right,
+              enabled: hasNext,
+              onPressed: () => onPageChanged(page + 1),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SubscribersMobileBottomPagerArrow extends StatelessWidget {
+  const _SubscribersMobileBottomPagerArrow({
+    required this.icon,
+    required this.enabled,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final bool enabled;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      onPressed: enabled ? onPressed : null,
+      icon: Icon(
+        icon,
+        color: enabled ? AppColors.deepOcean : const Color(0xFFC5CAD0),
+        size: 18,
+      ),
+      constraints: const BoxConstraints.tightFor(width: 30, height: 28),
+      padding: EdgeInsets.zero,
+      splashRadius: 16,
+      visualDensity: VisualDensity.compact,
     );
   }
 }
@@ -1311,29 +1713,60 @@ class _SubscriberTextCell extends StatelessWidget {
   }
 }
 
-class _SubscriberDialogFrame extends StatelessWidget {
-  const _SubscriberDialogFrame({required this.child});
+Future<T?> _showSubscribersSideDrawer<T>({
+  required BuildContext context,
+  required Widget child,
+  double minWidth = 340,
+  double maxWidth = 820,
+  Duration transitionDuration = const Duration(milliseconds: 280),
+}) {
+  return showGeneralDialog<T>(
+    context: context,
+    barrierDismissible: true,
+    barrierLabel: context.t('common.cancel'),
+    barrierColor: Colors.black.withValues(alpha: 0.48),
+    transitionDuration: transitionDuration,
+    pageBuilder: (context, animation, secondaryAnimation) {
+      final size = MediaQuery.sizeOf(context);
+      final mobile = size.width < 700;
+      final drawerWidth = mobile
+          ? size.width
+          : math.min(maxWidth, math.max(minWidth, size.width - 24));
 
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final height = MediaQuery.sizeOf(context).height;
-    return Dialog(
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: 820, maxHeight: height - 48),
-        child: Material(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(AppRadius.value),
-          clipBehavior: Clip.antiAlias,
-          child: SingleChildScrollView(child: child),
+      return SafeArea(
+        child: Align(
+          alignment: Alignment.centerRight,
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              width: drawerWidth,
+              height: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.12),
+                    spreadRadius: 2,
+                    blurRadius: 14,
+                  ),
+                ],
+              ),
+              child: child,
+            ),
+          ),
         ),
-      ),
-    );
-  }
+      );
+    },
+    transitionBuilder: (context, animation, secondaryAnimation, child) {
+      return SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(1, 0),
+          end: Offset.zero,
+        ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOut)),
+        child: child,
+      );
+    },
+  );
 }
 
 class _SubscriberFormDialog extends StatefulWidget {
@@ -1391,87 +1824,126 @@ class _SubscriberFormDialogState extends State<_SubscriberFormDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(28, 26, 28, 22),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _DialogHeader(
+    return Form(
+      key: _formKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(28, 26, 24, 0),
+            child: _DialogHeader(
               title: context.t(_titleKey()),
               subtitle: context.t('subscribers.dialog.subtitle'),
             ),
-            const SizedBox(height: 22),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final compact = constraints.maxWidth < 680;
-                final left = Column(
-                  children: [
-                    _DialogLineField(
-                      controller: _nameController,
-                      label: context.t('subscribers.dialog.fullName'),
-                      hintText: context.t('subscribers.dialog.fullNameHint'),
-                      icon: Symbols.person,
-                      requiredField: true,
-                      validator: _requiredValidator,
+          ),
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, viewportConstraints) {
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(28, 18, 28, 24),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: math.max(
+                        0,
+                        viewportConstraints.maxHeight - 42,
+                      ),
                     ),
-                    const SizedBox(height: 22),
-                    _DialogLineField(
-                      controller: _phoneController,
-                      label: context.t('subscribers.dialog.phone'),
-                      hintText: context.t('subscribers.dialog.phoneHint'),
-                      icon: Symbols.short_text,
-                      keyboardType: TextInputType.phone,
-                    ),
-                  ],
-                );
-                final right = Column(
-                  children: [
-                    _DialogLineField(
-                      controller: _emailController,
-                      label: context.t('subscribers.dialog.email'),
-                      hintText: context.t('subscribers.dialog.emailHint'),
-                      icon: Symbols.alternate_email,
-                      keyboardType: TextInputType.emailAddress,
-                      requiredField: true,
-                      validator: _emailValidator,
-                    ),
-                    const SizedBox(height: 22),
-                    _DialogStatusGroup(
-                      active: _active,
-                      onChanged: (value) => setState(() => _active = value),
-                    ),
-                  ],
-                );
+                    child: Align(
+                      alignment: Alignment.center,
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final compact = constraints.maxWidth < 680;
+                          final left = Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _DialogLineField(
+                                controller: _nameController,
+                                label: context.t('subscribers.dialog.fullName'),
+                                hintText: context.t(
+                                  'subscribers.dialog.fullNameHint',
+                                ),
+                                icon: Symbols.person,
+                                requiredField: true,
+                                validator: _requiredValidator,
+                              ),
+                              const SizedBox(height: 22),
+                              _DialogLineField(
+                                controller: _phoneController,
+                                label: context.t('subscribers.dialog.phone'),
+                                hintText: context.t(
+                                  'subscribers.dialog.phoneHint',
+                                ),
+                                icon: Symbols.short_text,
+                                keyboardType: TextInputType.phone,
+                              ),
+                            ],
+                          );
+                          final right = Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _DialogLineField(
+                                controller: _emailController,
+                                label: context.t('subscribers.dialog.email'),
+                                hintText: context.t(
+                                  'subscribers.dialog.emailHint',
+                                ),
+                                icon: Symbols.alternate_email,
+                                keyboardType: TextInputType.emailAddress,
+                                requiredField: true,
+                                validator: _emailValidator,
+                              ),
+                              const SizedBox(height: 22),
+                              _DialogStatusGroup(
+                                active: _active,
+                                onChanged: (value) =>
+                                    setState(() => _active = value),
+                              ),
+                            ],
+                          );
 
-                if (compact) {
-                  return Column(
-                    children: [left, const SizedBox(height: 22), right],
-                  );
-                }
+                          if (compact) {
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                left,
+                                const SizedBox(height: 22),
+                                right,
+                              ],
+                            );
+                          }
 
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(child: left),
-                    const SizedBox(width: 24),
-                    Expanded(child: right),
-                  ],
+                          return Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(child: left),
+                              const SizedBox(width: 24),
+                              Expanded(child: right),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                  ),
                 );
               },
             ),
-            const SizedBox(height: 26),
-            Align(
+          ),
+          Container(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              border: Border(top: BorderSide(color: AppColors.softLine)),
+            ),
+            child: Align(
               alignment: Alignment.centerRight,
               child: _DialogFooter(
                 primaryLabel: context.t('common.save'),
                 onPrimaryPressed: _submit,
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

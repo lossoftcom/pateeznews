@@ -20,6 +20,7 @@ import '../../../shared/widgets/symbol_icon.dart';
 import '../../auth/data/admin_auth_models.dart';
 import '../data/admin_mail_repository.dart';
 import 'builder/posta_mjml_builder.dart';
+import 'mail_mobile_chrome.dart';
 import 'mail_template_models.dart';
 
 class MailTemplatesScreen extends StatefulWidget {
@@ -494,6 +495,17 @@ class _MailTemplatesScreenState extends State<MailTemplatesScreen> {
         );
 
         if (compact) {
+          if (mobile) {
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                horizontalPadding,
+                topPadding,
+                horizontalPadding,
+                0,
+              ),
+              child: content,
+            );
+          }
           return SingleChildScrollView(
             padding: EdgeInsets.fromLTRB(
               horizontalPadding,
@@ -574,18 +586,61 @@ class _TemplateCategoryChips extends StatelessWidget {
       for (final category in AdminMailTemplateCategory.values)
         _TemplateFilter(value: category.value, labelKey: category.labelKey),
     ];
+    final selectedFilter = filters.firstWhere(
+      (filter) => filter.value == selectedValue,
+      orElse: () => filters.first,
+    );
 
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        for (final filter in filters)
-          _TemplateFilterChip(
-            label: context.t(filter.labelKey),
-            selected: selectedValue == filter.value,
-            onTap: () => onChanged(filter.value),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final mobile = constraints.maxWidth < AdminMobile.breakpoint;
+        final width = mobile ? constraints.maxWidth : 280.0;
+
+        return Align(
+          alignment: Alignment.centerLeft,
+          child: SizedBox(
+            width: width,
+            child: Container(
+              height: 44,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(AppRadius.value),
+                border: Border.all(
+                  color: AppColors.line.withValues(alpha: 0.86),
+                ),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: selectedFilter.value,
+                  isExpanded: true,
+                  borderRadius: BorderRadius.circular(AppRadius.value),
+                  icon: const SymbolIcon(
+                    Symbols.keyboard_arrow_down,
+                    color: AppColors.iconMuted,
+                    size: 18,
+                  ),
+                  selectedItemBuilder: (context) {
+                    return filters.map((filter) {
+                      return _TemplateFilterSelectLabel(filter: filter);
+                    }).toList();
+                  },
+                  items: [
+                    for (final filter in filters)
+                      DropdownMenuItem<String>(
+                        value: filter.value,
+                        child: _TemplateFilterSelectLabel(filter: filter),
+                      ),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) onChanged(value);
+                  },
+                ),
+              ),
+            ),
           ),
-      ],
+        );
+      },
     );
   }
 }
@@ -597,50 +652,50 @@ class _TemplateFilter {
   final String labelKey;
 }
 
-class _TemplateFilterChip extends StatelessWidget {
-  const _TemplateFilterChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
+class _TemplateFilterSelectLabel extends StatelessWidget {
+  const _TemplateFilterSelectLabel({required this.filter});
 
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
+  final _TemplateFilter filter;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 34,
-      child: TextButton(
-        onPressed: onTap,
-        style:
-            TextButton.styleFrom(
-              backgroundColor: selected ? AppColors.deepOcean : Colors.white,
-              foregroundColor: selected ? Colors.white : AppColors.inkSoft,
-              minimumSize: const Size(0, 34),
-              padding: const EdgeInsets.symmetric(horizontal: 18),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppRadius.value),
-                side: BorderSide(
-                  color: selected ? AppColors.deepOcean : AppColors.line,
-                ),
-              ),
-              textStyle: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0,
-              ),
-            ).copyWith(
-              mouseCursor: const WidgetStatePropertyAll(
-                SystemMouseCursors.click,
-              ),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        SymbolIcon(
+          _iconForTemplateFilter(filter.value),
+          color: AppColors.deepOcean,
+          size: 18,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            context.t(filter.labelKey),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppColors.deepOcean,
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0,
             ),
-        child: Text(label),
-      ),
+          ),
+        ),
+      ],
     );
   }
+}
+
+IconData _iconForTemplateFilter(String value) {
+  return switch (value) {
+    mailTemplateFilterAll => Symbols.apps,
+    'campaign' => Symbols.campaign_outlined,
+    'info' => Symbols.info_outline,
+    'invitation' => Symbols.mail_outline,
+    'order' => Symbols.article,
+    'quote' => Symbols.draft,
+    _ => Symbols.article,
+  };
 }
 
 class _MailTemplateTableCard extends StatelessWidget {
@@ -706,6 +761,7 @@ class _MailTemplateTableCard extends StatelessWidget {
             totalCount: totalCount,
             searchController: searchController,
             searchQuery: searchQuery,
+            onPageSizeChanged: onPageSizeChanged,
             selectedTemplateIds: selectedTemplateIds,
             onSearchChanged: onSearchChanged,
             onPageChanged: onPageChanged,
@@ -814,6 +870,7 @@ class _MailTemplateMobileView extends StatelessWidget {
     required this.totalCount,
     required this.searchController,
     required this.searchQuery,
+    required this.onPageSizeChanged,
     required this.selectedTemplateIds,
     required this.onSearchChanged,
     required this.onPageChanged,
@@ -832,6 +889,7 @@ class _MailTemplateMobileView extends StatelessWidget {
   final int totalCount;
   final TextEditingController searchController;
   final String searchQuery;
+  final ValueChanged<int?> onPageSizeChanged;
   final Set<int> selectedTemplateIds;
   final ValueChanged<String> onSearchChanged;
   final ValueChanged<int> onPageChanged;
@@ -854,16 +912,16 @@ class _MailTemplateMobileView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        AdminMobileToolbar(
+        MailMobileSearchPanel(
           controller: searchController,
           query: searchQuery,
           hintText: context.t('mail.templates.searchPlaceholder'),
           onSearchChanged: onSearchChanged,
-          activeFilterCount: 0,
-          onOpenFilters: () {},
-          showFilters: false,
+          recordCount: totalCount,
+          pageSize: pageSize,
+          onPageSizeChanged: onPageSizeChanged,
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 4),
         AdminMobilePrimaryButton(
           icon: Symbols.add,
           label: context.t('mail.templates.new'),
@@ -2199,10 +2257,11 @@ class _MailTemplateEditorViewState extends State<MailTemplateEditorView> {
     if (_saving) return;
 
     final existing = widget.template;
-    final payload = await showDialog<_TemplateSavePayload>(
+    final payload = await showMailSideDrawer<_TemplateSavePayload>(
       context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.34),
-      builder: (context) => _TemplateSaveDialog(template: existing),
+      minWidth: 380,
+      maxWidth: 540,
+      child: _TemplateSaveDialog(template: existing),
     );
     if (payload == null) return;
 
@@ -2913,27 +2972,22 @@ class _TemplateSaveDialogState extends State<_TemplateSaveDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      insetPadding: const EdgeInsets.all(24),
-      backgroundColor: Colors.transparent,
-      child: Container(
-        width: 520,
-        padding: const EdgeInsets.fromLTRB(26, 24, 26, 22),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(AppRadius.value),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
+    return Material(
+      color: Colors.white,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(26, 24, 18, 14),
+            child: Row(
               children: [
                 Expanded(
                   child: Text(
                     widget.template == null
                         ? context.t('mail.template.editor.saveTitle')
                         : context.t('mail.template.editor.updateTitle'),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       color: AppColors.deepOcean,
                       fontWeight: FontWeight.w700,
@@ -2951,50 +3005,66 @@ class _TemplateSaveDialogState extends State<_TemplateSaveDialog> {
                 ),
               ],
             ),
-            const SizedBox(height: 6),
-            Text(
-              context.t('mail.template.editor.formSubtitle'),
-              style: const TextStyle(
-                color: AppColors.inkSoft,
-                fontWeight: FontWeight.w500,
-                letterSpacing: 0,
-              ),
-            ),
-            const SizedBox(height: 20),
-            _DialogLabel(text: context.t('mail.template.editor.name')),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _nameController,
-              decoration: _dialogInputDecoration(
-                context.t('mail.template.editor.nameHint'),
-              ),
-            ),
-            const SizedBox(height: 16),
-            _DialogLabel(text: context.t('mail.template.editor.category')),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<AdminMailTemplateCategory>(
-              initialValue: _category,
-              borderRadius: BorderRadius.circular(AppRadius.value),
-              decoration: _dialogInputDecoration(''),
-              icon: const SymbolIcon(
-                Symbols.keyboard_arrow_down,
-                color: AppColors.iconMuted,
-              ),
-              items: AdminMailTemplateCategory.values
-                  .map(
-                    (category) => DropdownMenuItem(
-                      value: category,
-                      child: Text(context.t(category.labelKey)),
+          ),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(26, 0, 26, 22),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    context.t('mail.template.editor.formSubtitle'),
+                    style: const TextStyle(
+                      color: AppColors.inkSoft,
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 0,
                     ),
-                  )
-                  .toList(growable: false),
-              onChanged: (value) {
-                if (value == null) return;
-                setState(() => _category = value);
-              },
+                  ),
+                  const SizedBox(height: 20),
+                  _DialogLabel(text: context.t('mail.template.editor.name')),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _nameController,
+                    decoration: _dialogInputDecoration(
+                      context.t('mail.template.editor.nameHint'),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _DialogLabel(
+                    text: context.t('mail.template.editor.category'),
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<AdminMailTemplateCategory>(
+                    initialValue: _category,
+                    borderRadius: BorderRadius.circular(AppRadius.value),
+                    decoration: _dialogInputDecoration(''),
+                    icon: const SymbolIcon(
+                      Symbols.keyboard_arrow_down,
+                      color: AppColors.iconMuted,
+                    ),
+                    items: AdminMailTemplateCategory.values
+                        .map(
+                          (category) => DropdownMenuItem(
+                            value: category,
+                            child: Text(context.t(category.labelKey)),
+                          ),
+                        )
+                        .toList(growable: false),
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setState(() => _category = value);
+                    },
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 24),
-            Row(
+          ),
+          Container(
+            padding: const EdgeInsets.fromLTRB(26, 14, 26, 20),
+            decoration: BoxDecoration(
+              border: Border(top: BorderSide(color: AppColors.softLine)),
+            ),
+            child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 _TemplateSecondaryButton(
@@ -3009,8 +3079,8 @@ class _TemplateSaveDialogState extends State<_TemplateSaveDialog> {
                 ),
               ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

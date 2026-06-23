@@ -11,11 +11,10 @@ Future<RoleFormData?> showRoleFormDialog(
   BuildContext context, {
   ManagedRole? role,
 }) {
-  return showDialog<RoleFormData>(
+  return _showRoleSideDialog<RoleFormData>(
     context: context,
-    barrierColor: Colors.black.withValues(alpha: 0.34),
-    builder: (context) =>
-        _RoleDialogFrame(maxWidth: 520, child: _RoleFormDialog(role: role)),
+    maxWidth: 520,
+    child: _RoleFormDialog(role: role),
   );
 }
 
@@ -24,14 +23,81 @@ Future<List<String>?> showManagePermissionsDialog(
   required ManagedRole role,
   required List<AdminPermission> permissions,
 }) {
-  return showDialog<List<String>>(
+  return _showRoleSideDialog<List<String>>(
+    context: context,
+    maxWidth: 760,
+    child: _ManagePermissionsDialog(role: role, permissions: permissions),
+  );
+}
+
+Future<T?> _showRoleSideDialog<T>({
+  required BuildContext context,
+  required double maxWidth,
+  required Widget child,
+}) {
+  final screenWidth = MediaQuery.sizeOf(context).width;
+  if (screenWidth < 700) {
+    return showGeneralDialog<T>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: context.t('common.cancel'),
+      barrierColor: Colors.black.withValues(alpha: 0.5),
+      transitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return SafeArea(
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: Material(
+              color: Colors.transparent,
+              child: _RoleDrawerFrame(child: child),
+            ),
+          ),
+        );
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(1, 0),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOut)),
+          child: child,
+        );
+      },
+    );
+  }
+
+  return showDialog<T>(
     context: context,
     barrierColor: Colors.black.withValues(alpha: 0.34),
-    builder: (context) => _RoleDialogFrame(
-      maxWidth: 760,
-      child: _ManagePermissionsDialog(role: role, permissions: permissions),
-    ),
+    builder: (context) => _RoleDialogFrame(maxWidth: maxWidth, child: child),
   );
+}
+
+class _RoleDrawerFrame extends StatelessWidget {
+  const _RoleDrawerFrame({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+
+    return Container(
+      width: size.width,
+      height: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            spreadRadius: 2,
+            blurRadius: 14,
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
 }
 
 class _RoleDialogFrame extends StatelessWidget {
@@ -115,6 +181,67 @@ class _RoleFormDialogState extends State<_RoleFormDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final mobile = MediaQuery.sizeOf(context).width < 700;
+    final header = _ColoredDialogHeader(
+      title: _editing ? 'Rol Düzenle' : 'Yeni Rol Tanımı',
+      subtitle: _editing
+          ? 'Rol bilgilerini güncelleyin.'
+          : 'Yeni bir sistem rolü tanımlayın.',
+      icon: _editing ? Symbols.edit_square : Symbols.add,
+      backgroundColor: AppColors.actionRed,
+    );
+    final formBody = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _DialogLineField(
+          controller: _labelController,
+          label: 'Rol Görünen Adı *',
+          hintText: 'Örn: Kıdemli Editör',
+          icon: Symbols.person,
+          validator: _requiredValidator,
+        ),
+        const SizedBox(height: 22),
+        _DialogLineField(
+          controller: _nameController,
+          label: 'Sistem Anahtarı (ID) *',
+          hintText: 'Örn: senior_editor',
+          icon: Symbols.short_text,
+          validator: _roleNameValidator,
+        ),
+        const SizedBox(height: 22),
+        _DialogLineField(
+          controller: _colorController,
+          label: 'Renk',
+          hintText: '#2C3E50',
+          icon: Symbols.verified,
+          validator: _colorValidator,
+        ),
+        const SizedBox(height: 22),
+        const _DialogSectionLabel('Rol Açıklaması'),
+        const SizedBox(height: 12),
+        _DescriptionTextArea(controller: _descriptionController),
+      ],
+    );
+
+    if (mobile) {
+      return Form(
+        key: _formKey,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 26, 14, 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              header,
+              const SizedBox(height: 24),
+              Expanded(child: SingleChildScrollView(child: formBody)),
+              const SizedBox(height: 12),
+              _DialogFooter(primaryLabel: 'Kaydet', onPrimaryPressed: _submit),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Form(
       key: _formKey,
       child: Padding(
@@ -123,42 +250,9 @@ class _RoleFormDialogState extends State<_RoleFormDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _ColoredDialogHeader(
-              title: _editing ? 'Rol Düzenle' : 'Yeni Rol Tanımı',
-              subtitle: _editing
-                  ? 'Rol bilgilerini güncelleyin.'
-                  : 'Yeni bir sistem rolü tanımlayın.',
-              icon: _editing ? Symbols.edit_square : Symbols.add,
-              backgroundColor: AppColors.actionRed,
-            ),
+            header,
             const SizedBox(height: 24),
-            _DialogLineField(
-              controller: _labelController,
-              label: 'Rol Görünen Adı *',
-              hintText: 'Örn: Kıdemli Editör',
-              icon: Symbols.person,
-              validator: _requiredValidator,
-            ),
-            const SizedBox(height: 22),
-            _DialogLineField(
-              controller: _nameController,
-              label: 'Sistem Anahtarı (ID) *',
-              hintText: 'Örn: senior_editor',
-              icon: Symbols.short_text,
-              validator: _roleNameValidator,
-            ),
-            const SizedBox(height: 22),
-            _DialogLineField(
-              controller: _colorController,
-              label: 'Renk',
-              hintText: '#2C3E50',
-              icon: Symbols.verified,
-              validator: _colorValidator,
-            ),
-            const SizedBox(height: 22),
-            const _DialogSectionLabel('Rol Açıklaması'),
-            const SizedBox(height: 12),
-            _DescriptionTextArea(controller: _descriptionController),
+            formBody,
             const SizedBox(height: 26),
             Align(
               alignment: Alignment.centerRight,
@@ -246,6 +340,61 @@ class _ManagePermissionsDialogState extends State<_ManagePermissionsDialog> {
           .putIfAbsent(permission.groupName, () => <AdminPermission>[])
           .add(permission);
     }
+    final mobile = MediaQuery.sizeOf(context).width < 700;
+    final header = _ColoredDialogHeader(
+      title: context.t(
+        'roles.permissionTitle',
+        values: {'name': context.t(widget.role.label)},
+      ),
+      subtitle: context.t('Set permission and access boundaries.'),
+      icon: Symbols.verified,
+      backgroundColor: AppColors.inkSoft,
+    );
+    final permissionGroups = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final entry in grouped.entries) ...[
+          _PermissionGroupTitle(groupName: entry.key),
+          const SizedBox(height: 10),
+          _PermissionsGrid(
+            permissions: entry.value,
+            enabledPermissionKeys: _enabledPermissionKeys,
+            locked: widget.role.systemLocked,
+            onToggle: _toggle,
+          ),
+          const SizedBox(height: 18),
+        ],
+      ],
+    );
+    final activeCount = Text(
+      context.t('roles.permissionActiveCount', values: {'count': _activeCount}),
+      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+        color: AppColors.inkSoft,
+        fontWeight: FontWeight.w500,
+        letterSpacing: 0,
+      ),
+    );
+
+    if (mobile) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(14, 26, 14, 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            header,
+            if (widget.role.systemLocked) ...[
+              const SizedBox(height: 18),
+              const _AdminLockedNotice(),
+            ],
+            const SizedBox(height: 24),
+            Expanded(child: SingleChildScrollView(child: permissionGroups)),
+            activeCount,
+            const SizedBox(height: 12),
+            _DialogFooter(primaryLabel: 'Kaydet', onPrimaryPressed: _submit),
+          ],
+        ),
+      );
+    }
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(28, 26, 28, 22),
@@ -253,44 +402,16 @@ class _ManagePermissionsDialogState extends State<_ManagePermissionsDialog> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _ColoredDialogHeader(
-            title: context.t(
-              'roles.permissionTitle',
-              values: {'name': context.t(widget.role.label)},
-            ),
-            subtitle: context.t('Set permission and access boundaries.'),
-            icon: Symbols.verified,
-            backgroundColor: AppColors.inkSoft,
-          ),
+          header,
           if (widget.role.systemLocked) ...[
             const SizedBox(height: 18),
             const _AdminLockedNotice(),
           ],
           const SizedBox(height: 24),
-          for (final entry in grouped.entries) ...[
-            _PermissionGroupTitle(groupName: entry.key),
-            const SizedBox(height: 10),
-            _PermissionsGrid(
-              permissions: entry.value,
-              enabledPermissionKeys: _enabledPermissionKeys,
-              locked: widget.role.systemLocked,
-              onToggle: _toggle,
-            ),
-            const SizedBox(height: 18),
-          ],
+          permissionGroups,
           Row(
             children: [
-              Text(
-                context.t(
-                  'roles.permissionActiveCount',
-                  values: {'count': _activeCount},
-                ),
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.inkSoft,
-                  fontWeight: FontWeight.w500,
-                  letterSpacing: 0,
-                ),
-              ),
+              activeCount,
               const Spacer(),
               _DialogFooter(primaryLabel: 'Kaydet', onPrimaryPressed: _submit),
             ],
@@ -776,6 +897,80 @@ class _DialogFooter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final mobile = MediaQuery.sizeOf(context).width < 700;
+    if (mobile) {
+      return Row(
+        children: [
+          Expanded(
+            child: SizedBox(
+              height: 38,
+              child: TextButton.icon(
+                onPressed: () => Navigator.of(context).maybePop(),
+                icon: const SymbolIcon(
+                  Symbols.close,
+                  color: AppColors.deepOcean,
+                  size: 16,
+                ),
+                label: Text(context.t('Cancel')),
+                style:
+                    TextButton.styleFrom(
+                      foregroundColor: AppColors.deepOcean,
+                      backgroundColor: Colors.white,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.value),
+                        side: const BorderSide(color: AppColors.line),
+                      ),
+                      textStyle: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0,
+                      ),
+                    ).copyWith(
+                      mouseCursor: const WidgetStatePropertyAll(
+                        SystemMouseCursors.click,
+                      ),
+                    ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: SizedBox(
+              height: 38,
+              child: TextButton.icon(
+                onPressed: onPrimaryPressed,
+                icon: const SymbolIcon(
+                  Symbols.save,
+                  color: Colors.white,
+                  size: 16,
+                ),
+                label: Text(context.t(primaryLabel)),
+                style:
+                    TextButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      backgroundColor: AppColors.actionRed,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.value),
+                      ),
+                      textStyle: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0,
+                      ),
+                    ).copyWith(
+                      mouseCursor: const WidgetStatePropertyAll(
+                        SystemMouseCursors.click,
+                      ),
+                    ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [

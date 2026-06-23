@@ -195,7 +195,7 @@ class CommentsTableCard extends StatelessWidget {
   }
 }
 
-class _CommentsMobileView extends StatelessWidget {
+class _CommentsMobileView extends StatefulWidget {
   const _CommentsMobileView({
     required this.comments,
     required this.filterOptions,
@@ -248,167 +248,562 @@ class _CommentsMobileView extends StatelessWidget {
   final ValueChanged<AdminComment> onDeleteComment;
   final VoidCallback onDeleteSelected;
 
+  @override
+  State<_CommentsMobileView> createState() => _CommentsMobileViewState();
+}
+
+class _CommentsMobileViewState extends State<_CommentsMobileView> {
+  late final TextEditingController _searchController;
+  var _filtersExpanded = false;
+
   int get _activeFilterCount {
     var count = 0;
-    if (statusFilter != 'Tümü') count++;
-    if (postFilter != 'Tümü') count++;
-    if (userFilter != 'Tümü') count++;
+    if (widget.statusFilter != 'Tümü') count++;
+    if (widget.postFilter != 'Tümü') count++;
+    if (widget.userFilter != 'Tümü') count++;
     return count;
   }
 
-  void _openFilters(BuildContext context) {
-    showAdminMobileFilterSheet(
-      context: context,
-      onClear: () {
-        onStatusChanged('Tümü');
-        onPostChanged('Tümü');
-        onUserChanged('Tümü');
-      },
-      contentBuilder: (context, setSheetState) {
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AdminMobileFilterField(
-              label: context.t('Status'),
-              value: statusFilter,
-              items: [
-                DropdownMenuItem(value: 'Tümü', child: Text(context.t('All'))),
-                DropdownMenuItem(
-                  value: 'approved',
-                  child: Text(context.t('Approved')),
-                ),
-                DropdownMenuItem(
-                  value: 'pending',
-                  child: Text(context.t('Pending')),
-                ),
-                DropdownMenuItem(
-                  value: 'rejected',
-                  child: Text(context.t('Rejected')),
-                ),
-                DropdownMenuItem(
-                  value: 'Reported',
-                  child: Text(context.t('Reported')),
-                ),
-              ],
-              onChanged: (value) {
-                onStatusChanged(value);
-                setSheetState(() {});
-              },
-            ),
-            AdminMobileFilterField(
-              label: context.t('Post'),
-              value: postFilter,
-              items: [
-                DropdownMenuItem(value: 'Tümü', child: Text(context.t('All'))),
-                for (final post in filterOptions.posts)
-                  DropdownMenuItem(value: post.id, child: Text(post.label)),
-              ],
-              onChanged: (value) {
-                onPostChanged(value);
-                setSheetState(() {});
-              },
-            ),
-            AdminMobileFilterField(
-              label: context.t('User'),
-              value: userFilter,
-              items: [
-                DropdownMenuItem(value: 'Tümü', child: Text(context.t('All'))),
-                for (final user in filterOptions.users)
-                  DropdownMenuItem(value: user.id, child: Text(user.label)),
-              ],
-              onChanged: (value) {
-                onUserChanged(value);
-                setSheetState(() {});
-              },
-            ),
-            AdminMobileFilterField(
-              label: 'Sayfa boyutu',
-              value: pageSize.toString(),
-              items: const [
-                DropdownMenuItem(value: '25', child: Text('25')),
-                DropdownMenuItem(value: '50', child: Text('50')),
-                DropdownMenuItem(value: '100', child: Text('100')),
-              ],
-              onChanged: (value) {
-                onPageSizeChanged(int.tryParse(value ?? ''));
-                setSheetState(() {});
-              },
-            ),
-          ],
-        );
-      },
-    );
+  @override
+  void initState() {
+    super.initState();
+    _searchController = TextEditingController(text: widget.searchQuery);
+  }
+
+  @override
+  void didUpdateWidget(covariant _CommentsMobileView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.searchQuery != _searchController.text) {
+      _searchController.value = TextEditingValue(
+        text: widget.searchQuery,
+        selection: TextSelection.collapsed(offset: widget.searchQuery.length),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _toggleFilters() {
+    setState(() => _filtersExpanded = !_filtersExpanded);
+    FocusScope.of(context).unfocus();
+  }
+
+  void _clearFilters() {
+    widget.onStatusChanged('Tümü');
+    widget.onPostChanged('Tümü');
+    widget.onUserChanged('Tümü');
+  }
+
+  List<DropdownMenuItem<String>> _statusItems(BuildContext context) {
+    return [
+      DropdownMenuItem(value: 'Tümü', child: Text(context.t('All'))),
+      DropdownMenuItem(value: 'approved', child: Text(context.t('Approved'))),
+      DropdownMenuItem(value: 'pending', child: Text(context.t('Pending'))),
+      DropdownMenuItem(value: 'rejected', child: Text(context.t('Rejected'))),
+      DropdownMenuItem(value: 'Reported', child: Text(context.t('Reported'))),
+    ];
+  }
+
+  List<DropdownMenuItem<String>> _postItems(BuildContext context) {
+    return [
+      DropdownMenuItem(value: 'Tümü', child: Text(context.t('All'))),
+      for (final post in widget.filterOptions.posts)
+        DropdownMenuItem(value: post.id, child: Text(post.label)),
+    ];
+  }
+
+  List<DropdownMenuItem<String>> _userItems(BuildContext context) {
+    return [
+      DropdownMenuItem(value: 'Tümü', child: Text(context.t('All'))),
+      for (final user in widget.filterOptions.users)
+        DropdownMenuItem(value: user.id, child: Text(user.label)),
+    ];
   }
 
   @override
   Widget build(BuildContext context) {
-    final lastPage = totalCount == 0 ? 1 : ((totalCount - 1) ~/ pageSize) + 1;
-    final from = totalCount == 0 ? 0 : ((page - 1) * pageSize) + 1;
-    final to = totalCount == 0
+    final lastPage = widget.totalCount == 0
+        ? 1
+        : ((widget.totalCount - 1) ~/ widget.pageSize) + 1;
+    final from = widget.totalCount == 0
         ? 0
-        : (page * pageSize > totalCount ? totalCount : page * pageSize);
+        : ((widget.page - 1) * widget.pageSize) + 1;
+    final to = widget.totalCount == 0
+        ? 0
+        : (widget.page * widget.pageSize > widget.totalCount
+              ? widget.totalCount
+              : widget.page * widget.pageSize);
     final rangeText = context.t(
       'common.recordRange',
-      values: {'from': from, 'to': to, 'total': totalCount},
+      values: {'from': from, 'to': to, 'total': widget.totalCount},
     );
-    final hasSelection = selectedCommentIds.isNotEmpty;
+    final hasSelection = widget.selectedCommentIds.isNotEmpty;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        AdminMobileToolbar(
-          query: searchQuery,
+        _CommentsMobileFilterPanel(
+          searchController: _searchController,
           hintText: context.t('Search comments...'),
-          onSearchChanged: onSearchChanged,
+          onSearchChanged: widget.onSearchChanged,
+          isExpanded: _filtersExpanded,
+          onToggleExpanded: _toggleFilters,
           activeFilterCount: _activeFilterCount,
-          onOpenFilters: () => _openFilters(context),
+          recordCount: widget.totalCount,
+          pageSize: widget.pageSize,
+          statusFilter: widget.statusFilter,
+          postFilter: widget.postFilter,
+          userFilter: widget.userFilter,
+          statusItems: _statusItems(context),
+          postItems: _postItems(context),
+          userItems: _userItems(context),
+          onPageSizeChanged: widget.onPageSizeChanged,
+          onStatusChanged: widget.onStatusChanged,
+          onPostChanged: widget.onPostChanged,
+          onUserChanged: widget.onUserChanged,
+          onClearFilters: _activeFilterCount == 0 ? null : _clearFilters,
         ),
         if (hasSelection) ...[
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           AdminMobileSelectionBar(
-            selectedCount: selectedCommentIds.length,
+            selectedCount: widget.selectedCommentIds.length,
             label: context.t(
               'comments.selectedDelete',
-              values: {'count': selectedCommentIds.length},
+              values: {'count': widget.selectedCommentIds.length},
             ),
             onClear: () {
-              for (final id in selectedCommentIds.toList()) {
-                onToggleComment(id);
+              for (final id in widget.selectedCommentIds.toList()) {
+                widget.onToggleComment(id);
               }
             },
-            onDelete: onDeleteSelected,
+            onDelete: widget.onDeleteSelected,
           ),
         ],
         const SizedBox(height: 14),
         Expanded(
           child: AdminMobileListView(
-            loading: loading,
-            itemCount: comments.length,
+            loading: widget.loading,
+            itemCount: widget.comments.length,
             emptyLabel: context.t('No comments found'),
             itemBuilder: (context, index) {
-              final comment = comments[index];
+              final comment = widget.comments[index];
               return _CommentsMobileCard(
                 comment: comment,
-                selected: selectedCommentIds.contains(comment.id),
-                onToggle: () => onToggleComment(comment.id),
-                onApproveComment: onApproveComment,
-                onRejectComment: onRejectComment,
-                onTogglePinned: onTogglePinned,
-                onReplyComment: onReplyComment,
-                onDeleteComment: onDeleteComment,
+                selected: widget.selectedCommentIds.contains(comment.id),
+                onToggle: () => widget.onToggleComment(comment.id),
+                onApproveComment: widget.onApproveComment,
+                onRejectComment: widget.onRejectComment,
+                onTogglePinned: widget.onTogglePinned,
+                onReplyComment: widget.onReplyComment,
+                onDeleteComment: widget.onDeleteComment,
               );
             },
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 4),
         AdminMobilePager(
-          page: page,
+          page: widget.page,
           lastPage: lastPage,
           rangeText: rangeText,
-          loading: loading,
-          onPageChanged: onPageChanged,
+          loading: widget.loading,
+          onPageChanged: widget.onPageChanged,
         ),
       ],
+    );
+  }
+}
+
+class _CommentsMobileFilterPanel extends StatelessWidget {
+  const _CommentsMobileFilterPanel({
+    required this.searchController,
+    required this.hintText,
+    required this.onSearchChanged,
+    required this.isExpanded,
+    required this.onToggleExpanded,
+    required this.activeFilterCount,
+    required this.recordCount,
+    required this.pageSize,
+    required this.statusFilter,
+    required this.postFilter,
+    required this.userFilter,
+    required this.statusItems,
+    required this.postItems,
+    required this.userItems,
+    required this.onPageSizeChanged,
+    required this.onStatusChanged,
+    required this.onPostChanged,
+    required this.onUserChanged,
+    required this.onClearFilters,
+  });
+
+  static const _borderColor = Color(0xFFE6EAF0);
+  static const _muted = Color(0xFF9AA3AA);
+  static const _navy = Color(0xFF2F4053);
+
+  final TextEditingController searchController;
+  final String hintText;
+  final ValueChanged<String> onSearchChanged;
+  final bool isExpanded;
+  final VoidCallback onToggleExpanded;
+  final int activeFilterCount;
+  final int recordCount;
+  final int pageSize;
+  final String statusFilter;
+  final String postFilter;
+  final String userFilter;
+  final List<DropdownMenuItem<String>> statusItems;
+  final List<DropdownMenuItem<String>> postItems;
+  final List<DropdownMenuItem<String>> userItems;
+  final ValueChanged<int?> onPageSizeChanged;
+  final ValueChanged<String?> onStatusChanged;
+  final ValueChanged<String?> onPostChanged;
+  final ValueChanged<String?> onUserChanged;
+  final VoidCallback? onClearFilters;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _borderColor),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            height: 72,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 10, 12, 9),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Row(
+                      children: [
+                        const SymbolIcon(
+                          Symbols.search,
+                          color: _muted,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              TextField(
+                                controller: searchController,
+                                onChanged: onSearchChanged,
+                                textAlignVertical: TextAlignVertical.center,
+                                cursorColor: _navy,
+                                style: const TextStyle(
+                                  fontSize: 14.5,
+                                  color: _navy,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                decoration: InputDecoration(
+                                  hintText: hintText,
+                                  hintStyle: const TextStyle(
+                                    color: _muted,
+                                    fontSize: 14.5,
+                                    fontWeight: FontWeight.w400,
+                                  ),
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.zero,
+                                  border: InputBorder.none,
+                                  enabledBorder: InputBorder.none,
+                                  focusedBorder: InputBorder.none,
+                                ),
+                              ),
+                              Container(
+                                height: 1,
+                                color: const Color(0xFFB9BEC4),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: onToggleExpanded,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                isExpanded ? 'Gizle' : 'Göster',
+                                style: const TextStyle(
+                                  color: _navy,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                  height: 1,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              RotatedBox(
+                                quarterTurns: isExpanded ? 2 : 0,
+                                child: const SymbolIcon(
+                                  Symbols.keyboard_arrow_down,
+                                  color: _navy,
+                                  size: 17,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            '$recordCount kayıt',
+                            style: const TextStyle(
+                              color: _navy,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w800,
+                              height: 1,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            activeFilterCount == 0
+                                ? 'Filtre yok'
+                                : '$activeFilterCount filtre',
+                            style: const TextStyle(
+                              color: _muted,
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w500,
+                              height: 1,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (isExpanded) ...[
+            const Divider(height: 1, color: _borderColor),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      _CommentsMobilePageSizeDropdown(
+                        value: pageSize,
+                        onChanged: onPageSizeChanged,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _CommentsMobileFilterDropdown(
+                          icon: Symbols.visibility,
+                          label: context.t('Status'),
+                          value: statusFilter,
+                          items: statusItems,
+                          onChanged: onStatusChanged,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _CommentsMobileFilterDropdown(
+                          icon: Symbols.article,
+                          label: context.t('Post'),
+                          value: postFilter,
+                          items: postItems,
+                          onChanged: onPostChanged,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _CommentsMobileFilterDropdown(
+                          icon: Symbols.person,
+                          label: context.t('User'),
+                          value: userFilter,
+                          items: userItems,
+                          onChanged: onUserChanged,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (onClearFilters != null) ...[
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: onClearFilters,
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.actionRed,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          minimumSize: const Size(0, 32),
+                        ),
+                        child: const Text(
+                          'Temizle',
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _CommentsMobilePageSizeDropdown extends StatelessWidget {
+  const _CommentsMobilePageSizeDropdown({
+    required this.value,
+    required this.onChanged,
+  });
+
+  static const _values = ['25', '50', '100'];
+
+  final int value;
+  final ValueChanged<int?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = _values.contains(value.toString())
+        ? value.toString()
+        : '25';
+    return Container(
+      width: 66,
+      height: 42,
+      padding: const EdgeInsets.only(left: 10, right: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE6EAF0)),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: selected,
+          isDense: true,
+          isExpanded: true,
+          borderRadius: BorderRadius.circular(10),
+          icon: const SymbolIcon(
+            Symbols.keyboard_arrow_down,
+            color: Color(0xFF6F7780),
+            size: 16,
+          ),
+          style: const TextStyle(
+            color: Color(0xFF2F4053),
+            fontSize: 14.5,
+            fontWeight: FontWeight.w500,
+          ),
+          items: const [
+            DropdownMenuItem(value: '25', child: Text('25')),
+            DropdownMenuItem(value: '50', child: Text('50')),
+            DropdownMenuItem(value: '100', child: Text('100')),
+          ],
+          onChanged: (value) => onChanged(int.tryParse(value ?? '')),
+        ),
+      ),
+    );
+  }
+}
+
+class _CommentsMobileFilterDropdown extends StatelessWidget {
+  const _CommentsMobileFilterDropdown({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.items,
+    required this.onChanged,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final List<DropdownMenuItem<String>> items;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final safeValue = items.any((item) => item.value == value)
+        ? value
+        : (items.isEmpty ? null : items.first.value);
+
+    return Container(
+      height: 42,
+      padding: const EdgeInsets.only(left: 10, right: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE6EAF0)),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: safeValue,
+          isExpanded: true,
+          borderRadius: BorderRadius.circular(10),
+          icon: const SymbolIcon(
+            Symbols.keyboard_arrow_down,
+            color: Color(0xFF6F7780),
+            size: 16,
+          ),
+          hint: Row(
+            children: [
+              SymbolIcon(icon, color: const Color(0xFF6F7780), size: 15),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          selectedItemBuilder: (context) {
+            return items.map((item) {
+              return Row(
+                children: [
+                  SymbolIcon(icon, color: const Color(0xFF6F7780), size: 15),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      item.child is Text
+                          ? ((item.child as Text).data ?? '')
+                          : (item.value ?? ''),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              );
+            }).toList();
+          },
+          style: const TextStyle(
+            color: Color(0xFF2F4053),
+            fontSize: 12.5,
+            fontWeight: FontWeight.w600,
+          ),
+          items: items,
+          onChanged: onChanged,
+        ),
+      ),
     );
   }
 }

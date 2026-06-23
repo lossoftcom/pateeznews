@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:pateeznews_admin/shared/widgets/admin_mobile_list.dart';
 import 'package:pateeznews_admin/shared/widgets/admin_table_chrome.dart';
 import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
 
@@ -17,6 +18,7 @@ import '../data/admin_sms_repository.dart';
 import 'sms_bulk_models.dart';
 import 'sms_contact_list_models.dart';
 import 'sms_message_preview.dart';
+import 'sms_mobile_chrome.dart';
 import 'sms_settings_models.dart';
 import 'sms_template_models.dart';
 
@@ -316,42 +318,24 @@ class _SmsBulkScreenState extends State<SmsBulkScreen> {
   }
 
   void _showDetail(AdminSmsBulkCampaign campaign) {
-    showDialog<void>(
+    showSmsSideDrawer<void>(
       context: context,
-      builder: (context) => _BulkMailDetailDialog(campaign: campaign),
+      maxWidth: 760,
+      child: _BulkMailDetailDialog(campaign: campaign),
     );
   }
 
   Future<void> _showCreateDialog({AdminSmsBulkCampaign? campaign}) async {
-    if (_templates.isEmpty || _accounts.isEmpty || _lists.isEmpty) {
-      _showSmsError(context.t('sms.bulk.empty'));
-      return;
-    }
-    final created = await showDialog<AdminSmsBulkCampaign>(
+    final created = await showSmsSideDrawer<AdminSmsBulkCampaign>(
       context: context,
-      barrierDismissible: true,
-      builder: (context) {
-        final size = MediaQuery.sizeOf(context);
-        final width = (size.width - 48).clamp(740.0, 1180.0).toDouble();
-        final height = (size.height - 72).clamp(680.0, 780.0).toDouble();
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.symmetric(
-            horizontal: 24,
-            vertical: 24,
-          ),
-          child: SizedBox(
-            width: width,
-            height: height,
-            child: _BulkMailCreateDialog(
-              campaign: campaign,
-              templates: _templates,
-              accounts: _accounts,
-              lists: _lists,
-            ),
-          ),
-        );
-      },
+      minWidth: 740,
+      maxWidth: 1180,
+      child: _BulkMailCreateDialog(
+        campaign: campaign,
+        templates: _templates,
+        accounts: _accounts,
+        lists: _lists,
+      ),
     );
 
     if (created == null || !mounted) return;
@@ -382,12 +366,14 @@ class _SmsBulkScreenState extends State<SmsBulkScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final horizontalPadding = constraints.maxWidth < 640 ? 16.0 : 28.0;
+        final mobile = constraints.maxWidth < AdminMobile.breakpoint;
         final compact = constraints.maxWidth < 900;
+        final topPadding = mobile ? 18.0 : 28.0;
         final content = Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _BulkMailTitle(title: context.t('nav.sms.bulk')),
-            const SizedBox(height: 24),
+            SizedBox(height: mobile ? 12 : 24),
             Expanded(
               child: _BulkMailContent(
                 campaigns: _campaigns,
@@ -423,11 +409,23 @@ class _SmsBulkScreenState extends State<SmsBulkScreen> {
           ],
         );
 
+        if (mobile) {
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+              horizontalPadding,
+              topPadding,
+              horizontalPadding,
+              0,
+            ),
+            child: content,
+          );
+        }
+
         if (compact) {
           return SingleChildScrollView(
             padding: EdgeInsets.fromLTRB(
               horizontalPadding,
-              28,
+              topPadding,
               horizontalPadding,
               28,
             ),
@@ -438,7 +436,7 @@ class _SmsBulkScreenState extends State<SmsBulkScreen> {
         return Padding(
           padding: EdgeInsets.fromLTRB(
             horizontalPadding,
-            28,
+            topPadding,
             horizontalPadding,
             28,
           ),
@@ -540,6 +538,7 @@ class _BulkMailContent extends StatelessWidget {
         const SizedBox(height: 12),
         _BulkMailToolbar(
           pageSize: pageSize,
+          totalCount: totalCount,
           selectedCount: selectedIds.length,
           searchController: searchController,
           onPageSizeChanged: onPageSizeChanged,
@@ -567,7 +566,12 @@ class _BulkMailContent extends StatelessWidget {
             onDelete: onDelete,
           ),
         ),
-        const SizedBox(height: 16),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final mobile = constraints.maxWidth < AdminMobile.breakpoint;
+            return SizedBox(height: mobile ? 4 : 16);
+          },
+        ),
         _BulkMailFooter(
           page: page,
           pageSize: pageSize,
@@ -834,18 +838,61 @@ class _BulkMailStatusFilters extends StatelessWidget {
         ),
       ),
     ];
+    final selectedFilter = filters.firstWhere(
+      (filter) => filter.value == selected,
+      orElse: () => filters.first,
+    );
 
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        for (final filter in filters)
-          _BulkMailStatusChip(
-            filter: filter,
-            selected: selected == filter.value,
-            onTap: () => onChanged(filter.value),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final mobile = constraints.maxWidth < AdminMobile.breakpoint;
+        final width = mobile ? constraints.maxWidth : 280.0;
+
+        return Align(
+          alignment: Alignment.centerLeft,
+          child: SizedBox(
+            width: width,
+            child: Container(
+              height: 44,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(AppRadius.value),
+                border: Border.all(
+                  color: AppColors.line.withValues(alpha: 0.86),
+                ),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: selectedFilter.value,
+                  isExpanded: true,
+                  borderRadius: BorderRadius.circular(AppRadius.value),
+                  icon: const SymbolIcon(
+                    Symbols.keyboard_arrow_down,
+                    color: AppColors.iconMuted,
+                    size: 18,
+                  ),
+                  selectedItemBuilder: (context) {
+                    return filters.map((filter) {
+                      return _StatusSelectLabel(filter: filter);
+                    }).toList();
+                  },
+                  items: [
+                    for (final filter in filters)
+                      DropdownMenuItem<String>(
+                        value: filter.value,
+                        child: _StatusSelectLabel(filter: filter),
+                      ),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) onChanged(value);
+                  },
+                ),
+              ),
+            ),
           ),
-      ],
+        );
+      },
     );
   }
 }
@@ -864,56 +911,31 @@ class _StatusFilterData {
   final int? count;
 }
 
-class _BulkMailStatusChip extends StatelessWidget {
-  const _BulkMailStatusChip({
-    required this.filter,
-    required this.selected,
-    required this.onTap,
-  });
+class _StatusSelectLabel extends StatelessWidget {
+  const _StatusSelectLabel({required this.filter});
 
   final _StatusFilterData filter;
-  final bool selected;
-  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final foreground = selected ? AppColors.deepOcean : AppColors.inkSoft;
-
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: Container(
-          height: 42,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          decoration: BoxDecoration(
-            color: selected ? AppColors.surface : Colors.white,
-            borderRadius: BorderRadius.circular(AppRadius.value),
-            border: Border.all(
-              color: selected
-                  ? AppColors.deepOcean.withValues(alpha: 0.22)
-                  : AppColors.line.withValues(alpha: 0.82),
+    return Row(
+      children: [
+        SymbolIcon(filter.icon, color: AppColors.deepOcean, size: 18),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            context.t(filter.label),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppColors.deepOcean,
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0,
             ),
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SymbolIcon(filter.icon, color: foreground, size: 18),
-              const SizedBox(width: 8),
-              Text(
-                context.t(filter.label),
-                style: TextStyle(
-                  color: foreground,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0,
-                ),
-              ),
-            ],
-          ),
         ),
-      ),
+      ],
     );
   }
 }
@@ -921,6 +943,7 @@ class _BulkMailStatusChip extends StatelessWidget {
 class _BulkMailToolbar extends StatelessWidget {
   const _BulkMailToolbar({
     required this.pageSize,
+    required this.totalCount,
     required this.selectedCount,
     required this.searchController,
     required this.onPageSizeChanged,
@@ -931,6 +954,7 @@ class _BulkMailToolbar extends StatelessWidget {
   });
 
   final int pageSize;
+  final int totalCount;
   final int selectedCount;
   final TextEditingController searchController;
   final ValueChanged<int?> onPageSizeChanged;
@@ -944,6 +968,51 @@ class _BulkMailToolbar extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact = constraints.maxWidth < 760;
+        final mobile = constraints.maxWidth < AdminMobile.breakpoint;
+        if (mobile) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SmsMobileSearchPanel(
+                controller: searchController,
+                query: searchController.text,
+                hintText: context.t('sms.bulk.searchPlaceholder'),
+                onSearchChanged: onSearchChanged,
+                recordCount: totalCount,
+                pageSize: pageSize,
+                onPageSizeChanged: onPageSizeChanged,
+              ),
+              const SizedBox(height: 10),
+              if (selectedCount > 0) ...[
+                _SelectedDeleteButton(
+                  count: selectedCount,
+                  onPressed: onDeleteSelected,
+                ),
+                const SizedBox(height: 10),
+              ],
+              Row(
+                children: [
+                  Expanded(
+                    child: _SoftActionButton(
+                      icon: Symbols.redo,
+                      label: 'mail.action.refresh',
+                      onPressed: onRefresh,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _PrimaryActionButton(
+                      icon: Symbols.add,
+                      label: 'sms.bulk.new',
+                      onPressed: onCreate,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          );
+        }
+
         final left = Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1213,6 +1282,30 @@ class _BulkMailTable extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
+        if (constraints.maxWidth < AdminMobile.breakpoint) {
+          return AdminMobileListView(
+            loading: false,
+            itemCount: campaigns.length,
+            emptyLabel: context.t('sms.bulk.empty'),
+            itemBuilder: (context, index) {
+              final campaign = campaigns[index];
+              return _BulkMailMobileCard(
+                campaign: campaign,
+                selected: selectedIds.contains(campaign.id),
+                onToggle: () => onToggleCampaign(campaign.id),
+                onDetail: onDetail,
+                onEdit: onEdit,
+                onStart: onStart,
+                onPause: onPause,
+                onResume: onResume,
+                onSchedule: onSchedule,
+                onCancel: onCancel,
+                onDelete: onDelete,
+              );
+            },
+          );
+        }
+
         final tableWidth = constraints.maxWidth < _minWidth
             ? _minWidth
             : constraints.maxWidth;
@@ -1659,6 +1752,222 @@ class _BulkMailRow extends StatelessWidget {
                 onDelete: () => onDelete(campaign),
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BulkMailMobileCard extends StatelessWidget {
+  const _BulkMailMobileCard({
+    required this.campaign,
+    required this.selected,
+    required this.onToggle,
+    required this.onDetail,
+    required this.onEdit,
+    required this.onStart,
+    required this.onPause,
+    required this.onResume,
+    required this.onSchedule,
+    required this.onCancel,
+    required this.onDelete,
+  });
+
+  final AdminSmsBulkCampaign campaign;
+  final bool selected;
+  final VoidCallback onToggle;
+  final ValueChanged<AdminSmsBulkCampaign> onDetail;
+  final ValueChanged<AdminSmsBulkCampaign> onEdit;
+  final ValueChanged<AdminSmsBulkCampaign> onStart;
+  final ValueChanged<AdminSmsBulkCampaign> onPause;
+  final ValueChanged<AdminSmsBulkCampaign> onResume;
+  final ValueChanged<AdminSmsBulkCampaign> onSchedule;
+  final ValueChanged<AdminSmsBulkCampaign> onCancel;
+  final ValueChanged<AdminSmsBulkCampaign> onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final status = campaign.status;
+    final date =
+        '${formatAdminFullDate(context, campaign.tableDate)} ${formatAdminTime(campaign.tableDate)}';
+
+    return AdminMobileCard(
+      selected: selected,
+      onTap: () => onDetail(campaign),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 1),
+                child: AdminMobileCheckbox(
+                  value: selected,
+                  onChanged: (_) => onToggle(),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      campaign.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF2F4053),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14.2,
+                        height: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      campaign.subject,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF7A7F85),
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        height: 1.18,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Transform.scale(
+                scale: 0.88,
+                alignment: Alignment.topRight,
+                child: AdminMobileMenuButton(
+                  tooltip: context.t('sms.bulk.actions'),
+                  actions: [
+                    AdminMobileMenuAction(
+                      icon: Symbols.visibility,
+                      label: context.t('sms.bulk.action.detail'),
+                      onTap: () => onDetail(campaign),
+                    ),
+                    AdminMobileMenuAction(
+                      icon: Symbols.edit_square,
+                      label: context.t('sms.bulk.action.edit'),
+                      onTap: () => onEdit(campaign),
+                    ),
+                    if (status.canStart)
+                      AdminMobileMenuAction(
+                        icon: Symbols.schedule_send,
+                        label: context.t('sms.bulk.action.start'),
+                        onTap: () => onStart(campaign),
+                      ),
+                    if (status.canSchedule)
+                      AdminMobileMenuAction(
+                        icon: Symbols.schedule,
+                        label: context.t('sms.bulk.action.schedule'),
+                        onTap: () => onSchedule(campaign),
+                      ),
+                    if (status.canPause)
+                      AdminMobileMenuAction(
+                        icon: Symbols.pending_actions,
+                        label: context.t('sms.bulk.action.pause'),
+                        onTap: () => onPause(campaign),
+                      ),
+                    if (status.canResume)
+                      AdminMobileMenuAction(
+                        icon: Symbols.schedule_send,
+                        label: context.t('sms.bulk.action.continue'),
+                        onTap: () => onResume(campaign),
+                      ),
+                    if (status != AdminSmsBulkStatus.completed &&
+                        status != AdminSmsBulkStatus.cancelled)
+                      AdminMobileMenuAction(
+                        icon: Symbols.close,
+                        label: context.t('sms.bulk.action.cancel'),
+                        onTap: () => onCancel(campaign),
+                      ),
+                    AdminMobileMenuAction(
+                      icon: Symbols.delete,
+                      label: context.t('common.delete'),
+                      danger: true,
+                      onTap: () => onDelete(campaign),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 13),
+          Row(
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(AppRadius.value),
+                  child: LinearProgressIndicator(
+                    value: campaign.progress,
+                    minHeight: 5,
+                    backgroundColor: AppColors.softLine,
+                    color: status.dotColor,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                '${(campaign.progress * 100).round()}%',
+                style: const TextStyle(
+                  color: AppColors.inkSoft,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              AdminMobileStatusPill(
+                label: context.t(status.labelKey),
+                color: status.dotColor,
+              ),
+              AdminMobileMeta(
+                icon: Symbols.group,
+                value:
+                    '${campaign.recipientCount} ${context.t('common.recipient')}',
+              ),
+              AdminMobileMeta(
+                icon: Symbols.check,
+                value: '${campaign.sentCount} ${context.t('common.sent')}',
+              ),
+              AdminMobileMeta(
+                icon: Symbols.visibility,
+                value:
+                    '${campaign.openCount} / ${(campaign.openRate * 100).toStringAsFixed(1)}%',
+              ),
+              AdminMobileMeta(
+                icon: Symbols.cursor_hand,
+                value:
+                    '${campaign.clickCount} / ${(campaign.clickRate * 100).toStringAsFixed(1)}%',
+              ),
+              AdminMobileMeta(
+                icon: Symbols.close,
+                value:
+                    '${campaign.bounceCount} / ${(campaign.bounceRate * 100).toStringAsFixed(1)}%',
+              ),
+              AdminMobileMeta(icon: Symbols.schedule, value: date),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _CampaignControlButton(
+            campaign: campaign,
+            onStart: () => onStart(campaign),
+            onPause: () => onPause(campaign),
+            onResume: () => onResume(campaign),
           ),
         ],
       ),
@@ -2362,11 +2671,12 @@ class _BulkMailFooter extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact = constraints.maxWidth < 640;
+        final rangeText = context.t(
+          'common.recordRange',
+          values: {'from': from, 'to': to, 'total': totalCount},
+        );
         final summary = Text(
-          context.t(
-            'common.recordRange',
-            values: {'from': from, 'to': to, 'total': totalCount},
-          ),
+          rangeText,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             color: AppColors.inkSoft,
             fontWeight: FontWeight.w500,
@@ -2380,15 +2690,12 @@ class _BulkMailFooter extends StatelessWidget {
         );
 
         if (compact) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Divider(height: 1, color: AppColors.line),
-              const SizedBox(height: 16),
-              summary,
-              const SizedBox(height: 14),
-              pager,
-            ],
+          return AdminMobilePager(
+            page: page,
+            lastPage: lastPage,
+            rangeText: rangeText,
+            loading: false,
+            onPageChanged: onPageChanged,
           );
         }
 
@@ -2432,104 +2739,93 @@ class _BulkMailDetailDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      insetPadding: const EdgeInsets.all(28),
-      backgroundColor: Colors.transparent,
-      child: Container(
-        width: 760,
-        constraints: const BoxConstraints(maxHeight: 680),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(AppRadius.value),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(28, 24, 20, 12),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      context.t('sms.bulk.detailTitle'),
-                      style: Theme.of(context).textTheme.headlineSmall
-                          ?.copyWith(
-                            color: AppColors.deepOcean,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0,
-                          ),
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    mouseCursor: SystemMouseCursors.click,
-                    icon: const SymbolIcon(
-                      Symbols.close,
+    return Material(
+      color: Colors.white,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(28, 24, 20, 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    context.t('sms.bulk.detailTitle'),
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       color: AppColors.deepOcean,
-                      size: 20,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0,
                     ),
                   ),
-                ],
-              ),
-            ),
-            Flexible(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(28, 8, 28, 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _DetailHeader(campaign: campaign),
-                    const SizedBox(height: 20),
-                    _DetailGrid(campaign: campaign),
-                    const SizedBox(height: 22),
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppColors.surface,
-                        borderRadius: BorderRadius.circular(AppRadius.value),
-                        border: Border.all(color: AppColors.line),
-                      ),
-                      child: Text(
-                        campaign.preview,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppColors.deepOcean,
-                          height: 1.55,
-                          fontWeight: FontWeight.w500,
-                          letterSpacing: 0,
-                        ),
-                      ),
-                    ),
-                  ],
                 ),
-              ),
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  mouseCursor: SystemMouseCursors.click,
+                  icon: const SymbolIcon(
+                    Symbols.close,
+                    color: AppColors.deepOcean,
+                    size: 20,
+                  ),
+                ),
+              ],
             ),
-            Container(
-              padding: const EdgeInsets.fromLTRB(28, 14, 28, 22),
-              decoration: BoxDecoration(
-                border: Border(top: BorderSide(color: AppColors.softLine)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
+          ),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(28, 8, 28, 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    style:
-                        TextButton.styleFrom(
-                          foregroundColor: AppColors.deepOcean,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        ).copyWith(
-                          mouseCursor: const WidgetStatePropertyAll(
-                            SystemMouseCursors.click,
-                          ),
-                        ),
-                    child: Text(context.t('common.cancel')),
+                  _DetailHeader(campaign: campaign),
+                  const SizedBox(height: 20),
+                  _DetailGrid(campaign: campaign),
+                  const SizedBox(height: 22),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(AppRadius.value),
+                      border: Border.all(color: AppColors.line),
+                    ),
+                    child: Text(
+                      campaign.preview,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppColors.deepOcean,
+                        height: 1.55,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: 0,
+                      ),
+                    ),
                   ),
                 ],
               ),
             ),
-          ],
-        ),
+          ),
+          Container(
+            padding: const EdgeInsets.fromLTRB(28, 14, 28, 22),
+            decoration: BoxDecoration(
+              border: Border(top: BorderSide(color: AppColors.softLine)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style:
+                      TextButton.styleFrom(
+                        foregroundColor: AppColors.deepOcean,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ).copyWith(
+                        mouseCursor: const WidgetStatePropertyAll(
+                          SystemMouseCursors.click,
+                        ),
+                      ),
+                  child: Text(context.t('common.cancel')),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -2720,6 +3016,10 @@ class _BulkMailCreateDialogState extends State<_BulkMailCreateDialog> {
     'sms.bulk.category.newsletter',
     'sms.bulk.category.corporate',
   ];
+  static const _emptyTemplateOption = 'sms.templates.empty';
+  static const _emptyAccountOption = 'sms.settings.empty';
+  static const _emptyListOption = 'sms.contacts.empty';
+
   late final TextEditingController _nameController;
   late final TextEditingController _subjectController;
   late final TextEditingController _previewController;
@@ -2728,14 +3028,25 @@ class _BulkMailCreateDialogState extends State<_BulkMailCreateDialog> {
   late String _account;
   late String _recipientList;
 
-  List<String> get _templateOptions =>
-      widget.templates.map((template) => template.nameKey).toList();
+  List<String> get _templateOptions => widget.templates.isEmpty
+      ? [_emptyTemplateOption]
+      : widget.templates.map((template) => template.nameKey).toList();
 
-  List<String> get _accountOptions =>
-      widget.accounts.map((account) => account.accountName).toList();
+  List<String> get _accountOptions => widget.accounts.isEmpty
+      ? [_emptyAccountOption]
+      : widget.accounts.map((account) => account.accountName).toList();
 
-  List<String> get _listOptions =>
-      widget.lists.map((list) => list.name).toList();
+  List<String> get _listOptions => widget.lists.isEmpty
+      ? [_emptyListOption]
+      : widget.lists.map((list) => list.name).toList();
+
+  List<String> get _missingResources {
+    return [
+      if (widget.templates.isEmpty) _emptyTemplateOption,
+      if (widget.accounts.isEmpty) _emptyAccountOption,
+      if (widget.lists.isEmpty) _emptyListOption,
+    ];
+  }
 
   @override
   void initState() {
@@ -2828,11 +3139,20 @@ class _BulkMailCreateDialogState extends State<_BulkMailCreateDialog> {
     if (mounted) setState(() {});
   }
 
-  bool get _canSave => _nameController.text.trim().isNotEmpty;
+  bool get _canSave =>
+      _selectedAccount() != null &&
+      _selectedTemplate() != null &&
+      _selectedList() != null &&
+      _nameController.text.trim().isNotEmpty;
 
   String _effectiveSubject(BuildContext context) {
     final subject = _subjectController.text.trim();
-    return subject.isNotEmpty ? subject : context.t(_template);
+    final selectedTemplate = _selectedTemplate();
+    return subject.isNotEmpty
+        ? subject
+        : selectedTemplate != null
+        ? context.t(selectedTemplate.nameKey)
+        : context.t('sms.bulk.previewHeadline');
   }
 
   String _effectivePreview(BuildContext context) {
@@ -2848,18 +3168,10 @@ class _BulkMailCreateDialogState extends State<_BulkMailCreateDialog> {
     if (!_canSave) return;
     final previous = widget.campaign;
     final now = DateTime.now();
-    final account = widget.accounts.firstWhere(
-      (item) => item.accountName == _account,
-      orElse: () => widget.accounts.first,
-    );
-    final template = widget.templates.firstWhere(
-      (item) => item.nameKey == _template,
-      orElse: () => widget.templates.first,
-    );
-    final list = widget.lists.firstWhere(
-      (item) => item.name == _recipientList,
-      orElse: () => widget.lists.first,
-    );
+    final account = _selectedAccount();
+    final template = _selectedTemplate();
+    final list = _selectedList();
+    if (account == null || template == null || list == null) return;
     final campaign = AdminSmsBulkCampaign(
       id: previous?.id ?? now.millisecondsSinceEpoch.remainder(100000),
       accountId: account.id.toString(),
@@ -2884,6 +3196,27 @@ class _BulkMailCreateDialogState extends State<_BulkMailCreateDialog> {
       scheduledAt: previous?.scheduledAt,
     );
     Navigator.of(context).pop(campaign);
+  }
+
+  AdminSmsTemplate? _selectedTemplate() {
+    for (final template in widget.templates) {
+      if (template.nameKey == _template) return template;
+    }
+    return null;
+  }
+
+  AdminSmsAccount? _selectedAccount() {
+    for (final account in widget.accounts) {
+      if (account.accountName == _account) return account;
+    }
+    return null;
+  }
+
+  AdminSmsContactList? _selectedList() {
+    for (final list in widget.lists) {
+      if (list.name == _recipientList) return list;
+    }
+    return null;
   }
 
   @override
@@ -2954,6 +3287,7 @@ class _BulkMailCreateDialogState extends State<_BulkMailCreateDialog> {
                               recipientList: _recipientList,
                               nameController: _nameController,
                               statsMessage: _effectiveMessage(context),
+                              missingResources: _missingResources,
                               onCategoryChanged: (value) =>
                                   setState(() => _category = value),
                               onTemplateChanged: (value) =>
@@ -2994,6 +3328,7 @@ class _BulkMailCreateDialogState extends State<_BulkMailCreateDialog> {
                             recipientList: _recipientList,
                             nameController: _nameController,
                             statsMessage: _effectiveMessage(context),
+                            missingResources: _missingResources,
                             onCategoryChanged: (value) =>
                                 setState(() => _category = value),
                             onTemplateChanged: (value) =>
@@ -3110,6 +3445,7 @@ class _CreatePanel extends StatelessWidget {
     required this.recipientList,
     required this.nameController,
     required this.statsMessage,
+    required this.missingResources,
     required this.onCategoryChanged,
     required this.onTemplateChanged,
     required this.onAccountChanged,
@@ -3126,6 +3462,7 @@ class _CreatePanel extends StatelessWidget {
   final String recipientList;
   final TextEditingController nameController;
   final String statsMessage;
+  final List<String> missingResources;
   final ValueChanged<String> onCategoryChanged;
   final ValueChanged<String> onTemplateChanged;
   final ValueChanged<String> onAccountChanged;
@@ -3146,6 +3483,10 @@ class _CreatePanel extends StatelessWidget {
               color: AppColors.support,
             ),
             const SizedBox(height: 12),
+            if (missingResources.isNotEmpty) ...[
+              _CreateMissingResourcesNotice(resources: missingResources),
+              const SizedBox(height: 14),
+            ],
             _CreateSelectField(
               label: 'sms.bulk.templateCategory',
               value: category,
@@ -3157,6 +3498,7 @@ class _CreatePanel extends StatelessWidget {
               label: 'sms.bulk.template',
               value: template,
               options: templates,
+              enabled: !missingResources.contains('sms.templates.empty'),
               onChanged: onTemplateChanged,
             ),
             const SizedBox(height: 22),
@@ -3195,6 +3537,7 @@ class _CreatePanel extends StatelessWidget {
               label: 'sms.bulk.senderAccount',
               value: account,
               options: accounts,
+              enabled: !missingResources.contains('sms.settings.empty'),
               onChanged: onAccountChanged,
             ),
             const SizedBox(height: 10),
@@ -3203,9 +3546,105 @@ class _CreatePanel extends StatelessWidget {
               label: 'sms.bulk.contactList',
               value: recipientList,
               options: lists,
+              enabled: !missingResources.contains('sms.contacts.empty'),
               onChanged: onRecipientListChanged,
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CreateMissingResourcesNotice extends StatelessWidget {
+  const _CreateMissingResourcesNotice({required this.resources});
+
+  final List<String> resources;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.actionRed.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: AppColors.actionRed.withValues(alpha: 0.16)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color: AppColors.actionRed.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(AppRadius.value),
+            ),
+            child: const Center(
+              child: SymbolIcon(
+                Symbols.warning,
+                color: AppColors.actionRed,
+                size: 18,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  context.t('This field is required'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.deepOcean,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (final resource in resources)
+                      _MissingResourceChip(label: context.t(resource)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MissingResourceChip extends StatelessWidget {
+  const _MissingResourceChip({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: AppColors.actionRed.withValues(alpha: 0.18)),
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          color: AppColors.deepOcean,
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0,
         ),
       ),
     );
@@ -3261,12 +3700,14 @@ class _CreateSelectField extends StatelessWidget {
     required this.value,
     required this.options,
     required this.onChanged,
+    this.enabled = true,
   });
 
   final String label;
   final String value;
   final List<String> options;
   final ValueChanged<String> onChanged;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
@@ -3279,10 +3720,12 @@ class _CreateSelectField extends StatelessWidget {
           height: 36,
           padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: enabled ? Colors.white : AppColors.surface,
             borderRadius: BorderRadius.circular(AppRadius.value),
             border: Border.all(
-              color: AppColors.support.withValues(alpha: 0.42),
+              color: enabled
+                  ? AppColors.support.withValues(alpha: 0.42)
+                  : AppColors.line.withValues(alpha: 0.82),
             ),
           ),
           child: DropdownButtonHideUnderline(
@@ -3303,8 +3746,10 @@ class _CreateSelectField extends StatelessWidget {
                         context.t(option),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.deepOcean,
+                        style: TextStyle(
+                          color: enabled
+                              ? AppColors.deepOcean
+                              : AppColors.support,
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 0,
@@ -3313,9 +3758,11 @@ class _CreateSelectField extends StatelessWidget {
                     ),
                   )
                   .toList(),
-              onChanged: (next) {
-                if (next != null) onChanged(next);
-              },
+              onChanged: enabled
+                  ? (next) {
+                      if (next != null) onChanged(next);
+                    }
+                  : null,
             ),
           ),
         ),
@@ -3391,6 +3838,7 @@ class _CreateSelectCard extends StatelessWidget {
     required this.value,
     required this.options,
     required this.onChanged,
+    this.enabled = true,
   });
 
   final IconData icon;
@@ -3398,6 +3846,7 @@ class _CreateSelectCard extends StatelessWidget {
   final String value;
   final List<String> options;
   final ValueChanged<String> onChanged;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
@@ -3405,7 +3854,7 @@ class _CreateSelectCard extends StatelessWidget {
       height: 56,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: enabled ? Colors.white : AppColors.surface,
         borderRadius: BorderRadius.circular(AppRadius.value),
         border: Border.all(color: AppColors.line),
       ),
@@ -3456,8 +3905,10 @@ class _CreateSelectCard extends StatelessWidget {
                           context.t(option),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: AppColors.deepOcean,
+                          style: TextStyle(
+                            color: enabled
+                                ? AppColors.deepOcean
+                                : AppColors.support,
                             fontSize: 13,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 0,
@@ -3475,9 +3926,11 @@ class _CreateSelectCard extends StatelessWidget {
                       ),
                     )
                     .toList(),
-                onChanged: (next) {
-                  if (next != null) onChanged(next);
-                },
+                onChanged: enabled
+                    ? (next) {
+                        if (next != null) onChanged(next);
+                      }
+                    : null,
               ),
             ),
           ),
@@ -3572,33 +4025,52 @@ class _LivePreview extends StatelessWidget {
                   ),
                 ),
               ),
-              Text(
-                context.t('sms.bulk.variableHint'),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: AppColors.support,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Container(
-                height: 22,
-                padding: const EdgeInsets.symmetric(horizontal: 9),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF198754).withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(AppRadius.value),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  context.t('sms.bulk.live'),
-                  style: const TextStyle(
-                    color: Color(0xFF198754),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0,
+              const SizedBox(width: 8),
+              Flexible(
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerRight,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          context.t('sms.bulk.variableHint'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: AppColors.support,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Container(
+                          height: 22,
+                          padding: const EdgeInsets.symmetric(horizontal: 9),
+                          decoration: BoxDecoration(
+                            color: const Color(
+                              0xFF198754,
+                            ).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(
+                              AppRadius.value,
+                            ),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            context.t('sms.bulk.live'),
+                            style: const TextStyle(
+                              color: Color(0xFF198754),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),

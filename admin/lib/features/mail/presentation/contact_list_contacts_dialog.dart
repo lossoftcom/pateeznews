@@ -12,6 +12,7 @@ import '../../../shared/widgets/symbol_icon.dart';
 import '../../auth/data/admin_auth_models.dart';
 import '../data/admin_mail_repository.dart';
 import 'contact_list_models.dart';
+import 'mail_mobile_chrome.dart';
 
 class ContactListContactsDialog extends StatefulWidget {
   const ContactListContactsDialog({
@@ -90,9 +91,11 @@ class _ContactListContactsDialogState extends State<ContactListContactsDialog> {
   }
 
   Future<void> _showForm([AdminMailContact? contact]) async {
-    final result = await showDialog<_ContactFormResult>(
+    final result = await showMailSideDrawer<_ContactFormResult>(
       context: context,
-      builder: (context) => _ContactFormDialog(contact: contact),
+      minWidth: 380,
+      maxWidth: 520,
+      child: _ContactFormDialog(contact: contact),
     );
     if (result == null || !mounted) return;
     try {
@@ -201,22 +204,19 @@ class _ContactListContactsDialogState extends State<ContactListContactsDialog> {
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    onChanged: (value) => setState(() => _query = value),
-                    decoration: InputDecoration(
-                      hintText: context.t('mail.contacts.people.search'),
-                      prefixIcon: const SymbolIcon(Symbols.search, size: 18),
-                      border: const OutlineInputBorder(),
-                      isDense: true,
-                    ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final searchField = TextField(
+                  controller: _searchController,
+                  onChanged: (value) => setState(() => _query = value),
+                  decoration: InputDecoration(
+                    hintText: context.t('mail.contacts.people.search'),
+                    prefixIcon: const SymbolIcon(Symbols.search, size: 18),
+                    border: const OutlineInputBorder(),
+                    isDense: true,
                   ),
-                ),
-                const SizedBox(width: 12),
-                FilledButton.icon(
+                );
+                final addButton = FilledButton.icon(
                   onPressed: () => _showForm(),
                   icon: const SymbolIcon(
                     Symbols.person,
@@ -230,8 +230,25 @@ class _ContactListContactsDialogState extends State<ContactListContactsDialog> {
                       borderRadius: BorderRadius.circular(AppRadius.value),
                     ),
                   ),
-                ),
-              ],
+                );
+                if (constraints.maxWidth < 560) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      searchField,
+                      const SizedBox(height: 10),
+                      addButton,
+                    ],
+                  );
+                }
+                return Row(
+                  children: [
+                    Expanded(child: searchField),
+                    const SizedBox(width: 12),
+                    addButton,
+                  ],
+                );
+              },
             ),
           ),
           Expanded(
@@ -396,67 +413,135 @@ class _ContactFormDialogState extends State<_ContactFormDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(
-        context.t(
-          widget.contact == null
-              ? 'mail.contacts.people.formNew'
-              : 'mail.contacts.people.formEdit',
-        ),
+    final title = context.t(
+      widget.contact == null
+          ? 'mail.contacts.people.formNew'
+          : 'mail.contacts.people.formEdit',
+    );
+    return Material(
+      color: Colors.white,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 22, 14, 14),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: AppColors.deepOcean,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: context.t('common.close'),
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const SymbolIcon(
+                    Symbols.close,
+                    color: AppColors.deepOcean,
+                    size: 20,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(24, 6, 24, 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextField(
+                    controller: _emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    onChanged: (_) {
+                      if (_emailError) setState(() => _emailError = false);
+                    },
+                    decoration: InputDecoration(
+                      labelText: context.t('mail.contacts.people.email'),
+                      errorText: _emailError
+                          ? context.t('mail.contacts.people.emailInvalid')
+                          : null,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _firstNameController,
+                    decoration: InputDecoration(
+                      labelText: context.t('mail.contacts.people.firstName'),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _lastNameController,
+                    decoration: InputDecoration(
+                      labelText: context.t('mail.contacts.people.lastName'),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _phoneController,
+                    keyboardType: TextInputType.phone,
+                    decoration: InputDecoration(
+                      labelText: context.t('mail.contacts.people.phone'),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          context.t('mail.contacts.dialog.status'),
+                          style: const TextStyle(
+                            color: AppColors.deepOcean,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0,
+                          ),
+                        ),
+                      ),
+                      Switch(
+                        value: _active,
+                        activeThumbColor: AppColors.actionRed,
+                        onChanged: (value) => setState(() => _active = value),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.fromLTRB(24, 14, 24, 18),
+            decoration: BoxDecoration(
+              border: Border(top: BorderSide(color: AppColors.softLine)),
+            ),
+            child: Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              alignment: WrapAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text(context.t('common.cancel')),
+                ),
+                FilledButton(
+                  onPressed: _save,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.actionRed,
+                  ),
+                  child: Text(context.t('common.save')),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
-      content: SizedBox(
-        width: 480,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: _emailController,
-              keyboardType: TextInputType.emailAddress,
-              onChanged: (_) {
-                if (_emailError) setState(() => _emailError = false);
-              },
-              decoration: InputDecoration(
-                labelText: context.t('mail.contacts.people.email'),
-                errorText: _emailError
-                    ? context.t('mail.contacts.people.emailInvalid')
-                    : null,
-              ),
-            ),
-            TextField(
-              controller: _firstNameController,
-              decoration: InputDecoration(
-                labelText: context.t('mail.contacts.people.firstName'),
-              ),
-            ),
-            TextField(
-              controller: _lastNameController,
-              decoration: InputDecoration(
-                labelText: context.t('mail.contacts.people.lastName'),
-              ),
-            ),
-            TextField(
-              controller: _phoneController,
-              keyboardType: TextInputType.phone,
-              decoration: InputDecoration(
-                labelText: context.t('mail.contacts.people.phone'),
-              ),
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(context.t('mail.contacts.dialog.status')),
-              value: _active,
-              onChanged: (value) => setState(() => _active = value),
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(context.t('common.cancel')),
-        ),
-        FilledButton(onPressed: _save, child: Text(context.t('common.save'))),
-      ],
     );
   }
 }

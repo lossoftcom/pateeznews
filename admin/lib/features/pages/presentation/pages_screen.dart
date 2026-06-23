@@ -296,7 +296,7 @@ class _PagesScreenState extends State<PagesScreen> {
                 horizontalPadding,
                 18,
                 horizontalPadding,
-                28,
+                0,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2900,14 +2900,12 @@ class _PagesMobileView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        AdminMobileToolbar(
+        _PagesMobileSearchPanel(
           controller: searchController,
-          query: searchController.text,
           hintText: context.t('pages.searchPlaceholder'),
-          onSearchChanged: (_) {},
+          recordCount: totalCount,
           activeFilterCount: _activeFilterCount,
           onOpenFilters: () => _openFilters(context),
-          showFilters: false,
         ),
         const SizedBox(height: 10),
         Row(
@@ -2969,6 +2967,143 @@ class _PagesMobileView extends StatelessWidget {
           onPageChanged: onPageChanged,
         ),
       ],
+    );
+  }
+}
+
+class _PagesMobileSearchPanel extends StatelessWidget {
+  const _PagesMobileSearchPanel({
+    required this.controller,
+    required this.hintText,
+    required this.recordCount,
+    required this.activeFilterCount,
+    required this.onOpenFilters,
+  });
+
+  static const _borderColor = Color(0xFFE6EAF0);
+  static const _muted = Color(0xFF9AA3AA);
+  static const _navy = Color(0xFF2F4053);
+
+  final TextEditingController controller;
+  final String hintText;
+  final int recordCount;
+  final int activeFilterCount;
+  final VoidCallback onOpenFilters;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _borderColor),
+      ),
+      child: SizedBox(
+        height: 72,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 10, 12, 9),
+          child: Row(
+            children: [
+              Expanded(
+                child: Row(
+                  children: [
+                    const SymbolIcon(Symbols.search, color: _muted, size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          TextField(
+                            controller: controller,
+                            mouseCursor: SystemMouseCursors.text,
+                            textAlignVertical: TextAlignVertical.center,
+                            cursorColor: _navy,
+                            style: const TextStyle(
+                              fontSize: 14.5,
+                              color: _navy,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            decoration: InputDecoration(
+                              hintText: hintText,
+                              hintStyle: const TextStyle(
+                                color: _muted,
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w400,
+                              ),
+                              isDense: true,
+                              contentPadding: EdgeInsets.zero,
+                              border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                            ),
+                          ),
+                          Container(height: 1, color: const Color(0xFFB9BEC4)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 14),
+              InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: onOpenFilters,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Göster',
+                            style: TextStyle(
+                              color: _navy,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              height: 1,
+                            ),
+                          ),
+                          SizedBox(width: 4),
+                          SymbolIcon(
+                            Symbols.keyboard_arrow_down,
+                            color: _navy,
+                            size: 17,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        '$recordCount kayıt',
+                        style: const TextStyle(
+                          color: _navy,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w800,
+                          height: 1,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        activeFilterCount == 0
+                            ? 'Filtre yok'
+                            : '$activeFilterCount filtre',
+                        style: const TextStyle(
+                          color: _muted,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w500,
+                          height: 1,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

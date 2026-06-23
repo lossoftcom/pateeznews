@@ -12,6 +12,7 @@ import '../../../shared/widgets/symbol_icon.dart';
 import '../../auth/data/admin_auth_models.dart';
 import '../data/admin_whatsapp_repository.dart';
 import 'whatsapp_contact_list_models.dart';
+import 'whatsapp_mobile_chrome.dart';
 
 class WhatsappContactListContactsDialog extends StatefulWidget {
   const WhatsappContactListContactsDialog({
@@ -91,9 +92,11 @@ class _WhatsappContactListContactsDialogState
   }
 
   Future<void> _showForm([AdminWhatsappContact? contact]) async {
-    final result = await showDialog<_WhatsappContactFormResult>(
+    final result = await showWhatsappSideDrawer<_WhatsappContactFormResult>(
       context: context,
-      builder: (context) => _WhatsappContactFormDialog(contact: contact),
+      minWidth: 380,
+      maxWidth: 520,
+      child: _WhatsappContactFormDialog(contact: contact),
     );
     if (result == null || !mounted) return;
     try {
@@ -202,22 +205,19 @@ class _WhatsappContactListContactsDialogState
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    onChanged: (value) => setState(() => _query = value),
-                    decoration: InputDecoration(
-                      hintText: context.t('whatsapp.contacts.people.search'),
-                      prefixIcon: const SymbolIcon(Symbols.search, size: 18),
-                      border: const OutlineInputBorder(),
-                      isDense: true,
-                    ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final search = TextField(
+                  controller: _searchController,
+                  onChanged: (value) => setState(() => _query = value),
+                  decoration: InputDecoration(
+                    hintText: context.t('whatsapp.contacts.people.search'),
+                    prefixIcon: const SymbolIcon(Symbols.search, size: 18),
+                    border: const OutlineInputBorder(),
+                    isDense: true,
                   ),
-                ),
-                const SizedBox(width: 12),
-                FilledButton.icon(
+                );
+                final addButton = FilledButton.icon(
                   onPressed: () => _showForm(),
                   icon: const SymbolIcon(
                     Symbols.person,
@@ -231,8 +231,23 @@ class _WhatsappContactListContactsDialogState
                       borderRadius: BorderRadius.circular(AppRadius.value),
                     ),
                   ),
-                ),
-              ],
+                );
+
+                if (constraints.maxWidth < 560) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [search, const SizedBox(height: 10), addButton],
+                  );
+                }
+
+                return Row(
+                  children: [
+                    Expanded(child: search),
+                    const SizedBox(width: 12),
+                    addButton,
+                  ],
+                );
+              },
             ),
           ),
           Expanded(
@@ -414,73 +429,134 @@ class _WhatsappContactFormDialogState
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(
-        context.t(
-          widget.contact == null
-              ? 'whatsapp.contacts.people.formNew'
-              : 'whatsapp.contacts.people.formEdit',
-        ),
+    return Material(
+      color: Colors.white,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(22, 18, 14, 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    context.t(
+                      widget.contact == null
+                          ? 'whatsapp.contacts.people.formNew'
+                          : 'whatsapp.contacts.people.formEdit',
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: AppColors.deepOcean,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const SymbolIcon(
+                    Symbols.close,
+                    color: AppColors.deepOcean,
+                    size: 20,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(height: 1, color: AppColors.softLine),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(22, 18, 22, 22),
+              child: Column(
+                children: [
+                  TextField(
+                    controller: _phoneController,
+                    keyboardType: TextInputType.phone,
+                    onChanged: (_) {
+                      if (_phoneError) setState(() => _phoneError = false);
+                    },
+                    decoration: InputDecoration(
+                      labelText: context.t('whatsapp.contacts.people.phone'),
+                      errorText: _phoneError
+                          ? context.t('whatsapp.contacts.people.phoneInvalid')
+                          : null,
+                    ),
+                  ),
+                  TextField(
+                    controller: _firstNameController,
+                    decoration: InputDecoration(
+                      labelText: context.t(
+                        'whatsapp.contacts.people.firstName',
+                      ),
+                    ),
+                  ),
+                  TextField(
+                    controller: _lastNameController,
+                    decoration: InputDecoration(
+                      labelText: context.t('whatsapp.contacts.people.lastName'),
+                    ),
+                  ),
+                  TextField(
+                    controller: _emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    onChanged: (_) {
+                      if (_emailError) setState(() => _emailError = false);
+                    },
+                    decoration: InputDecoration(
+                      labelText: context.t('whatsapp.contacts.people.email'),
+                      errorText: _emailError
+                          ? context.t('whatsapp.contacts.people.emailInvalid')
+                          : null,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          context.t('whatsapp.contacts.dialog.status'),
+                          style: const TextStyle(
+                            color: AppColors.deepOcean,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0,
+                          ),
+                        ),
+                      ),
+                      Switch(
+                        value: _active,
+                        onChanged: (value) => setState(() => _active = value),
+                        activeThumbColor: const Color(0xFF198754),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
+            decoration: BoxDecoration(
+              border: Border(top: BorderSide(color: AppColors.softLine)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text(context.t('common.cancel')),
+                ),
+                const SizedBox(width: 10),
+                FilledButton(
+                  onPressed: _save,
+                  child: Text(context.t('common.save')),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
-      content: SizedBox(
-        width: 480,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: _phoneController,
-              keyboardType: TextInputType.phone,
-              onChanged: (_) {
-                if (_phoneError) setState(() => _phoneError = false);
-              },
-              decoration: InputDecoration(
-                labelText: context.t('whatsapp.contacts.people.phone'),
-                errorText: _phoneError
-                    ? context.t('whatsapp.contacts.people.phoneInvalid')
-                    : null,
-              ),
-            ),
-            TextField(
-              controller: _firstNameController,
-              decoration: InputDecoration(
-                labelText: context.t('whatsapp.contacts.people.firstName'),
-              ),
-            ),
-            TextField(
-              controller: _lastNameController,
-              decoration: InputDecoration(
-                labelText: context.t('whatsapp.contacts.people.lastName'),
-              ),
-            ),
-            TextField(
-              controller: _emailController,
-              keyboardType: TextInputType.emailAddress,
-              onChanged: (_) {
-                if (_emailError) setState(() => _emailError = false);
-              },
-              decoration: InputDecoration(
-                labelText: context.t('whatsapp.contacts.people.email'),
-                errorText: _emailError
-                    ? context.t('whatsapp.contacts.people.emailInvalid')
-                    : null,
-              ),
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(context.t('whatsapp.contacts.dialog.status')),
-              value: _active,
-              onChanged: (value) => setState(() => _active = value),
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(context.t('common.cancel')),
-        ),
-        FilledButton(onPressed: _save, child: Text(context.t('common.save'))),
-      ],
     );
   }
 }

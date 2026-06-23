@@ -15,6 +15,7 @@ import '../../../shared/widgets/admin_mobile_list.dart';
 import '../../../shared/widgets/symbol_icon.dart';
 import '../../auth/data/admin_auth_models.dart';
 import '../data/admin_social_repository.dart';
+import 'social_mobile_chrome.dart';
 import 'social_platform_data.dart';
 import 'widgets/social_brand_logo.dart';
 
@@ -153,10 +154,11 @@ class _SocialAccountsScreenState extends State<SocialAccountsScreen> {
   }
 
   Future<void> _editAccount(_SocialAccountRowData row) async {
-    final values = await showDialog<Map<String, Object?>>(
+    final values = await showSocialSideDrawer<Map<String, Object?>>(
       context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.34),
-      builder: (context) => _SocialAccountEditDialog(row: row),
+      minWidth: 380,
+      maxWidth: 520,
+      child: _SocialAccountEditDialog(row: row),
     );
     if (values == null || !mounted) return;
 
@@ -241,36 +243,28 @@ class _SocialAccountsScreenState extends State<SocialAccountsScreen> {
 
   Future<void> _openLoginDialog() async {
     final openFailedMessage = context.t('social.accounts.openFailed');
-    await showDialog<void>(
+    await showSocialSideDrawer<void>(
       context: context,
-      barrierDismissible: true,
-      builder: (context) {
-        return Dialog(
-          insetPadding: const EdgeInsets.symmetric(
-            horizontal: 24,
-            vertical: 32,
-          ),
-          backgroundColor: Colors.transparent,
-          child: _SocialAccountLoginDialog(
-            onConnect: (platform) async {
-              try {
-                final url = await widget.repository.createPortalLink(
-                  widget.session,
-                  platforms: {platform},
-                );
-                final launched = await launchUrl(
-                  Uri.parse(url),
-                  mode: LaunchMode.externalApplication,
-                );
-                if (!launched) throw Exception(openFailedMessage);
-              } catch (error) {
-                _showError(error);
-                rethrow;
-              }
-            },
-          ),
-        );
-      },
+      minWidth: 420,
+      maxWidth: 720,
+      child: _SocialAccountLoginDialog(
+        onConnect: (platform) async {
+          try {
+            final url = await widget.repository.createPortalLink(
+              widget.session,
+              platforms: {platform},
+            );
+            final launched = await launchUrl(
+              Uri.parse(url),
+              mode: LaunchMode.externalApplication,
+            );
+            if (!launched) throw Exception(openFailedMessage);
+          } catch (error) {
+            _showError(error);
+            rethrow;
+          }
+        },
+      ),
     );
   }
 
@@ -333,6 +327,18 @@ class _SocialAccountsScreenState extends State<SocialAccountsScreen> {
           ],
         );
 
+        if (mobile) {
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+              horizontalPadding,
+              topPadding,
+              horizontalPadding,
+              0,
+            ),
+            child: content,
+          );
+        }
+
         if (compact) {
           return SingleChildScrollView(
             padding: EdgeInsets.fromLTRB(
@@ -364,27 +370,37 @@ class _SocialAccountsTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          context.t('social.accounts.title'),
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-            color: AppColors.deepOcean,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0,
-          ),
-        ),
-        const SizedBox(height: 18),
-        Text(
-          context.t('social.accounts.description'),
-          style: const TextStyle(
-            color: AppColors.inkSoft,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0,
-          ),
-        ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final mobile = constraints.maxWidth < AdminMobile.breakpoint;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              context.t('social.accounts.title'),
+              maxLines: mobile ? 1 : 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                color: AppColors.deepOcean,
+                fontSize: mobile ? 24 : null,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0,
+              ),
+            ),
+            if (!mobile) ...[
+              const SizedBox(height: 18),
+              Text(
+                context.t('social.accounts.description'),
+                style: const TextStyle(
+                  color: AppColors.inkSoft,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0,
+                ),
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
 }
@@ -470,6 +486,7 @@ class _SocialAccountsTableCard extends StatelessWidget {
             pageSize: pageSize,
             totalCount: totalCount,
             searchController: searchController,
+            onPageSizeChanged: onPageSizeChanged,
             onPageChanged: onPageChanged,
             onSearchChanged: onSearchChanged,
             onCreate: onCreate,
@@ -560,6 +577,7 @@ class _SocialAccountsMobileView extends StatelessWidget {
     required this.pageSize,
     required this.totalCount,
     required this.searchController,
+    required this.onPageSizeChanged,
     required this.onPageChanged,
     required this.onSearchChanged,
     required this.onCreate,
@@ -575,6 +593,7 @@ class _SocialAccountsMobileView extends StatelessWidget {
   final int pageSize;
   final int totalCount;
   final TextEditingController searchController;
+  final ValueChanged<int?> onPageSizeChanged;
   final ValueChanged<int> onPageChanged;
   final ValueChanged<String> onSearchChanged;
   final VoidCallback onCreate;
@@ -595,14 +614,14 @@ class _SocialAccountsMobileView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        AdminMobileToolbar(
+        SocialMobileSearchPanel(
           controller: searchController,
           query: searchController.text,
           hintText: context.t('social.accounts.searchPlaceholder'),
           onSearchChanged: onSearchChanged,
-          activeFilterCount: 0,
-          onOpenFilters: () {},
-          showFilters: false,
+          recordCount: totalCount,
+          pageSize: pageSize,
+          onPageSizeChanged: onPageSizeChanged,
         ),
         const SizedBox(height: 12),
         Row(
@@ -647,7 +666,7 @@ class _SocialAccountsMobileView extends StatelessWidget {
             },
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 4),
         AdminMobilePager(
           page: page,
           lastPage: lastPage,
@@ -1388,128 +1407,125 @@ class _SocialAccountEditDialogState extends State<_SocialAccountEditDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 440),
-        child: Material(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(AppRadius.value),
-          clipBehavior: Clip.antiAlias,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(22, 20, 22, 18),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Material(
+      color: Colors.white,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(22, 20, 14, 12),
+            child: Row(
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        context.t('social.accounts.editTitle'),
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: AppColors.deepOcean,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0,
-                        ),
-                      ),
+                Expanded(
+                  child: Text(
+                    context.t('social.accounts.editTitle'),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: AppColors.deepOcean,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0,
                     ),
-                    const SizedBox(width: 12),
-                    MouseRegion(
-                      cursor: SystemMouseCursors.click,
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () => Navigator.of(context).pop(),
-                        child: const Padding(
-                          padding: EdgeInsets.all(3),
-                          child: SymbolIcon(
-                            Symbols.close,
-                            color: AppColors.deepOcean,
-                            size: 20,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-                const SizedBox(height: 18),
-                _SocialAccountEditField(
-                  controller: _displayNameController,
-                  label: context.t('social.accounts.field.displayName'),
-                ),
-                const SizedBox(height: 12),
-                _SocialAccountEditField(
-                  controller: _usernameController,
-                  label: context.t('social.accounts.field.username'),
-                  prefixText: '@',
-                ),
-                const SizedBox(height: 12),
-                _SocialAccountEditField(
-                  controller: _channelNameController,
-                  label: context.t('social.accounts.field.channelName'),
-                ),
-                const SizedBox(height: 22),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      style:
-                          TextButton.styleFrom(
-                            foregroundColor: AppColors.deepOcean,
-                            padding: const EdgeInsets.symmetric(horizontal: 10),
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            textStyle: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0,
-                            ),
-                          ).copyWith(
-                            mouseCursor: const WidgetStatePropertyAll(
-                              SystemMouseCursors.click,
-                            ),
-                          ),
-                      child: Text(context.t('common.cancel')),
-                    ),
-                    const SizedBox(width: 14),
-                    SizedBox(
-                      height: 36,
-                      child: TextButton(
-                        onPressed: _submit,
-                        style:
-                            TextButton.styleFrom(
-                              backgroundColor: AppColors.deepOcean,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 18,
-                              ),
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(
-                                  AppRadius.value,
-                                ),
-                              ),
-                              textStyle: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 0,
-                              ),
-                            ).copyWith(
-                              mouseCursor: const WidgetStatePropertyAll(
-                                SystemMouseCursors.click,
-                              ),
-                            ),
-                        child: Text(context.t('common.save')),
-                      ),
-                    ),
-                  ],
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  mouseCursor: SystemMouseCursors.click,
+                  icon: const SymbolIcon(
+                    Symbols.close,
+                    color: AppColors.deepOcean,
+                    size: 20,
+                  ),
                 ),
               ],
             ),
           ),
-        ),
+          Container(height: 1, color: AppColors.softLine),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(22, 18, 22, 22),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _SocialAccountEditField(
+                    controller: _displayNameController,
+                    label: context.t('social.accounts.field.displayName'),
+                  ),
+                  const SizedBox(height: 12),
+                  _SocialAccountEditField(
+                    controller: _usernameController,
+                    label: context.t('social.accounts.field.username'),
+                    prefixText: '@',
+                  ),
+                  const SizedBox(height: 12),
+                  _SocialAccountEditField(
+                    controller: _channelNameController,
+                    label: context.t('social.accounts.field.channelName'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
+            decoration: BoxDecoration(
+              border: Border(top: BorderSide(color: AppColors.softLine)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style:
+                      TextButton.styleFrom(
+                        foregroundColor: AppColors.deepOcean,
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        textStyle: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0,
+                        ),
+                      ).copyWith(
+                        mouseCursor: const WidgetStatePropertyAll(
+                          SystemMouseCursors.click,
+                        ),
+                      ),
+                  child: Text(context.t('common.cancel')),
+                ),
+                const SizedBox(width: 14),
+                SizedBox(
+                  height: 36,
+                  child: TextButton(
+                    onPressed: _submit,
+                    style:
+                        TextButton.styleFrom(
+                          backgroundColor: AppColors.deepOcean,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 18),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(
+                              AppRadius.value,
+                            ),
+                          ),
+                          textStyle: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0,
+                          ),
+                        ).copyWith(
+                          mouseCursor: const WidgetStatePropertyAll(
+                            SystemMouseCursors.click,
+                          ),
+                        ),
+                    child: Text(context.t('common.save')),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1590,19 +1606,14 @@ class _SocialAccountLoginDialogState extends State<_SocialAccountLoginDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 720),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(AppRadius.value),
-        ),
-        padding: const EdgeInsets.fromLTRB(28, 24, 28, 22),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+    return Material(
+      color: Colors.white,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(28, 24, 18, 14),
+            child: Row(
               children: [
                 Container(
                   width: 38,
@@ -1624,6 +1635,8 @@ class _SocialAccountLoginDialogState extends State<_SocialAccountLoginDialog> {
                     children: [
                       Text(
                         context.t('social.accounts.dialog.title'),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.headlineSmall
                             ?.copyWith(
                               color: AppColors.deepOcean,
@@ -1634,6 +1647,8 @@ class _SocialAccountLoginDialogState extends State<_SocialAccountLoginDialog> {
                       const SizedBox(height: 5),
                       Text(
                         context.t('social.accounts.dialog.subtitle'),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           color: AppColors.inkSoft,
                           fontSize: 13,
@@ -1677,43 +1692,52 @@ class _SocialAccountLoginDialogState extends State<_SocialAccountLoginDialog> {
                 ),
               ],
             ),
-            const SizedBox(height: 18),
-            Container(
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                border: Border.all(color: AppColors.line),
-                borderRadius: BorderRadius.circular(AppRadius.value),
-              ),
-              padding: const EdgeInsets.all(10),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final itemWidth = constraints.maxWidth < 560
-                      ? constraints.maxWidth
-                      : (constraints.maxWidth - 10) / 2;
-                  return Wrap(
-                    spacing: 10,
-                    runSpacing: 8,
-                    children: [
-                      for (final info in socialPlatforms)
-                        SizedBox(
-                          width: itemWidth,
-                          child: _SocialLoginButton(
-                            info: info,
-                            enabled: _bundlePortalSupportedTypes.contains(
-                              info.platform.bundleSocialType,
+          ),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(28, 0, 28, 20),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  border: Border.all(color: AppColors.line),
+                  borderRadius: BorderRadius.circular(AppRadius.value),
+                ),
+                padding: const EdgeInsets.all(10),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final itemWidth = constraints.maxWidth < 560
+                        ? constraints.maxWidth
+                        : (constraints.maxWidth - 10) / 2;
+                    return Wrap(
+                      spacing: 10,
+                      runSpacing: 8,
+                      children: [
+                        for (final info in socialPlatforms)
+                          SizedBox(
+                            width: itemWidth,
+                            child: _SocialLoginButton(
+                              info: info,
+                              enabled: _bundlePortalSupportedTypes.contains(
+                                info.platform.bundleSocialType,
+                              ),
+                              connecting: _connectingPlatform == info.platform,
+                              busy: _connectingPlatform != null,
+                              onPressed: () => _connect(info.platform),
                             ),
-                            connecting: _connectingPlatform == info.platform,
-                            busy: _connectingPlatform != null,
-                            onPressed: () => _connect(info.platform),
                           ),
-                        ),
-                    ],
-                  );
-                },
+                      ],
+                    );
+                  },
+                ),
               ),
             ),
-            const SizedBox(height: 16),
-            Row(
+          ),
+          Container(
+            padding: const EdgeInsets.fromLTRB(28, 14, 28, 22),
+            decoration: BoxDecoration(
+              border: Border(top: BorderSide(color: AppColors.softLine)),
+            ),
+            child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 TextButton(
@@ -1737,8 +1761,8 @@ class _SocialAccountLoginDialogState extends State<_SocialAccountLoginDialog> {
                 ),
               ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -2072,7 +2096,6 @@ class _SocialAccountsFooter extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final mobile = constraints.maxWidth < 800;
         final compact = constraints.maxWidth < 640;
         final summary = Text(
           rangeText,
@@ -2088,57 +2111,13 @@ class _SocialAccountsFooter extends StatelessWidget {
           onPageChanged: onPageChanged,
         );
 
-        if (mobile) {
-          final hasPrevious = page > 1;
-          final hasNext = page < lastPage;
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              IconButton(
-                onPressed: hasPrevious ? () => onPageChanged(page - 1) : null,
-                icon: const Icon(Symbols.chevron_left),
-                constraints: const BoxConstraints.tightFor(
-                  width: 32,
-                  height: 32,
-                ),
-                padding: EdgeInsets.zero,
-                splashRadius: 18,
-                visualDensity: VisualDensity.compact,
-              ),
-              Expanded(
-                child: Text(
-                  rangeText,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
-                ),
-              ),
-              IconButton(
-                onPressed: hasNext ? () => onPageChanged(page + 1) : null,
-                icon: const Icon(Symbols.chevron_right),
-                constraints: const BoxConstraints.tightFor(
-                  width: 32,
-                  height: 32,
-                ),
-                padding: EdgeInsets.zero,
-                splashRadius: 18,
-                visualDensity: VisualDensity.compact,
-              ),
-            ],
-          );
-        }
-
         if (compact) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Divider(height: 1, color: AppColors.line),
-              const SizedBox(height: 16),
-              summary,
-              const SizedBox(height: 14),
-              pager,
-            ],
+          return AdminMobilePager(
+            page: page,
+            lastPage: lastPage,
+            rangeText: rangeText,
+            loading: false,
+            onPageChanged: onPageChanged,
           );
         }
 

@@ -8,6 +8,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../shared/widgets/symbol_icon.dart';
 import '../data/admin_module_settings_repository.dart';
+import 'settings_mobile_chrome.dart';
 
 class PharmacySettingsScreen extends StatefulWidget {
   const PharmacySettingsScreen({
@@ -150,15 +151,8 @@ class _PharmacySettingsScreenState extends State<PharmacySettingsScreen> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final horizontalPadding = constraints.maxWidth < 640 ? 16.0 : 28.0;
-
         return SingleChildScrollView(
-          padding: EdgeInsets.fromLTRB(
-            horizontalPadding,
-            28,
-            horizontalPadding,
-            28,
-          ),
+          padding: settingsPagePadding(constraints.maxWidth),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -236,11 +230,13 @@ Future<_PharmacyRegion?> _showPharmacyRegionDialog(
   BuildContext context, {
   _PharmacyRegion? region,
 }) {
-  return showDialog<_PharmacyRegion>(
-    context: context,
-    barrierColor: Colors.black.withValues(alpha: 0.34),
-    builder: (context) =>
-        _PharmacyDialogFrame(child: _PharmacyRegionDialog(region: region)),
+  return showSettingsSideDialog<_PharmacyRegion>(
+    context,
+    barrierLabel: 'PharmacyRegionDialog',
+    builder: (mobile) => _PharmacyDialogFrame(
+      mobileDrawer: mobile,
+      child: _PharmacyRegionDialog(region: region),
+    ),
   );
 }
 
@@ -284,64 +280,13 @@ class _PharmacyTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
+    return SettingsResponsiveTabs<_PharmacySettingsTab>(
+      selected: selected,
+      onSelected: onSelected,
+      items: [
         for (final tab in _PharmacySettingsTab.values)
-          _SettingsTabButton(
-            label: tab.title,
-            selected: selected == tab,
-            onTap: () => onSelected(tab),
-          ),
+          SettingsTabItem(value: tab, label: tab.title),
       ],
-    );
-  }
-}
-
-class _SettingsTabButton extends StatelessWidget {
-  const _SettingsTabButton({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 38,
-      child: TextButton(
-        onPressed: onTap,
-        style:
-            TextButton.styleFrom(
-              backgroundColor: selected ? AppColors.actionRed : Colors.white,
-              foregroundColor: selected ? Colors.white : AppColors.deepOcean,
-              side: BorderSide(
-                color: selected
-                    ? AppColors.actionRed
-                    : AppColors.line.withValues(alpha: 0.88),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppRadius.value),
-              ),
-              textStyle: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0,
-              ),
-            ).copyWith(
-              mouseCursor: const WidgetStatePropertyAll(
-                SystemMouseCursors.click,
-              ),
-            ),
-        child: Text(context.t(label)),
-      ),
     );
   }
 }
@@ -2155,12 +2100,20 @@ class _SaveRow extends StatelessWidget {
 }
 
 class _PharmacyDialogFrame extends StatelessWidget {
-  const _PharmacyDialogFrame({required this.child});
+  const _PharmacyDialogFrame({required this.child, required this.mobileDrawer});
 
   final Widget child;
+  final bool mobileDrawer;
 
   @override
   Widget build(BuildContext context) {
+    if (mobileDrawer) {
+      return ScrollConfiguration(
+        behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+        child: SingleChildScrollView(child: child),
+      );
+    }
+
     final height = MediaQuery.sizeOf(context).height;
 
     return Dialog(

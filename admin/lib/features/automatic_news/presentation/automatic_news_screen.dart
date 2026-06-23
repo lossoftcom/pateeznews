@@ -13,6 +13,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../shared/data/admin_image_url.dart';
 import '../../../shared/widgets/admin_cached_image.dart';
+import '../../../shared/widgets/admin_mobile_list.dart';
 import '../../../shared/widgets/app_confirmation_dialog.dart';
 import '../../../shared/widgets/admin_toast.dart';
 import '../../../shared/widgets/admin_table_chrome.dart';
@@ -179,6 +180,23 @@ class _AutomaticNewsScreenState extends State<AutomaticNewsScreen> {
       if (category != null) _categoryFilter = category;
       if (status != null) _statusFilter = status;
       if (language != null) _languageFilter = language;
+      _resetPageAndSelection();
+    });
+    unawaited(_loadItems());
+  }
+
+  void _clearFilters() {
+    if (_platformFilter == _all &&
+        _categoryFilter == _all &&
+        _statusFilter == _all &&
+        _languageFilter == _all) {
+      return;
+    }
+    setState(() {
+      _platformFilter = _all;
+      _categoryFilter = _all;
+      _statusFilter = _all;
+      _languageFilter = _all;
       _resetPageAndSelection();
     });
     unawaited(_loadItems());
@@ -493,6 +511,7 @@ class _AutomaticNewsScreenState extends State<AutomaticNewsScreen> {
                 onCategoryChanged: (value) => _changeFilter(category: value),
                 onStatusChanged: (value) => _changeFilter(status: value),
                 onLanguageChanged: (value) => _changeFilter(language: value),
+                onClearFilters: _clearFilters,
                 onPageChanged: _changePage,
                 onSort: _changeSort,
                 onToggleDraft: _toggleDraft,
@@ -516,7 +535,7 @@ class _AutomaticNewsScreenState extends State<AutomaticNewsScreen> {
               horizontalPadding,
               18,
               horizontalPadding,
-              28,
+              0,
             ),
             child: content,
           );
@@ -705,6 +724,7 @@ class _AutomaticNewsTableCard extends StatelessWidget {
     required this.onCategoryChanged,
     required this.onStatusChanged,
     required this.onLanguageChanged,
+    required this.onClearFilters,
     required this.onPageChanged,
     required this.onSort,
     required this.onToggleDraft,
@@ -740,6 +760,7 @@ class _AutomaticNewsTableCard extends StatelessWidget {
   final ValueChanged<String?> onCategoryChanged;
   final ValueChanged<String?> onStatusChanged;
   final ValueChanged<String?> onLanguageChanged;
+  final VoidCallback onClearFilters;
   final ValueChanged<int> onPageChanged;
   final ValueChanged<String> onSort;
   final ValueChanged<int> onToggleDraft;
@@ -756,6 +777,41 @@ class _AutomaticNewsTableCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        final mobile = constraints.maxWidth < 800;
+        if (mobile) {
+          return _AutomaticNewsMobileView(
+            drafts: drafts,
+            totalCount: totalCount,
+            page: page,
+            pageCount: pageCount,
+            pageSize: pageSize,
+            loading: loading,
+            refreshing: refreshing,
+            searchController: searchController,
+            selectedDraftIds: selectedDraftIds,
+            platformFilter: platformFilter,
+            categoryFilter: categoryFilter,
+            statusFilter: statusFilter,
+            languageFilter: languageFilter,
+            onPageSizeChanged: onPageSizeChanged,
+            onSearchChanged: onSearchChanged,
+            onPlatformChanged: onPlatformChanged,
+            onCategoryChanged: onCategoryChanged,
+            onStatusChanged: onStatusChanged,
+            onLanguageChanged: onLanguageChanged,
+            onClearFilters: onClearFilters,
+            onPageChanged: onPageChanged,
+            onToggleDraft: onToggleDraft,
+            onDeleteSelected: onDeleteSelected,
+            onRefresh: onRefresh,
+            onOpenSources: onOpenSources,
+            onViewDraft: onViewDraft,
+            onEditDraft: onEditDraft,
+            onDownloadDraftImage: onDownloadDraftImage,
+            onDeleteDraft: onDeleteDraft,
+          );
+        }
+
         final compact = constraints.maxWidth < 760;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -812,6 +868,1018 @@ class _AutomaticNewsTableCard extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+class _AutomaticNewsMobileView extends StatefulWidget {
+  const _AutomaticNewsMobileView({
+    required this.drafts,
+    required this.totalCount,
+    required this.page,
+    required this.pageCount,
+    required this.pageSize,
+    required this.loading,
+    required this.refreshing,
+    required this.searchController,
+    required this.selectedDraftIds,
+    required this.platformFilter,
+    required this.categoryFilter,
+    required this.statusFilter,
+    required this.languageFilter,
+    required this.onPageSizeChanged,
+    required this.onSearchChanged,
+    required this.onPlatformChanged,
+    required this.onCategoryChanged,
+    required this.onStatusChanged,
+    required this.onLanguageChanged,
+    required this.onClearFilters,
+    required this.onPageChanged,
+    required this.onToggleDraft,
+    required this.onDeleteSelected,
+    required this.onRefresh,
+    required this.onOpenSources,
+    required this.onViewDraft,
+    required this.onEditDraft,
+    required this.onDownloadDraftImage,
+    required this.onDeleteDraft,
+  });
+
+  final List<_AutomaticNewsDraft> drafts;
+  final int totalCount;
+  final int page;
+  final int pageCount;
+  final int pageSize;
+  final bool loading;
+  final bool refreshing;
+  final TextEditingController searchController;
+  final Set<int> selectedDraftIds;
+  final String platformFilter;
+  final String categoryFilter;
+  final String statusFilter;
+  final String languageFilter;
+  final ValueChanged<int?> onPageSizeChanged;
+  final ValueChanged<String> onSearchChanged;
+  final ValueChanged<String?> onPlatformChanged;
+  final ValueChanged<String?> onCategoryChanged;
+  final ValueChanged<String?> onStatusChanged;
+  final ValueChanged<String?> onLanguageChanged;
+  final VoidCallback onClearFilters;
+  final ValueChanged<int> onPageChanged;
+  final ValueChanged<int> onToggleDraft;
+  final VoidCallback onDeleteSelected;
+  final VoidCallback onRefresh;
+  final VoidCallback onOpenSources;
+  final ValueChanged<_AutomaticNewsDraft> onViewDraft;
+  final ValueChanged<_AutomaticNewsDraft> onEditDraft;
+  final ValueChanged<_AutomaticNewsDraft> onDownloadDraftImage;
+  final ValueChanged<_AutomaticNewsDraft> onDeleteDraft;
+
+  @override
+  State<_AutomaticNewsMobileView> createState() =>
+      _AutomaticNewsMobileViewState();
+}
+
+class _AutomaticNewsMobileViewState extends State<_AutomaticNewsMobileView> {
+  var _filtersExpanded = false;
+
+  int get _activeFilterCount {
+    var count = 0;
+    if (widget.platformFilter != _AutomaticNewsScreenState._all) count++;
+    if (widget.categoryFilter != _AutomaticNewsScreenState._all) count++;
+    if (widget.statusFilter != _AutomaticNewsScreenState._all) count++;
+    if (widget.languageFilter != _AutomaticNewsScreenState._all) count++;
+    return count;
+  }
+
+  void _toggleFilters() {
+    setState(() => _filtersExpanded = !_filtersExpanded);
+    FocusScope.of(context).unfocus();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final safePageCount = widget.pageCount < 1 ? 1 : widget.pageCount;
+    final safePage = widget.page.clamp(1, safePageCount).toInt();
+    final start = widget.totalCount == 0
+        ? 0
+        : ((safePage - 1) * widget.pageSize) + 1;
+    final end = widget.totalCount == 0
+        ? 0
+        : (safePage * widget.pageSize).clamp(0, widget.totalCount).toInt();
+    final rangeText = '$start - $end / ${widget.totalCount} kayıt gösteriliyor';
+    final hasSelection = widget.selectedDraftIds.isNotEmpty;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _AutomaticNewsMobileFilterPanel(
+          searchController: widget.searchController,
+          hintText: 'Ara...',
+          onSearchChanged: widget.onSearchChanged,
+          isExpanded: _filtersExpanded,
+          onToggleExpanded: _toggleFilters,
+          activeFilterCount: _activeFilterCount,
+          recordCount: widget.totalCount,
+          pageSize: widget.pageSize,
+          platformFilter: widget.platformFilter,
+          categoryFilter: widget.categoryFilter,
+          statusFilter: widget.statusFilter,
+          languageFilter: widget.languageFilter,
+          onPageSizeChanged: widget.onPageSizeChanged,
+          onPlatformChanged: widget.onPlatformChanged,
+          onCategoryChanged: widget.onCategoryChanged,
+          onStatusChanged: widget.onStatusChanged,
+          onLanguageChanged: widget.onLanguageChanged,
+          onClearFilters: _activeFilterCount == 0
+              ? null
+              : widget.onClearFilters,
+        ),
+        const SizedBox(height: 8),
+        hasSelection
+            ? AdminMobileSelectionBar(
+                selectedCount: widget.selectedDraftIds.length,
+                label:
+                    '${widget.selectedDraftIds.length} otomatik haber seçildi',
+                onClear: () {
+                  for (final id in widget.selectedDraftIds.toList()) {
+                    widget.onToggleDraft(id);
+                  }
+                },
+                onDelete: widget.onDeleteSelected,
+              )
+            : _AutomaticNewsMobileActionRow(
+                refreshing: widget.refreshing,
+                onRefresh: widget.onRefresh,
+                onOpenSources: widget.onOpenSources,
+              ),
+        const SizedBox(height: 14),
+        Expanded(
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: AdminMobileListView(
+                  loading: widget.loading,
+                  itemCount: widget.drafts.length,
+                  emptyLabel: 'Çekilmiş haber bulunamadı',
+                  itemBuilder: (context, index) {
+                    final draft = widget.drafts[index];
+                    return _AutomaticNewsMobileCard(
+                      draft: draft,
+                      selected: widget.selectedDraftIds.contains(draft.id),
+                      onToggle: () => widget.onToggleDraft(draft.id),
+                      onView: () => widget.onViewDraft(draft),
+                      onEdit: () => widget.onEditDraft(draft),
+                      onDownload: () => widget.onDownloadDraftImage(draft),
+                      onDelete: () => widget.onDeleteDraft(draft),
+                    );
+                  },
+                ),
+              ),
+              if (widget.loading && widget.drafts.isNotEmpty)
+                const Positioned.fill(
+                  child: _AutomaticNewsMobileLoadingOverlay(),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 4),
+        _AutomaticNewsMobileBottomPager(
+          page: safePage,
+          lastPage: safePageCount,
+          rangeText: rangeText,
+          loading: widget.loading,
+          onPageChanged: widget.onPageChanged,
+        ),
+      ],
+    );
+  }
+}
+
+class _AutomaticNewsMobileFilterPanel extends StatelessWidget {
+  const _AutomaticNewsMobileFilterPanel({
+    required this.searchController,
+    required this.hintText,
+    required this.onSearchChanged,
+    required this.isExpanded,
+    required this.onToggleExpanded,
+    required this.activeFilterCount,
+    required this.recordCount,
+    required this.pageSize,
+    required this.platformFilter,
+    required this.categoryFilter,
+    required this.statusFilter,
+    required this.languageFilter,
+    required this.onPageSizeChanged,
+    required this.onPlatformChanged,
+    required this.onCategoryChanged,
+    required this.onStatusChanged,
+    required this.onLanguageChanged,
+    required this.onClearFilters,
+  });
+
+  static const _borderColor = Color(0xFFE6EAF0);
+  static const _muted = Color(0xFF9AA3AA);
+  static const _navy = Color(0xFF2F4053);
+
+  final TextEditingController searchController;
+  final String hintText;
+  final ValueChanged<String> onSearchChanged;
+  final bool isExpanded;
+  final VoidCallback onToggleExpanded;
+  final int activeFilterCount;
+  final int recordCount;
+  final int pageSize;
+  final String platformFilter;
+  final String categoryFilter;
+  final String statusFilter;
+  final String languageFilter;
+  final ValueChanged<int?> onPageSizeChanged;
+  final ValueChanged<String?> onPlatformChanged;
+  final ValueChanged<String?> onCategoryChanged;
+  final ValueChanged<String?> onStatusChanged;
+  final ValueChanged<String?> onLanguageChanged;
+  final VoidCallback? onClearFilters;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _borderColor),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            height: 72,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 10, 12, 9),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Row(
+                      children: [
+                        const SymbolIcon(
+                          Symbols.search,
+                          color: _muted,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              TextField(
+                                controller: searchController,
+                                onChanged: onSearchChanged,
+                                textAlignVertical: TextAlignVertical.center,
+                                cursorColor: _navy,
+                                style: const TextStyle(
+                                  fontSize: 14.5,
+                                  color: _navy,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                decoration: InputDecoration(
+                                  hintText: hintText,
+                                  hintStyle: const TextStyle(
+                                    color: _muted,
+                                    fontSize: 14.5,
+                                    fontWeight: FontWeight.w400,
+                                  ),
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.zero,
+                                  border: InputBorder.none,
+                                  enabledBorder: InputBorder.none,
+                                  focusedBorder: InputBorder.none,
+                                ),
+                              ),
+                              Container(
+                                height: 1,
+                                color: const Color(0xFFB9BEC4),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: onToggleExpanded,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                isExpanded ? 'Gizle' : 'Göster',
+                                style: const TextStyle(
+                                  color: _navy,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                  height: 1,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              RotatedBox(
+                                quarterTurns: isExpanded ? 2 : 0,
+                                child: const SymbolIcon(
+                                  Symbols.keyboard_arrow_down,
+                                  color: _navy,
+                                  size: 17,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            '$recordCount kayıt',
+                            style: const TextStyle(
+                              color: _navy,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w800,
+                              height: 1,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            activeFilterCount == 0
+                                ? 'Filtre yok'
+                                : '$activeFilterCount filtre',
+                            style: const TextStyle(
+                              color: _muted,
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w500,
+                              height: 1,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (isExpanded) ...[
+            const Divider(height: 1, color: _borderColor),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      _AutomaticNewsMobilePageSizeDropdown(
+                        value: pageSize,
+                        onChanged: onPageSizeChanged,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _AutomaticNewsMobileFilterDropdown(
+                          icon: Symbols.public_outlined,
+                          label: 'Platform',
+                          value: platformFilter,
+                          items: _automaticNewsMobileFilterItems(_platforms),
+                          onChanged: onPlatformChanged,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _AutomaticNewsMobileFilterDropdown(
+                          icon: Symbols.folder_open,
+                          label: 'Kategori',
+                          value: categoryFilter,
+                          items: _automaticNewsMobileFilterItems(_categories),
+                          onChanged: onCategoryChanged,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _AutomaticNewsMobileFilterDropdown(
+                          icon: Symbols.visibility,
+                          label: 'Durum',
+                          value: statusFilter,
+                          items: _automaticNewsMobileFilterItems(_statuses),
+                          onChanged: onStatusChanged,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  _AutomaticNewsMobileFilterDropdown(
+                    icon: Symbols.language,
+                    label: 'Dil',
+                    value: languageFilter,
+                    items: _automaticNewsMobileFilterItems(_languages),
+                    onChanged: onLanguageChanged,
+                  ),
+                  if (onClearFilters != null) ...[
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: onClearFilters,
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.actionRed,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          minimumSize: const Size(0, 32),
+                        ),
+                        child: const Text(
+                          'Temizle',
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+List<DropdownMenuItem<String>> _automaticNewsMobileFilterItems(
+  List<String> values,
+) {
+  return [
+    const DropdownMenuItem(value: 'Tümü', child: Text('Tümü')),
+    for (final value in values)
+      DropdownMenuItem(value: value, child: Text(value)),
+  ];
+}
+
+class _AutomaticNewsMobilePageSizeDropdown extends StatelessWidget {
+  const _AutomaticNewsMobilePageSizeDropdown({
+    required this.value,
+    required this.onChanged,
+  });
+
+  static const _values = ['25', '50', '100'];
+
+  final int value;
+  final ValueChanged<int?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = _values.contains(value.toString())
+        ? value.toString()
+        : '25';
+    return Container(
+      width: 66,
+      height: 42,
+      padding: const EdgeInsets.only(left: 10, right: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE6EAF0)),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: selected,
+          isDense: true,
+          isExpanded: true,
+          borderRadius: BorderRadius.circular(10),
+          icon: const SymbolIcon(
+            Symbols.keyboard_arrow_down,
+            color: Color(0xFF6F7780),
+            size: 16,
+          ),
+          style: const TextStyle(
+            color: Color(0xFF2F4053),
+            fontSize: 14.5,
+            fontWeight: FontWeight.w500,
+          ),
+          items: const [
+            DropdownMenuItem(value: '25', child: Text('25')),
+            DropdownMenuItem(value: '50', child: Text('50')),
+            DropdownMenuItem(value: '100', child: Text('100')),
+          ],
+          onChanged: (value) => onChanged(int.tryParse(value ?? '')),
+        ),
+      ),
+    );
+  }
+}
+
+class _AutomaticNewsMobileFilterDropdown extends StatelessWidget {
+  const _AutomaticNewsMobileFilterDropdown({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.items,
+    required this.onChanged,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final List<DropdownMenuItem<String>> items;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final safeValue = items.any((item) => item.value == value)
+        ? value
+        : (items.isEmpty ? null : items.first.value);
+
+    return Container(
+      height: 42,
+      padding: const EdgeInsets.only(left: 10, right: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE6EAF0)),
+      ),
+      child: Row(
+        children: [
+          SymbolIcon(icon, color: const Color(0xFF7C858D), size: 17),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Color(0xFF6B7076),
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: safeValue,
+                isDense: true,
+                isExpanded: true,
+                alignment: Alignment.centerRight,
+                borderRadius: BorderRadius.circular(10),
+                dropdownColor: Colors.white,
+                icon: const SymbolIcon(
+                  Symbols.keyboard_arrow_down,
+                  color: Color(0xFFB0B8BE),
+                  size: 16,
+                ),
+                style: const TextStyle(
+                  color: Color(0xFF2F4053),
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                ),
+                items: items,
+                onChanged: onChanged,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AutomaticNewsMobileActionRow extends StatelessWidget {
+  const _AutomaticNewsMobileActionRow({
+    required this.refreshing,
+    required this.onRefresh,
+    required this.onOpenSources,
+  });
+
+  static const _red = Color(0xFFF44336);
+
+  final bool refreshing;
+  final VoidCallback onRefresh;
+  final VoidCallback onOpenSources;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _AutomaticNewsMobileActionButton(
+            icon: Symbols.refresh_line,
+            label: refreshing ? 'Yenileniyor...' : 'Yenile',
+            backgroundColor: Colors.white,
+            foregroundColor: const Color(0xFF2F4053),
+            borderColor: const Color(0xFFE6EAF0),
+            onPressed: refreshing ? null : onRefresh,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _AutomaticNewsMobileActionButton(
+            icon: Symbols.add,
+            label: 'Adres Ekle',
+            backgroundColor: _red,
+            foregroundColor: Colors.white,
+            onPressed: onOpenSources,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AutomaticNewsMobileActionButton extends StatelessWidget {
+  const _AutomaticNewsMobileActionButton({
+    required this.icon,
+    required this.label,
+    required this.backgroundColor,
+    required this.foregroundColor,
+    required this.onPressed,
+    this.borderColor,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color backgroundColor;
+  final Color foregroundColor;
+  final VoidCallback? onPressed;
+  final Color? borderColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 40,
+      child: TextButton(
+        onPressed: onPressed,
+        style: TextButton.styleFrom(
+          backgroundColor: backgroundColor,
+          foregroundColor: foregroundColor,
+          disabledBackgroundColor: backgroundColor,
+          disabledForegroundColor: foregroundColor.withValues(alpha: 0.55),
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          minimumSize: const Size(0, 40),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+            side: BorderSide(color: borderColor ?? backgroundColor),
+          ),
+          textStyle: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SymbolIcon(
+              icon,
+              color: onPressed == null
+                  ? foregroundColor.withValues(alpha: 0.55)
+                  : foregroundColor,
+              size: 17,
+            ),
+            const SizedBox(width: 7),
+            Flexible(
+              child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AutomaticNewsMobileCard extends StatelessWidget {
+  const _AutomaticNewsMobileCard({
+    required this.draft,
+    required this.selected,
+    required this.onToggle,
+    required this.onView,
+    required this.onEdit,
+    required this.onDownload,
+    required this.onDelete,
+  });
+
+  final _AutomaticNewsDraft draft;
+  final bool selected;
+  final VoidCallback onToggle;
+  final VoidCallback onView;
+  final VoidCallback onEdit;
+  final VoidCallback onDownload;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return AdminMobileCard(
+      selected: selected,
+      onTap: onView,
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 1),
+                child: AdminMobileCheckbox(
+                  value: selected,
+                  onChanged: (_) => onToggle(),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      draft.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF2F4053),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14.2,
+                        height: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      '${draft.id} • ${_readableText(draft.sourceName)} • ${draft.category}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF7A7F85),
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        height: 1.15,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Transform.scale(
+                scale: 0.88,
+                alignment: Alignment.topRight,
+                child: AdminMobileMenuButton(
+                  tooltip: 'İşlemler',
+                  actions: [
+                    AdminMobileMenuAction(
+                      icon: Symbols.visibility,
+                      label: 'Haberi Görüntüle',
+                      onTap: onView,
+                    ),
+                    AdminMobileMenuAction(
+                      icon: Symbols.edit_square,
+                      label: 'Haberi düzenle',
+                      onTap: onEdit,
+                    ),
+                    if (draft.imageUrl.isNotEmpty)
+                      AdminMobileMenuAction(
+                        icon: Symbols.download,
+                        label: 'Resmi indir',
+                        onTap: onDownload,
+                      ),
+                    AdminMobileMenuAction(
+                      icon: Symbols.delete,
+                      label: 'Sil',
+                      danger: true,
+                      onTap: onDelete,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 13),
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              _AutomaticNewsMobileStatusBadge(value: draft.status),
+              _AutomaticNewsMobileMetricChip(
+                icon: _platformIcon(draft.platform),
+                label: draft.platform,
+              ),
+              _AutomaticNewsMobileMetricChip(
+                icon: Symbols.language,
+                label: draft.language,
+              ),
+              _AutomaticNewsMobileMetricChip(
+                icon: Symbols.verified,
+                label: '%${draft.quality} güven',
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AutomaticNewsMobileStatusBadge extends StatelessWidget {
+  const _AutomaticNewsMobileStatusBadge({required this.value});
+
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final ready = value == 'Hazır';
+    final review = value == 'İncele';
+    final color = ready
+        ? const Color(0xFF12825F)
+        : review
+        ? AppColors.warmHorizon
+        : AppColors.inkSoft;
+    final background = ready
+        ? const Color(0xFFEAF7F1)
+        : review
+        ? const Color(0xFFFFF6E7)
+        : AppColors.surface;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(5),
+      ),
+      child: Text(
+        value,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: color,
+          fontSize: 11.5,
+          fontWeight: FontWeight.w800,
+          height: 1,
+        ),
+      ),
+    );
+  }
+}
+
+class _AutomaticNewsMobileMetricChip extends StatelessWidget {
+  const _AutomaticNewsMobileMetricChip({
+    required this.icon,
+    required this.label,
+  });
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SymbolIcon(icon, color: const Color(0xFF9AA3AA), size: 13),
+        const SizedBox(width: 3),
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: Color(0xFF7A7F85),
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            height: 1,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AutomaticNewsMobileLoadingOverlay extends StatelessWidget {
+  const _AutomaticNewsMobileLoadingOverlay();
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: Colors.white70,
+      child: Center(
+        child: Container(
+          width: 42,
+          height: 42,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.line.withValues(alpha: 0.72)),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.deepOcean.withValues(alpha: 0.08),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: const SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.2,
+              color: AppColors.actionRed,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AutomaticNewsMobileBottomPager extends StatelessWidget {
+  const _AutomaticNewsMobileBottomPager({
+    required this.page,
+    required this.lastPage,
+    required this.rangeText,
+    required this.loading,
+    required this.onPageChanged,
+  });
+
+  final int page;
+  final int lastPage;
+  final String rangeText;
+  final bool loading;
+  final ValueChanged<int> onPageChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasPrevious = page > 1 && !loading;
+    final hasNext = page < lastPage && !loading;
+    return Transform.translate(
+      offset: const Offset(0, 14),
+      child: SizedBox(
+        height: 28,
+        child: Row(
+          children: [
+            _AutomaticNewsMobileBottomPagerArrow(
+              icon: Symbols.chevron_left_rounded,
+              enabled: hasPrevious,
+              onPressed: () => onPageChanged(page - 1),
+            ),
+            Expanded(
+              child: Text(
+                rangeText,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Color(0xFFB8BDC3),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 0,
+                ),
+              ),
+            ),
+            _AutomaticNewsMobileBottomPagerArrow(
+              icon: Symbols.chevron_right,
+              enabled: hasNext,
+              onPressed: () => onPageChanged(page + 1),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AutomaticNewsMobileBottomPagerArrow extends StatelessWidget {
+  const _AutomaticNewsMobileBottomPagerArrow({
+    required this.icon,
+    required this.enabled,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final bool enabled;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final child = Icon(
+      icon,
+      color: enabled ? AppColors.deepOcean : const Color(0xFFC5CAD0),
+      size: 18,
+    );
+    return IconButton(
+      onPressed: enabled ? onPressed : null,
+      icon: child,
+      constraints: const BoxConstraints.tightFor(width: 30, height: 28),
+      padding: EdgeInsets.zero,
+      splashRadius: 16,
+      visualDensity: VisualDensity.compact,
     );
   }
 }
@@ -2938,11 +4006,16 @@ class _AutomaticNewsSourceDialogState
   @override
   Widget build(BuildContext context) {
     final viewport = MediaQuery.sizeOf(context);
-    final dialogWidth = viewport.width < 1120 ? viewport.width - 32 : 980.0;
-    final dialogHeight = viewport.height < 760 ? viewport.height - 48 : 700.0;
+    final inset = viewport.width < 640 ? 16.0 : 24.0;
+    final dialogWidth = viewport.width < 1120
+        ? viewport.width - (inset * 2)
+        : 980.0;
+    final dialogHeight = viewport.height < 760
+        ? viewport.height - (inset * 2)
+        : 700.0;
 
     return Dialog(
-      insetPadding: const EdgeInsets.all(24),
+      insetPadding: EdgeInsets.all(inset),
       backgroundColor: Colors.transparent,
       child: Container(
         width: dialogWidth,
@@ -2985,7 +4058,7 @@ class _AutomaticNewsSourceDialogState
                     if (compact) {
                       return ListView(
                         children: [
-                          left,
+                          SizedBox(height: 320, child: left),
                           const SizedBox(height: 18),
                           SizedBox(height: 320, child: right),
                         ],

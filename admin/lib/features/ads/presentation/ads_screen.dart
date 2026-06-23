@@ -139,7 +139,8 @@ class _AdsScreenState extends State<AdsScreen> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final pad = constraints.maxWidth < 640 ? 16.0 : 28.0;
+        final mobile = constraints.maxWidth < 640;
+        final pad = mobile ? 16.0 : 28.0;
         if (_loading || _data == null) {
           return const Center(
             child: CircularProgressIndicator(color: AppColors.actionRed),
@@ -148,7 +149,7 @@ class _AdsScreenState extends State<AdsScreen> {
         final data = _data!;
         final slots = data.slotsFor(_platform);
         return SingleChildScrollView(
-          padding: EdgeInsets.fromLTRB(pad, 26, pad, 36),
+          padding: EdgeInsets.fromLTRB(pad, mobile ? 18 : 26, pad, 36),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -517,9 +518,9 @@ class _AdsScreenState extends State<AdsScreen> {
   }
 
   Future<void> _showAdsenseEditor(AdSettingsData data) async {
-    final result = await showDialog<_AdsenseSettingsResult>(
-      context: context,
-      builder: (context) => _AdsenseSettingsDialog(data: data),
+    final result = await _showAdsSideDialog<_AdsenseSettingsResult>(
+      builder: (mobile) =>
+          _AdsenseSettingsDialog(data: data, mobileDrawer: mobile),
     );
     if (result != null) {
       setState(() {
@@ -530,12 +531,79 @@ class _AdsScreenState extends State<AdsScreen> {
   }
 
   Future<AdSlot?> _showSlotEditor({AdSlot? existing}) {
-    return showDialog<AdSlot>(
-      context: context,
-      builder: (context) => _SlotEditorDialog(
+    return _showAdsSideDialog<AdSlot>(
+      builder: (mobile) => _SlotEditorDialog(
         existing: existing,
         initialPlatform: existing?.platform ?? _platform,
+        mobileDrawer: mobile,
       ),
+    );
+  }
+
+  Future<T?> _showAdsSideDialog<T>({
+    required Widget Function(bool mobile) builder,
+  }) {
+    final mobile = MediaQuery.sizeOf(context).width < 700;
+    if (!mobile) {
+      return showDialog<T>(
+        context: context,
+        barrierColor: Colors.black.withValues(alpha: 0.34),
+        builder: (context) => builder(false),
+      );
+    }
+
+    return showGeneralDialog<T>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'AdsDialog',
+      barrierColor: Colors.black.withValues(alpha: 0.5),
+      transitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return SafeArea(
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: Material(
+              color: Colors.transparent,
+              child: _AdsDrawerFrame(child: builder(true)),
+            ),
+          ),
+        );
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(1, 0),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOut)),
+          child: child,
+        );
+      },
+    );
+  }
+}
+
+class _AdsDrawerFrame extends StatelessWidget {
+  const _AdsDrawerFrame({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    return Container(
+      width: size.width,
+      height: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            spreadRadius: 2,
+            blurRadius: 14,
+          ),
+        ],
+      ),
+      child: child,
     );
   }
 }
@@ -609,9 +677,13 @@ class _AdsenseSettingsResult {
 }
 
 class _AdsenseSettingsDialog extends StatefulWidget {
-  const _AdsenseSettingsDialog({required this.data});
+  const _AdsenseSettingsDialog({
+    required this.data,
+    required this.mobileDrawer,
+  });
 
   final AdSettingsData data;
+  final bool mobileDrawer;
 
   @override
   State<_AdsenseSettingsDialog> createState() => _AdsenseSettingsDialogState();
@@ -659,6 +731,111 @@ class _AdsenseSettingsDialogState extends State<_AdsenseSettingsDialog> {
   @override
   Widget build(BuildContext context) {
     final maxHeight = MediaQuery.sizeOf(context).height * 0.82;
+    final mobile = widget.mobileDrawer;
+
+    final content = Column(
+      mainAxisSize: mobile ? MainAxisSize.max : MainAxisSize.min,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 20, 18, 16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SymbolIcon(
+                Symbols.google_fill,
+                color: AppColors.actionRed,
+                size: 21,
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Google AdSense',
+                      style: TextStyle(
+                        color: AppColors.deepOcean,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 18,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                    SizedBox(height: 3),
+                    Text(
+                      'Pateez.com yayıncı ve site kodu ayarları',
+                      style: TextStyle(
+                        color: AppColors.inkSoft,
+                        fontSize: 12,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                onPressed: () => Navigator.of(context).pop(),
+                mouseCursor: SystemMouseCursors.click,
+                visualDensity: VisualDensity.compact,
+                icon: const SymbolIcon(
+                  Symbols.close,
+                  color: AppColors.inkSoft,
+                  size: 18,
+                ),
+                tooltip: 'Kapat',
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1, color: AppColors.line),
+        if (mobile)
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
+              child: _AdsenseSettingsFields(
+                publisherController: _publisherController,
+                connected: _connected,
+                adsenseCode: _adsenseCode,
+                onConnectedChanged: (value) {
+                  setState(() => _connected = value);
+                },
+              ),
+            ),
+          )
+        else
+          Flexible(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
+              child: _AdsenseSettingsFields(
+                publisherController: _publisherController,
+                connected: _connected,
+                adsenseCode: _adsenseCode,
+                onConnectedChanged: (value) {
+                  setState(() => _connected = value);
+                },
+              ),
+            ),
+          ),
+        const Divider(height: 1, color: AppColors.line),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
+          child: mobile
+              ? _AdsMobileDialogFooter(onSave: _save)
+              : Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    _DialogTextButton(
+                      label: 'İptal',
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                    const SizedBox(width: 10),
+                    _DialogPrimaryButton(label: 'Kaydet', onPressed: _save),
+                  ],
+                ),
+        ),
+      ],
+    );
+
+    if (mobile) return content;
 
     return Dialog(
       backgroundColor: Colors.white,
@@ -668,141 +845,67 @@ class _AdsenseSettingsDialogState extends State<_AdsenseSettingsDialog> {
       ),
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: 540, maxHeight: maxHeight),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 20, 18, 16),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SymbolIcon(
-                    Symbols.google_fill,
-                    color: AppColors.actionRed,
-                    size: 21,
-                  ),
-                  const SizedBox(width: 10),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Google AdSense',
-                          style: TextStyle(
-                            color: AppColors.deepOcean,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 18,
-                            letterSpacing: 0,
-                          ),
-                        ),
-                        SizedBox(height: 3),
-                        Text(
-                          'Pateez.com yayıncı ve site kodu ayarları',
-                          style: TextStyle(
-                            color: AppColors.inkSoft,
-                            fontSize: 12,
-                            letterSpacing: 0,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    mouseCursor: SystemMouseCursors.click,
-                    visualDensity: VisualDensity.compact,
-                    icon: const SymbolIcon(
-                      Symbols.close,
-                      color: AppColors.inkSoft,
-                      size: 18,
-                    ),
-                    tooltip: 'Kapat',
-                  ),
-                ],
+        child: content,
+      ),
+    );
+  }
+}
+
+class _AdsenseSettingsFields extends StatelessWidget {
+  const _AdsenseSettingsFields({
+    required this.publisherController,
+    required this.connected,
+    required this.adsenseCode,
+    required this.onConnectedChanged,
+  });
+
+  final TextEditingController publisherController;
+  final bool connected;
+  final String adsenseCode;
+  final ValueChanged<bool> onConnectedChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TextField(
+          controller: publisherController,
+          style: const TextStyle(
+            color: AppColors.deepOcean,
+            fontSize: 13,
+            letterSpacing: 0,
+          ),
+          decoration: const InputDecoration(
+            labelText: 'Yayıncı kimliği',
+            hintText: 'ca-pub-XXXXXXXXXXXXXXXX',
+            prefixIcon: Padding(
+              padding: EdgeInsets.only(left: 12, right: 8),
+              child: SymbolIcon(
+                Symbols.verified_outlined,
+                color: AppColors.iconMuted,
+                size: 18,
               ),
             ),
-            const Divider(height: 1, color: AppColors.line),
-            Flexible(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
+            prefixIconConstraints: BoxConstraints(minWidth: 38, minHeight: 38),
+          ),
+        ),
+        const SizedBox(height: 14),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(AppRadius.value),
+            border: Border.all(color: AppColors.line),
+          ),
+          child: Row(
+            children: [
+              const Expanded(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    TextField(
-                      controller: _publisherController,
-                      style: const TextStyle(
-                        color: AppColors.deepOcean,
-                        fontSize: 13,
-                        letterSpacing: 0,
-                      ),
-                      decoration: const InputDecoration(
-                        labelText: 'Yayıncı kimliği',
-                        hintText: 'ca-pub-XXXXXXXXXXXXXXXX',
-                        prefixIcon: Padding(
-                          padding: EdgeInsets.only(left: 12, right: 8),
-                          child: SymbolIcon(
-                            Symbols.verified_outlined,
-                            color: AppColors.iconMuted,
-                            size: 18,
-                          ),
-                        ),
-                        prefixIconConstraints: BoxConstraints(
-                          minWidth: 38,
-                          minHeight: 38,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.surface,
-                        borderRadius: BorderRadius.circular(AppRadius.value),
-                        border: Border.all(color: AppColors.line),
-                      ),
-                      child: Row(
-                        children: [
-                          const Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'AdSense bağlı',
-                                  style: TextStyle(
-                                    color: AppColors.deepOcean,
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 13,
-                                    letterSpacing: 0,
-                                  ),
-                                ),
-                                SizedBox(height: 3),
-                                Text(
-                                  'Hesap bağlıysa reklam alanlarında AdSense kreatifleri aktif kalır.',
-                                  style: TextStyle(
-                                    color: AppColors.inkSoft,
-                                    fontSize: 11.5,
-                                    letterSpacing: 0,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          _PzSwitch(
-                            value: _connected,
-                            onChanged: (value) {
-                              setState(() => _connected = value);
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    const Text(
-                      'Site kodu',
+                    Text(
+                      'AdSense bağlı',
                       style: TextStyle(
                         color: AppColors.deepOcean,
                         fontWeight: FontWeight.w700,
@@ -810,60 +913,146 @@ class _AdsenseSettingsDialogState extends State<_AdsenseSettingsDialog> {
                         letterSpacing: 0,
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: AppColors.softLine,
-                        borderRadius: BorderRadius.circular(AppRadius.value),
-                        border: Border.all(color: AppColors.line),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SymbolIcon(
-                            Symbols.code_outlined,
-                            color: AppColors.iconMuted,
-                            size: 18,
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: SelectableText(
-                              _adsenseCode,
-                              style: const TextStyle(
-                                color: AppColors.deepOcean,
-                                fontSize: 11,
-                                height: 1.35,
-                                letterSpacing: 0,
-                                fontFamily: 'monospace',
-                              ),
-                            ),
-                          ),
-                        ],
+                    SizedBox(height: 3),
+                    Text(
+                      'Hesap bağlıysa reklam alanlarında AdSense kreatifleri aktif kalır.',
+                      style: TextStyle(
+                        color: AppColors.inkSoft,
+                        fontSize: 11.5,
+                        letterSpacing: 0,
                       ),
                     ),
                   ],
                 ),
               ),
-            ),
-            const Divider(height: 1, color: AppColors.line),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  _DialogTextButton(
-                    label: 'İptal',
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                  const SizedBox(width: 10),
-                  _DialogPrimaryButton(label: 'Kaydet', onPressed: _save),
-                ],
-              ),
-            ),
-          ],
+              const SizedBox(width: 12),
+              _PzSwitch(value: connected, onChanged: onConnectedChanged),
+            ],
+          ),
         ),
-      ),
+        const SizedBox(height: 14),
+        const Text(
+          'Site kodu',
+          style: TextStyle(
+            color: AppColors.deepOcean,
+            fontWeight: FontWeight.w700,
+            fontSize: 13,
+            letterSpacing: 0,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppColors.softLine,
+            borderRadius: BorderRadius.circular(AppRadius.value),
+            border: Border.all(color: AppColors.line),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SymbolIcon(
+                Symbols.code_outlined,
+                color: AppColors.iconMuted,
+                size: 18,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: SelectableText(
+                  adsenseCode,
+                  style: const TextStyle(
+                    color: AppColors.deepOcean,
+                    fontSize: 11,
+                    height: 1.35,
+                    letterSpacing: 0,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AdsMobileDialogFooter extends StatelessWidget {
+  const _AdsMobileDialogFooter({required this.onSave});
+
+  final VoidCallback onSave;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: SizedBox(
+            height: 38,
+            child: TextButton.icon(
+              onPressed: () => Navigator.of(context).maybePop(),
+              icon: const SymbolIcon(
+                Symbols.close,
+                color: AppColors.deepOcean,
+                size: 16,
+              ),
+              label: const Text('İptal'),
+              style:
+                  TextButton.styleFrom(
+                    foregroundColor: AppColors.deepOcean,
+                    backgroundColor: Colors.white,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.value),
+                      side: const BorderSide(color: AppColors.line),
+                    ),
+                    textStyle: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0,
+                    ),
+                  ).copyWith(
+                    mouseCursor: const WidgetStatePropertyAll(
+                      SystemMouseCursors.click,
+                    ),
+                  ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: SizedBox(
+            height: 38,
+            child: TextButton.icon(
+              onPressed: onSave,
+              icon: const SymbolIcon(
+                Symbols.save,
+                color: Colors.white,
+                size: 16,
+              ),
+              label: const Text('Kaydet'),
+              style:
+                  TextButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    backgroundColor: AppColors.actionRed,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.value),
+                    ),
+                    textStyle: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0,
+                    ),
+                  ).copyWith(
+                    mouseCursor: const WidgetStatePropertyAll(
+                      SystemMouseCursors.click,
+                    ),
+                  ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1590,10 +1779,12 @@ class _SlotEditorDialog extends StatefulWidget {
   const _SlotEditorDialog({
     required this.existing,
     required this.initialPlatform,
+    required this.mobileDrawer,
   });
 
   final AdSlot? existing;
   final AdPlatform initialPlatform;
+  final bool mobileDrawer;
 
   @override
   State<_SlotEditorDialog> createState() => _SlotEditorDialogState();
@@ -1667,6 +1858,8 @@ class _SlotEditorDialogState extends State<_SlotEditorDialog> {
   @override
   Widget build(BuildContext context) {
     final sizes = AdSize.forPlatform(_platform);
+    if (widget.mobileDrawer) return _mobileSlotPanel(sizes);
+
     return AlertDialog(
       backgroundColor: Colors.white,
       shape: RoundedRectangleBorder(
@@ -1683,114 +1876,191 @@ class _SlotEditorDialogState extends State<_SlotEditorDialog> {
           letterSpacing: 0,
         ),
       ),
-      content: SizedBox(
-        width: 380,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            TextField(
-              controller: _nameCtrl,
-              style: const TextStyle(
-                color: AppColors.deepOcean,
-                fontSize: 13,
-                letterSpacing: 0,
-              ),
-              decoration: const InputDecoration(
-                labelText: 'Alan adı',
-                hintText: 'örn. Anasayfa — Üst Banner',
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _descCtrl,
-              style: const TextStyle(
-                color: AppColors.deepOcean,
-                fontSize: 13,
-                letterSpacing: 0,
-              ),
-              decoration: const InputDecoration(
-                labelText: 'Açıklama (opsiyonel)',
-                hintText: 'örn. Manşetin üstü',
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Platform',
-              style: TextStyle(
-                color: AppColors.inkSoft,
-                fontWeight: FontWeight.w600,
-                fontSize: 12,
-                letterSpacing: 0,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                _platformChip('Web sitesi', AdPlatform.web),
-                const SizedBox(width: 8),
-                _platformChip('Mobil uygulama', AdPlatform.mobile),
-              ],
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Boyut',
-              style: TextStyle(
-                color: AppColors.inkSoft,
-                fontWeight: FontWeight.w600,
-                fontSize: 12,
-                letterSpacing: 0,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(AppRadius.value),
-                border: Border.all(color: AppColors.line),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<AdSize>(
-                  value: sizes.contains(_size) ? _size : sizes.first,
-                  isExpanded: true,
-                  mouseCursor: SystemMouseCursors.click,
-                  dropdownMenuItemMouseCursor: SystemMouseCursors.click,
-                  icon: const SymbolIcon(
-                    Symbols.keyboard_arrow_down,
-                    color: AppColors.iconMuted,
-                    size: 18,
-                  ),
-                  style: const TextStyle(
-                    color: AppColors.deepOcean,
-                    fontSize: 13,
-                    letterSpacing: 0,
-                  ),
-                  items: [
-                    for (final size in sizes)
-                      DropdownMenuItem(
-                        value: size,
-                        child: Text(
-                          '${size.dimensionLabel} · ${size.label}',
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) setState(() => _size = value);
-                  },
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+      content: SizedBox(width: 380, child: _slotFields(sizes)),
       actions: [
         _DialogTextButton(
           label: 'İptal',
           onPressed: () => Navigator.of(context).pop(),
         ),
         _DialogPrimaryButton(label: 'Kaydet', onPressed: _submit),
+      ],
+    );
+  }
+
+  Widget _mobileSlotPanel(List<AdSize> sizes) {
+    final title = widget.existing == null
+        ? 'Yeni reklam alanı'
+        : 'Reklam alanını düzenle';
+    final subtitle = widget.existing == null
+        ? 'Yeni bir reklam yerleşimi tanımlayın.'
+        : 'Reklam alanının platform ve boyutunu güncelleyin.';
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 20, 18, 16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SymbolIcon(
+                Symbols.campaign_outlined,
+                color: AppColors.actionRed,
+                size: 21,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: AppColors.deepOcean,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 18,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        color: AppColors.inkSoft,
+                        fontSize: 12,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                onPressed: () => Navigator.of(context).pop(),
+                mouseCursor: SystemMouseCursors.click,
+                visualDensity: VisualDensity.compact,
+                icon: const SymbolIcon(
+                  Symbols.close,
+                  color: AppColors.inkSoft,
+                  size: 18,
+                ),
+                tooltip: 'Kapat',
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1, color: AppColors.line),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
+            child: _slotFields(sizes),
+          ),
+        ),
+        const Divider(height: 1, color: AppColors.line),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
+          child: _AdsMobileDialogFooter(onSave: _submit),
+        ),
+      ],
+    );
+  }
+
+  Widget _slotFields(List<AdSize> sizes) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TextField(
+          controller: _nameCtrl,
+          style: const TextStyle(
+            color: AppColors.deepOcean,
+            fontSize: 13,
+            letterSpacing: 0,
+          ),
+          decoration: const InputDecoration(
+            labelText: 'Alan adı',
+            hintText: 'örn. Anasayfa — Üst Banner',
+          ),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _descCtrl,
+          style: const TextStyle(
+            color: AppColors.deepOcean,
+            fontSize: 13,
+            letterSpacing: 0,
+          ),
+          decoration: const InputDecoration(
+            labelText: 'Açıklama (opsiyonel)',
+            hintText: 'örn. Manşetin üstü',
+          ),
+        ),
+        const SizedBox(height: 16),
+        const Text(
+          'Platform',
+          style: TextStyle(
+            color: AppColors.inkSoft,
+            fontWeight: FontWeight.w600,
+            fontSize: 12,
+            letterSpacing: 0,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            _platformChip('Web sitesi', AdPlatform.web),
+            const SizedBox(width: 8),
+            _platformChip('Mobil uygulama', AdPlatform.mobile),
+          ],
+        ),
+        const SizedBox(height: 16),
+        const Text(
+          'Boyut',
+          style: TextStyle(
+            color: AppColors.inkSoft,
+            fontWeight: FontWeight.w600,
+            fontSize: 12,
+            letterSpacing: 0,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(AppRadius.value),
+            border: Border.all(color: AppColors.line),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<AdSize>(
+              value: sizes.contains(_size) ? _size : sizes.first,
+              isExpanded: true,
+              mouseCursor: SystemMouseCursors.click,
+              dropdownMenuItemMouseCursor: SystemMouseCursors.click,
+              icon: const SymbolIcon(
+                Symbols.keyboard_arrow_down,
+                color: AppColors.iconMuted,
+                size: 18,
+              ),
+              style: const TextStyle(
+                color: AppColors.deepOcean,
+                fontSize: 13,
+                letterSpacing: 0,
+              ),
+              items: [
+                for (final size in sizes)
+                  DropdownMenuItem(
+                    value: size,
+                    child: Text(
+                      '${size.dimensionLabel} · ${size.label}',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+              ],
+              onChanged: (value) {
+                if (value != null) setState(() => _size = value);
+              },
+            ),
+          ),
+        ),
       ],
     );
   }

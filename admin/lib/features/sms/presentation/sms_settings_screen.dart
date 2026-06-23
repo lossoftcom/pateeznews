@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:pateeznews_admin/shared/widgets/admin_mobile_list.dart';
 import 'package:pateeznews_admin/shared/widgets/admin_table_chrome.dart';
 import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
 
@@ -15,6 +16,7 @@ import '../../../shared/widgets/sortable_table_header.dart';
 import '../../../shared/widgets/symbol_icon.dart';
 import '../../auth/data/admin_auth_models.dart';
 import '../data/admin_sms_repository.dart';
+import 'sms_mobile_chrome.dart';
 import 'sms_settings_models.dart';
 
 class SmsSettingsScreen extends StatefulWidget {
@@ -305,26 +307,10 @@ class _SmsSettingsScreenState extends State<SmsSettingsScreen> {
   }
 
   Future<void> _openProviderPicker() async {
-    final preset = await showDialog<AdminSmsProviderPreset>(
+    final preset = await showSmsSideDrawer<AdminSmsProviderPreset>(
       context: context,
-      barrierDismissible: true,
-      builder: (context) {
-        final size = MediaQuery.sizeOf(context);
-        final width = math.max(340.0, math.min(size.width - 48, 860.0));
-        final height = math.max(540.0, math.min(size.height - 48, 820.0));
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.symmetric(
-            horizontal: 24,
-            vertical: 24,
-          ),
-          child: SizedBox(
-            width: width,
-            height: height,
-            child: const _ProviderPickerDialog(),
-          ),
-        );
-      },
+      maxWidth: 860,
+      child: const _ProviderPickerDialog(),
     );
 
     if (preset == null || !mounted) return;
@@ -344,26 +330,10 @@ class _SmsSettingsScreenState extends State<SmsSettingsScreen> {
     AdminSmsAccount? account,
     AdminSmsProviderPreset? preset,
   }) async {
-    final result = await showDialog<AdminSmsAccount>(
+    final result = await showSmsSideDrawer<AdminSmsAccount>(
       context: context,
-      barrierDismissible: true,
-      builder: (context) {
-        final size = MediaQuery.sizeOf(context);
-        final width = math.max(340.0, math.min(size.width - 48, 860.0));
-        final height = math.max(560.0, math.min(size.height - 48, 840.0));
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.symmetric(
-            horizontal: 24,
-            vertical: 24,
-          ),
-          child: SizedBox(
-            width: width,
-            height: height,
-            child: _ConnectionSettingsDialog(account: account, preset: preset),
-          ),
-        );
-      },
+      maxWidth: 860,
+      child: _ConnectionSettingsDialog(account: account, preset: preset),
     );
 
     if (result == null || !mounted) return;
@@ -399,7 +369,9 @@ class _SmsSettingsScreenState extends State<SmsSettingsScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final horizontalPadding = constraints.maxWidth < 640 ? 16.0 : 28.0;
+        final mobile = constraints.maxWidth < AdminMobile.breakpoint;
         final compact = constraints.maxWidth < 980;
+        final topPadding = mobile ? 18.0 : 28.0;
         final content = Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -407,7 +379,7 @@ class _SmsSettingsScreenState extends State<SmsSettingsScreen> {
               selectedCount: _selectedIds.length,
               onDeleteSelected: _deleteSelectedAccounts,
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: mobile ? 12 : 24),
             _SmsSettingsMetricGrid(
               totalAccounts: _accounts.length,
               compatibleDomains: _accounts
@@ -417,7 +389,7 @@ class _SmsSettingsScreenState extends State<SmsSettingsScreen> {
               hygieneReady: _hygieneReadyCount,
               suppressionCount: 3,
             ),
-            const SizedBox(height: 14),
+            SizedBox(height: mobile ? 12 : 14),
             Expanded(
               child: _SmsSettingsTableCard(
                 accounts: _pagedAccounts,
@@ -450,11 +422,23 @@ class _SmsSettingsScreenState extends State<SmsSettingsScreen> {
           ],
         );
 
+        if (mobile) {
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+              horizontalPadding,
+              topPadding,
+              horizontalPadding,
+              0,
+            ),
+            child: content,
+          );
+        }
+
         if (compact) {
           return SingleChildScrollView(
             padding: EdgeInsets.fromLTRB(
               horizontalPadding,
-              28,
+              topPadding,
               horizontalPadding,
               28,
             ),
@@ -465,7 +449,7 @@ class _SmsSettingsScreenState extends State<SmsSettingsScreen> {
         return Padding(
           padding: EdgeInsets.fromLTRB(
             horizontalPadding,
-            28,
+            topPadding,
             horizontalPadding,
             28,
           ),
@@ -487,41 +471,51 @@ class _SmsSettingsTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final mobile = constraints.maxWidth < AdminMobile.breakpoint;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Text(
-                context.t('sms.settings.centerTitle'),
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: AppColors.deepOcean,
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    context.t('sms.settings.centerTitle'),
+                    maxLines: mobile ? 1 : 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      color: AppColors.deepOcean,
+                      fontSize: mobile ? 24 : null,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ),
+                if (selectedCount > 0)
+                  _DangerTextButton(
+                    label: context.t(
+                      'sms.settings.selectedDelete',
+                      values: {'count': selectedCount},
+                    ),
+                    onTap: onDeleteSelected,
+                  ),
+              ],
+            ),
+            if (!mobile) ...[
+              const SizedBox(height: 20),
+              Text(
+                context.t('sms.settings.centerDescription'),
+                style: const TextStyle(
+                  color: AppColors.inkSoft,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0,
                 ),
               ),
-            ),
-            if (selectedCount > 0)
-              _DangerTextButton(
-                label: context.t(
-                  'sms.settings.selectedDelete',
-                  values: {'count': selectedCount},
-                ),
-                onTap: onDeleteSelected,
-              ),
+            ],
           ],
-        ),
-        const SizedBox(height: 20),
-        Text(
-          context.t('sms.settings.centerDescription'),
-          style: const TextStyle(
-            color: AppColors.inkSoft,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0,
-          ),
-        ),
-      ],
+        );
+      },
     );
   }
 }
@@ -589,6 +583,25 @@ class _SmsSettingsMetricGrid extends StatelessWidget {
           _MetricDensity.compact => 8.0,
           _MetricDensity.regular => 12.0,
         };
+
+        if (width < 720) {
+          final itemWidth = math.max(142.0, math.min(168.0, width * 0.42));
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            child: Row(
+              children: [
+                for (var index = 0; index < metrics.length; index++) ...[
+                  SizedBox(
+                    width: itemWidth,
+                    child: _MetricBox(data: metrics[index], density: density),
+                  ),
+                  if (index != metrics.length - 1) SizedBox(width: gap),
+                ],
+              ],
+            ),
+          );
+        }
 
         return Row(
           children: [
@@ -668,6 +681,7 @@ class _SmsSettingsTableCard extends StatelessWidget {
       children: [
         _SmsSettingsToolbar(
           pageSize: pageSize,
+          totalCount: totalCount,
           searchController: searchController,
           searchQuery: searchQuery,
           onPageSizeChanged: onPageSizeChanged,
@@ -678,65 +692,99 @@ class _SmsSettingsTableCard extends StatelessWidget {
         ),
         const SizedBox(height: 18),
         Expanded(
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border.all(color: AppColors.line),
-              borderRadius: BorderRadius.circular(AppRadius.value),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final width = math.max(constraints.maxWidth, _minTableWidth);
-                return SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: SizedBox(
-                    width: width,
-                    height: constraints.hasBoundedHeight
-                        ? constraints.maxHeight
-                        : null,
-                    child: Column(
-                      children: [
-                        _SmsSettingsTableHeader(
-                          selected: allSelected,
-                          sortState: sortState,
-                          onToggle: onToggleAllAccounts,
-                          onSort: onSort,
-                        ),
-                        Expanded(
-                          child: accounts.isEmpty
-                              ? const _SmsSettingsEmptyState()
-                              : ListView.builder(
-                                  itemCount: accounts.length,
-                                  itemBuilder: (context, index) {
-                                    final account = accounts[index];
-                                    return _SmsSettingsTableRow(
-                                      account: account,
-                                      selected: selectedIds.contains(
-                                        account.id,
-                                      ),
-                                      active: account.id == activeAccountId,
-                                      onToggle: () =>
-                                          onToggleAccount(account.id),
-                                      onSelect: () => onSelectRow(account),
-                                      onEdit: () => onEdit(account),
-                                      onDnsCheck: () => onDnsCheck(account),
-                                      onToggleActive: () =>
-                                          onToggleActive(account),
-                                      onDelete: () => onDelete(account),
-                                    );
-                                  },
-                                ),
-                        ),
-                      ],
-                    ),
-                  ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth < AdminMobile.breakpoint) {
+                return AdminMobileListView(
+                  loading: false,
+                  itemCount: accounts.length,
+                  emptyLabel: context.t('sms.settings.empty'),
+                  itemBuilder: (context, index) {
+                    final account = accounts[index];
+                    return _SmsSettingsMobileCard(
+                      account: account,
+                      selected: selectedIds.contains(account.id),
+                      active: account.id == activeAccountId,
+                      onToggle: () => onToggleAccount(account.id),
+                      onSelect: () => onSelectRow(account),
+                      onEdit: () => onEdit(account),
+                      onDnsCheck: () => onDnsCheck(account),
+                      onToggleActive: () => onToggleActive(account),
+                      onDelete: () => onDelete(account),
+                    );
+                  },
                 );
-              },
-            ),
+              }
+
+              return Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border.all(color: AppColors.line),
+                  borderRadius: BorderRadius.circular(AppRadius.value),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final tableWidth = math.max(
+                      constraints.maxWidth,
+                      _minTableWidth,
+                    );
+                    return SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: SizedBox(
+                        width: tableWidth,
+                        height: constraints.hasBoundedHeight
+                            ? constraints.maxHeight
+                            : null,
+                        child: Column(
+                          children: [
+                            _SmsSettingsTableHeader(
+                              selected: allSelected,
+                              sortState: sortState,
+                              onToggle: onToggleAllAccounts,
+                              onSort: onSort,
+                            ),
+                            Expanded(
+                              child: accounts.isEmpty
+                                  ? const _SmsSettingsEmptyState()
+                                  : ListView.builder(
+                                      itemCount: accounts.length,
+                                      itemBuilder: (context, index) {
+                                        final account = accounts[index];
+                                        return _SmsSettingsTableRow(
+                                          account: account,
+                                          selected: selectedIds.contains(
+                                            account.id,
+                                          ),
+                                          active: account.id == activeAccountId,
+                                          onToggle: () =>
+                                              onToggleAccount(account.id),
+                                          onSelect: () => onSelectRow(account),
+                                          onEdit: () => onEdit(account),
+                                          onDnsCheck: () => onDnsCheck(account),
+                                          onToggleActive: () =>
+                                              onToggleActive(account),
+                                          onDelete: () => onDelete(account),
+                                        );
+                                      },
+                                    ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              );
+            },
           ),
         ),
-        const SizedBox(height: 16),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final mobile = constraints.maxWidth < AdminMobile.breakpoint;
+            return SizedBox(height: mobile ? 4 : 16);
+          },
+        ),
         _SmsSettingsFooter(
           page: page,
           pageSize: pageSize,
@@ -751,6 +799,7 @@ class _SmsSettingsTableCard extends StatelessWidget {
 class _SmsSettingsToolbar extends StatelessWidget {
   const _SmsSettingsToolbar({
     required this.pageSize,
+    required this.totalCount,
     required this.searchController,
     required this.searchQuery,
     required this.onPageSizeChanged,
@@ -761,6 +810,7 @@ class _SmsSettingsToolbar extends StatelessWidget {
   });
 
   final int pageSize;
+  final int totalCount;
   final TextEditingController searchController;
   final String searchQuery;
   final ValueChanged<int?> onPageSizeChanged;
@@ -774,6 +824,52 @@ class _SmsSettingsToolbar extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact = constraints.maxWidth < 840;
+        final mobile = constraints.maxWidth < AdminMobile.breakpoint;
+        if (mobile) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SmsMobileSearchPanel(
+                controller: searchController,
+                query: searchQuery,
+                hintText: context.t('sms.settings.searchPlaceholder'),
+                onSearchChanged: onSearchChanged,
+                recordCount: totalCount,
+                pageSize: pageSize,
+                onPageSizeChanged: onPageSizeChanged,
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: _SecondaryActionButton(
+                      icon: Symbols.refresh,
+                      label: context.t('sms.settings.refresh'),
+                      onPressed: onRefresh,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _SecondaryActionButton(
+                      icon: Symbols.settings_outlined,
+                      label: context.t('sms.settings.settingsButton'),
+                      onPressed: onSettings,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _PrimaryActionButton(
+                      icon: Symbols.add,
+                      label: context.t('sms.settings.addAccount'),
+                      onPressed: onCreate,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          );
+        }
+
         final actions = Wrap(
           spacing: 12,
           runSpacing: 10,
@@ -1300,6 +1396,204 @@ class _SmsSettingsTableRow extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _SmsSettingsMobileCard extends StatelessWidget {
+  const _SmsSettingsMobileCard({
+    required this.account,
+    required this.selected,
+    required this.active,
+    required this.onToggle,
+    required this.onSelect,
+    required this.onEdit,
+    required this.onDnsCheck,
+    required this.onToggleActive,
+    required this.onDelete,
+  });
+
+  final AdminSmsAccount account;
+  final bool selected;
+  final bool active;
+  final VoidCallback onToggle;
+  final VoidCallback onSelect;
+  final VoidCallback onEdit;
+  final VoidCallback onDnsCheck;
+  final VoidCallback onToggleActive;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = adminSmsProviderById(account.providerId);
+    final endpoint = account.smtpHost.isNotEmpty
+        ? account.smtpHost
+        : account.apiBaseUrl;
+    final serviceCaption = _smsSettingsServiceCaption(context, account);
+    final statusColor = account.active
+        ? const Color(0xFF198754)
+        : AppColors.support;
+
+    return AdminMobileCard(
+      selected: active || selected,
+      onTap: onSelect,
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 1),
+                child: AdminMobileCheckbox(
+                  value: selected,
+                  onChanged: (_) => onToggle(),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: provider.color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(provider.icon, color: provider.color, size: 19),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      account.accountName,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF2F4053),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14.2,
+                        height: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      endpoint,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF7A7F85),
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        height: 1.18,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Transform.scale(
+                scale: 0.88,
+                alignment: Alignment.topRight,
+                child: AdminMobileMenuButton(
+                  tooltip: context.t('sms.settings.actions'),
+                  actions: [
+                    AdminMobileMenuAction(
+                      icon: Symbols.edit_square,
+                      label: context.t('sms.settings.action.edit'),
+                      onTap: onEdit,
+                    ),
+                    AdminMobileMenuAction(
+                      icon: Symbols.verified_outlined,
+                      label: context.t('sms.settings.action.dnsCheck'),
+                      onTap: onDnsCheck,
+                    ),
+                    AdminMobileMenuAction(
+                      icon: account.active
+                          ? Symbols.toggle_off_outlined
+                          : Symbols.toggle_on,
+                      label: context.t(
+                        account.active
+                            ? 'sms.settings.action.deactivate'
+                            : 'sms.settings.action.activate',
+                      ),
+                      onTap: onToggleActive,
+                    ),
+                    AdminMobileMenuAction(
+                      icon: Symbols.delete,
+                      label: context.t('sms.settings.action.delete'),
+                      danger: true,
+                      onTap: onDelete,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              AdminMobileStatusPill(
+                label: account.active
+                    ? context.t('sms.settings.status.active')
+                    : context.t('sms.settings.status.passive'),
+                color: statusColor,
+              ),
+              AdminMobileMeta(
+                icon: Symbols.short_text,
+                value: account.senderName,
+              ),
+              AdminMobileMeta(
+                icon: Symbols.alternate_email,
+                value: account.senderEmail,
+              ),
+              AdminMobileMeta(
+                icon: Symbols.dns_outlined,
+                value: account.domain,
+              ),
+              AdminMobileMeta(
+                icon: Symbols.ads_click_outlined,
+                value: account.trackingDomain.isEmpty
+                    ? context.t('sms.settings.noTrackingDomain')
+                    : account.trackingDomain,
+              ),
+              AdminMobileMeta(
+                icon: Symbols.hub_outlined,
+                value: serviceCaption,
+              ),
+              AdminMobileMeta(
+                icon: Symbols.schedule_send,
+                value: context.t(
+                  'sms.settings.limitDaily',
+                  values: {
+                    'used': account.sentToday,
+                    'limit': account.dailyLimit,
+                  },
+                ),
+              ),
+              AdminMobileMeta(
+                icon: Symbols.schedule,
+                value:
+                    '${formatAdminFullDate(context, account.createdAt)} ${formatAdminTime(account.createdAt)}',
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 5,
+            runSpacing: 5,
+            children: [
+              _DnsChip(label: 'URL', ready: account.spfReady),
+              _DnsChip(label: 'Token', ready: account.dkimReady),
+              _DnsChip(label: 'Event', ready: account.dmarcReady),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -2085,7 +2379,7 @@ class _MetricBox extends StatelessWidget {
     final isCompact = density == _MetricDensity.compact;
     final label = context.t(data.label);
     final minHeight = isTight
-        ? 68.0
+        ? 74.0
         : isCompact
         ? 72.0
         : 78.0;
@@ -2121,7 +2415,7 @@ class _MetricBox extends StatelessWidget {
           : isCompact
           ? 11
           : 12,
-      height: 1,
+      height: 1.05,
       fontWeight: FontWeight.w600,
       letterSpacing: 0,
     );
@@ -2196,7 +2490,7 @@ class _MetricBox extends StatelessWidget {
                   children: [
                     Text(
                       label,
-                      maxLines: 1,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: labelStyle,
                     ),
@@ -3144,27 +3438,43 @@ class _SmsSettingsFooter extends StatelessWidget {
     final pageCount = totalCount == 0 ? 1 : (totalCount / pageSize).ceil();
     final start = totalCount == 0 ? 0 : (page - 1) * pageSize + 1;
     final end = math.min(page * pageSize, totalCount);
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            context.t(
-              'sms.settings.recordRange',
-              values: {'start': start, 'end': end, 'total': totalCount},
+    final rangeText = context.t(
+      'sms.settings.recordRange',
+      values: {'start': start, 'end': end, 'total': totalCount},
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < AdminMobile.breakpoint) {
+          return AdminMobilePager(
+            page: page,
+            lastPage: pageCount,
+            rangeText: rangeText,
+            loading: false,
+            onPageChanged: onPageChanged,
+          );
+        }
+
+        return Row(
+          children: [
+            Expanded(
+              child: Text(
+                rangeText,
+                style: const TextStyle(
+                  color: AppColors.inkSoft,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 0,
+                ),
+              ),
             ),
-            style: const TextStyle(
-              color: AppColors.inkSoft,
-              fontWeight: FontWeight.w500,
-              letterSpacing: 0,
+            AdminTablePagination(
+              page: page,
+              pageCount: pageCount,
+              onPageChanged: onPageChanged,
             ),
-          ),
-        ),
-        AdminTablePagination(
-          page: page,
-          pageCount: pageCount,
-          onPageChanged: onPageChanged,
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 }

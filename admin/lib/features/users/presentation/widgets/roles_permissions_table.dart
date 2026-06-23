@@ -70,77 +70,81 @@ class RolesPermissionsTable extends StatelessWidget {
     return _RolesSearchScope(
       query: searchQuery,
       child: LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < AdminMobile.breakpoint) {
-          return _RolesMobileList(
-            roles: roles,
-            loading: loading,
-            selectedRoleIds: selectedRoleIds,
-            onToggleRole: onToggleRole,
-            onEditRole: onEditRole,
-            onManagePermissions: onManagePermissions,
-            onDeleteRole: onDeleteRole,
-          );
-        }
-        final tableWidth = constraints.maxWidth < _minWidth
-            ? _minWidth
-            : constraints.maxWidth;
-        final layout = _RolesTableColumnLayout.forWidth(tableWidth);
-        final selectableCount = roles
-            .where((role) => !role.systemLocked)
-            .length;
+        builder: (context, constraints) {
+          if (constraints.maxWidth < AdminMobile.breakpoint) {
+            return _RolesMobileList(
+              roles: roles,
+              loading: loading,
+              selectedRoleIds: selectedRoleIds,
+              onToggleRole: onToggleRole,
+              onEditRole: onEditRole,
+              onManagePermissions: onManagePermissions,
+              onDeleteRole: onDeleteRole,
+            );
+          }
+          final tableWidth = constraints.maxWidth < _minWidth
+              ? _minWidth
+              : constraints.maxWidth;
+          final layout = _RolesTableColumnLayout.forWidth(tableWidth);
+          final selectableCount = roles
+              .where((role) => !role.systemLocked)
+              .length;
 
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: SizedBox(
-            width: tableWidth,
-            height: constraints.hasBoundedHeight ? constraints.maxHeight : null,
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(AppRadius.value),
-                border: Border.all(
-                  color: AppColors.line.withValues(alpha: 0.72),
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SizedBox(
+              width: tableWidth,
+              height: constraints.hasBoundedHeight
+                  ? constraints.maxHeight
+                  : null,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(AppRadius.value),
+                  border: Border.all(
+                    color: AppColors.line.withValues(alpha: 0.72),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    _RolesHeader(
+                      layout: layout,
+                      selectedCount: selectedRoleIds.length,
+                      selectableCount: selectableCount,
+                      sortState: sortState,
+                      onToggleAllRows: onToggleAllRoles,
+                      onSort: onSort,
+                    ),
+                    Expanded(
+                      child: loading
+                          ? const _RolesLoading()
+                          : roles.isEmpty
+                          ? const _RolesEmpty()
+                          : SingleChildScrollView(
+                              child: Column(
+                                children: [
+                                  for (final role in roles)
+                                    _RolesTableRow(
+                                      role: role,
+                                      layout: layout,
+                                      selected: selectedRoleIds.contains(
+                                        role.id,
+                                      ),
+                                      onToggle: () => onToggleRole(role),
+                                      onEditRole: onEditRole,
+                                      onManagePermissions: onManagePermissions,
+                                      onDeleteRole: onDeleteRole,
+                                    ),
+                                ],
+                              ),
+                            ),
+                    ),
+                  ],
                 ),
               ),
-              child: Column(
-                children: [
-                  _RolesHeader(
-                    layout: layout,
-                    selectedCount: selectedRoleIds.length,
-                    selectableCount: selectableCount,
-                    sortState: sortState,
-                    onToggleAllRows: onToggleAllRoles,
-                    onSort: onSort,
-                  ),
-                  Expanded(
-                    child: loading
-                        ? const _RolesLoading()
-                        : roles.isEmpty
-                        ? const _RolesEmpty()
-                        : SingleChildScrollView(
-                            child: Column(
-                              children: [
-                                for (final role in roles)
-                                  _RolesTableRow(
-                                    role: role,
-                                    layout: layout,
-                                    selected: selectedRoleIds.contains(role.id),
-                                    onToggle: () => onToggleRole(role),
-                                    onEditRole: onEditRole,
-                                    onManagePermissions: onManagePermissions,
-                                    onDeleteRole: onDeleteRole,
-                                  ),
-                              ],
-                            ),
-                          ),
-                  ),
-                ],
-              ),
             ),
-          ),
-        );
-      },
+          );
+        },
       ),
     );
   }

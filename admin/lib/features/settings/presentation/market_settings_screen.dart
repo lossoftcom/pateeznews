@@ -10,6 +10,7 @@ import '../../../core/theme/app_radius.dart';
 import '../../../shared/widgets/symbol_icon.dart';
 import '../data/admin_module_settings_repository.dart';
 import '../../auth/data/admin_auth_models.dart';
+import 'settings_mobile_chrome.dart';
 
 class MarketSettingsScreen extends StatefulWidget {
   const MarketSettingsScreen({
@@ -188,57 +189,67 @@ class _MarketSettingsScreenState extends State<MarketSettingsScreen> {
   Widget build(BuildContext context) {
     return ColoredBox(
       color: AppColors.surface,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(28, 28, 28, 40),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const _MarketHeader(),
-            const SizedBox(height: 24),
-            _MarketTabs(
-              selected: _tab,
-              onSelected: (tab) => setState(() => _tab = tab),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            padding: settingsPagePadding(
+              constraints.maxWidth,
+              desktopBottom: 40,
             ),
-            const SizedBox(height: 22),
-            if (_loading)
-              const _MarketLoadingBox()
-            else if (_error != null)
-              _MarketErrorBox(message: _error!, onRetry: _load)
-            else
-              _MarketCard(
-                title: _tab == _MarketSettingsTab.settings
-                    ? 'Piyasa Veri Ayarları'
-                    : 'Canlı Önizleme',
-                icon: _tab == _MarketSettingsTab.settings
-                    ? Symbols.code
-                    : Symbols.visibility,
-                trailing: _tab == _MarketSettingsTab.preview
-                    ? _PrimaryActionButton(
-                        label: _refreshing ? 'Yenileniyor' : 'Veriyi Yenile',
-                        icon: Symbols.send_rounded,
-                        onPressed: _refreshing ? null : _refreshPreview,
-                      )
-                    : null,
-                child: _tab == _MarketSettingsTab.settings
-                    ? _MarketSettingsForm(
-                        settings: _settings,
-                        saving: _saving,
-                        apiKeyController: _apiKeyController,
-                        altinApiBaseController: _altinApiBaseController,
-                        genelParaBaseController: _genelParaBaseController,
-                        currencySymbolsController: _currencySymbolsController,
-                        goldSymbolsController: _goldSymbolsController,
-                        onChanged: _updateSettings,
-                        onSave: _save,
-                      )
-                    : _MarketPreview(
-                        preview: _preview,
-                        refreshing: _refreshing,
-                        onRefresh: _refreshPreview,
-                      ),
-              ),
-          ],
-        ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const _MarketHeader(),
+                const SizedBox(height: 24),
+                _MarketTabs(
+                  selected: _tab,
+                  onSelected: (tab) => setState(() => _tab = tab),
+                ),
+                const SizedBox(height: 22),
+                if (_loading)
+                  const _MarketLoadingBox()
+                else if (_error != null)
+                  _MarketErrorBox(message: _error!, onRetry: _load)
+                else
+                  _MarketCard(
+                    title: _tab == _MarketSettingsTab.settings
+                        ? 'Piyasa Veri Ayarları'
+                        : 'Canlı Önizleme',
+                    icon: _tab == _MarketSettingsTab.settings
+                        ? Symbols.code
+                        : Symbols.visibility,
+                    trailing: _tab == _MarketSettingsTab.preview
+                        ? _PrimaryActionButton(
+                            label: _refreshing
+                                ? 'Yenileniyor'
+                                : 'Veriyi Yenile',
+                            icon: Symbols.send_rounded,
+                            onPressed: _refreshing ? null : _refreshPreview,
+                          )
+                        : null,
+                    child: _tab == _MarketSettingsTab.settings
+                        ? _MarketSettingsForm(
+                            settings: _settings,
+                            saving: _saving,
+                            apiKeyController: _apiKeyController,
+                            altinApiBaseController: _altinApiBaseController,
+                            genelParaBaseController: _genelParaBaseController,
+                            currencySymbolsController:
+                                _currencySymbolsController,
+                            goldSymbolsController: _goldSymbolsController,
+                            onChanged: _updateSettings,
+                            onSave: _save,
+                          )
+                        : _MarketPreview(
+                            preview: _preview,
+                            refreshing: _refreshing,
+                            onRefresh: _refreshPreview,
+                          ),
+                  ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -254,18 +265,18 @@ class _MarketHeader extends StatelessWidget {
       children: [
         Text(
           context.t('Döviz & Altın Ayarları'),
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
             color: AppColors.deepOcean,
-            fontWeight: FontWeight.w900,
+            fontWeight: FontWeight.w800,
             letterSpacing: 0,
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         Text(
           'Ön yüzdeki ve mobildeki piyasa kartlarını AltinAPI veya GenelPara üzerinden cache korumalı yönetin.',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             color: AppColors.inkSoft,
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w600,
             letterSpacing: 0,
           ),
         ),
@@ -282,15 +293,12 @@ class _MarketTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 8,
-      children: [
+    return SettingsResponsiveTabs<_MarketSettingsTab>(
+      selected: selected,
+      onSelected: onSelected,
+      items: [
         for (final tab in _MarketSettingsTab.values)
-          _TabButton(
-            label: tab.title,
-            selected: tab == selected,
-            onTap: () => onSelected(tab),
-          ),
+          SettingsTabItem(value: tab, label: tab.title),
       ],
     );
   }
@@ -1011,37 +1019,6 @@ class _SelectBox extends StatelessWidget {
       onChanged: (value) {
         if (value != null) onChanged(value);
       },
-    );
-  }
-}
-
-class _TabButton extends StatelessWidget {
-  const _TabButton({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return OutlinedButton(
-      style: OutlinedButton.styleFrom(
-        backgroundColor: selected ? AppColors.actionRed : Colors.white,
-        foregroundColor: selected ? Colors.white : AppColors.deepOcean,
-        side: BorderSide(
-          color: selected ? AppColors.actionRed : AppColors.line,
-        ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadius.value),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-      ),
-      onPressed: onTap,
-      child: Text(label, style: const TextStyle(fontWeight: FontWeight.w800)),
     );
   }
 }

@@ -21,6 +21,7 @@ import '../../subscribers/presentation/subscribers_models.dart';
 import '../data/admin_whatsapp_repository.dart';
 import 'whatsapp_contact_list_contacts_dialog.dart';
 import 'whatsapp_contact_list_models.dart';
+import 'whatsapp_mobile_chrome.dart';
 
 class WhatsappContactListsScreen extends StatefulWidget {
   const WhatsappContactListsScreen({
@@ -277,30 +278,16 @@ class _WhatsappContactListsScreenState
   }
 
   Future<void> _showListDialog({AdminWhatsappContactList? list}) async {
-    final result = await showDialog<_WhatsappContactListDialogResult>(
-      context: context,
-      barrierDismissible: true,
-      builder: (context) {
-        final size = MediaQuery.sizeOf(context);
-        final width = (size.width - 48).clamp(740.0, 1180.0).toDouble();
-        final height = (size.height - 48).clamp(620.0, 840.0).toDouble();
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.symmetric(
-            horizontal: 24,
-            vertical: 24,
-          ),
-          child: SizedBox(
-            width: width,
-            height: height,
-            child: _WhatsappContactListDialog(
-              list: list,
-              subscribersRepository: widget.subscribersRepository,
-            ),
+    final result =
+        await showWhatsappSideDrawer<_WhatsappContactListDialogResult>(
+          context: context,
+          minWidth: 740,
+          maxWidth: 1180,
+          child: _WhatsappContactListDialog(
+            list: list,
+            subscribersRepository: widget.subscribersRepository,
           ),
         );
-      },
-    );
 
     if (result == null || !mounted) return;
     late AdminWhatsappContactList saved;
@@ -342,21 +329,14 @@ class _WhatsappContactListsScreenState
   }
 
   Future<void> _showContacts(AdminWhatsappContactList list) async {
-    final size = MediaQuery.sizeOf(context);
-    await showDialog<void>(
+    await showWhatsappSideDrawer<void>(
       context: context,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.all(24),
-        child: SizedBox(
-          width: (size.width - 48).clamp(640.0, 980.0).toDouble(),
-          height: (size.height - 48).clamp(520.0, 760.0).toDouble(),
-          child: WhatsappContactListContactsDialog(
-            session: widget.session,
-            repository: widget.repository,
-            list: list,
-          ),
-        ),
+      minWidth: 640,
+      maxWidth: 980,
+      child: WhatsappContactListContactsDialog(
+        session: widget.session,
+        repository: widget.repository,
+        list: list,
       ),
     );
     if (mounted) await _loadLists();
@@ -406,6 +386,18 @@ class _WhatsappContactListsScreenState
           ],
         );
 
+        if (mobile) {
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+              horizontalPadding,
+              topPadding,
+              horizontalPadding,
+              0,
+            ),
+            child: content,
+          );
+        }
+
         if (compact) {
           return SingleChildScrollView(
             padding: EdgeInsets.fromLTRB(
@@ -443,27 +435,35 @@ class _WhatsappContactListsTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            context.t('whatsapp.contacts.title'),
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              color: AppColors.deepOcean,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final mobile = constraints.maxWidth < AdminMobile.breakpoint;
+        return Row(
+          children: [
+            Expanded(
+              child: Text(
+                context.t('whatsapp.contacts.title'),
+                maxLines: mobile ? 1 : 2,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: AppColors.deepOcean,
+                  fontSize: mobile ? 24 : null,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0,
+                ),
+              ),
             ),
-          ),
-        ),
-        if (selectedCount > 0)
-          _DangerTextButton(
-            label: context.t(
-              'whatsapp.contacts.selectedDelete',
-              values: {'count': selectedCount},
-            ),
-            onTap: onDeleteSelected,
-          ),
-      ],
+            if (selectedCount > 0)
+              _DangerTextButton(
+                label: context.t(
+                  'whatsapp.contacts.selectedDelete',
+                  values: {'count': selectedCount},
+                ),
+                onTap: onDeleteSelected,
+              ),
+          ],
+        );
+      },
     );
   }
 }
@@ -531,6 +531,7 @@ class _WhatsappContactListsTableCard extends StatelessWidget {
             searchController: searchController,
             searchQuery: searchQuery,
             selectedIds: selectedIds,
+            onPageSizeChanged: onPageSizeChanged,
             onSearchChanged: onSearchChanged,
             onPageChanged: onPageChanged,
             onToggleList: onToggleList,
@@ -638,6 +639,7 @@ class _WhatsappContactListsMobileView extends StatelessWidget {
     required this.searchController,
     required this.searchQuery,
     required this.selectedIds,
+    required this.onPageSizeChanged,
     required this.onSearchChanged,
     required this.onPageChanged,
     required this.onToggleList,
@@ -656,6 +658,7 @@ class _WhatsappContactListsMobileView extends StatelessWidget {
   final TextEditingController searchController;
   final String searchQuery;
   final Set<int> selectedIds;
+  final ValueChanged<int?> onPageSizeChanged;
   final ValueChanged<String> onSearchChanged;
   final ValueChanged<int> onPageChanged;
   final ValueChanged<int> onToggleList;
@@ -677,14 +680,14 @@ class _WhatsappContactListsMobileView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        AdminMobileToolbar(
+        WhatsappMobileSearchPanel(
           controller: searchController,
           query: searchQuery,
           hintText: context.t('whatsapp.contacts.searchPlaceholder'),
           onSearchChanged: onSearchChanged,
-          activeFilterCount: 0,
-          onOpenFilters: () {},
-          showFilters: false,
+          recordCount: totalCount,
+          pageSize: pageSize,
+          onPageSizeChanged: onPageSizeChanged,
         ),
         const SizedBox(height: 12),
         AdminMobilePrimaryButton(
@@ -714,7 +717,7 @@ class _WhatsappContactListsMobileView extends StatelessWidget {
             },
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 4),
         AdminMobilePager(
           page: page,
           lastPage: lastPage,
@@ -1395,24 +1398,15 @@ class _WhatsappContactListDialogState
   }
 
   Future<void> _chooseSubscribers() async {
-    final result = await showDialog<List<AdminWhatsappContactImportRow>>(
-      context: context,
-      barrierDismissible: true,
-      builder: (context) {
-        final size = MediaQuery.sizeOf(context);
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.all(24),
-          child: SizedBox(
-            width: (size.width - 48).clamp(620.0, 900.0).toDouble(),
-            height: (size.height - 48).clamp(520.0, 720.0).toDouble(),
-            child: _WhatsappSubscriberPickerDialog(
-              repository: widget.subscribersRepository,
-            ),
+    final result =
+        await showWhatsappSideDrawer<List<AdminWhatsappContactImportRow>>(
+          context: context,
+          minWidth: 640,
+          maxWidth: 980,
+          child: _WhatsappSubscriberPickerDialog(
+            repository: widget.subscribersRepository,
           ),
         );
-      },
-    );
     if (result == null || !mounted) return;
     setState(() {
       _importText = null;

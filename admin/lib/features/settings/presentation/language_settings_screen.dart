@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
+import 'package:pateeznews_admin/shared/widgets/admin_mobile_list.dart';
 import 'package:pateeznews_admin/shared/widgets/admin_table_chrome.dart';
 import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
 
@@ -868,8 +869,6 @@ class _LanguageSettingsFooter extends StatelessWidget {
     final from = totalCount == 0 ? 0 : ((page - 1) * pageSize) + 1;
     final to = totalCount == 0 ? 0 : from + visibleCount - 1;
     final maxPage = totalCount == 0 ? 1 : (totalCount / pageSize).ceil();
-    final hasPrevious = page > 1;
-    final hasNext = page < maxPage;
     final rangeText = context.t(
       'language.recordRange',
       values: {'from': from, 'to': to, 'total': totalCount},
@@ -893,41 +892,12 @@ class _LanguageSettingsFooter extends StatelessWidget {
         final compact = constraints.maxWidth < 640;
 
         if (mobile) {
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              IconButton(
-                onPressed: hasPrevious ? () => onPageChanged(page - 1) : null,
-                icon: const Icon(Symbols.chevron_left),
-                constraints: const BoxConstraints.tightFor(
-                  width: 32,
-                  height: 32,
-                ),
-                padding: EdgeInsets.zero,
-                splashRadius: 18,
-                visualDensity: VisualDensity.compact,
-              ),
-              Expanded(
-                child: Text(
-                  rangeText,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
-                ),
-              ),
-              IconButton(
-                onPressed: hasNext ? () => onPageChanged(page + 1) : null,
-                icon: const Icon(Symbols.chevron_right),
-                constraints: const BoxConstraints.tightFor(
-                  width: 32,
-                  height: 32,
-                ),
-                padding: EdgeInsets.zero,
-                splashRadius: 18,
-                visualDensity: VisualDensity.compact,
-              ),
-            ],
+          return AdminMobilePager(
+            page: page,
+            lastPage: maxPage,
+            rangeText: rangeText,
+            loading: false,
+            onPageChanged: onPageChanged,
           );
         }
 
