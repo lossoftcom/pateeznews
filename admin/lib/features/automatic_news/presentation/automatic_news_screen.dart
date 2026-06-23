@@ -75,13 +75,16 @@ class _AutomaticNewsScreenState extends State<AutomaticNewsScreen> {
   Timer? _searchDebounce;
   Timer? _fallbackPollTimer;
   var _itemsRequestId = 0;
+  var _automationEnabled = false;
+  var _automationLoading = true;
+  var _automationSaving = false;
 
   @override
   void initState() {
     super.initState();
     unawaited(_loadInitial());
     _fallbackPollTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      if (!mounted || _loading) return;
+      if (!mounted || _loading || !_automationEnabled) return;
       unawaited(_loadItems());
     });
   }
@@ -104,7 +107,11 @@ class _AutomaticNewsScreenState extends State<AutomaticNewsScreen> {
 
   Future<void> _loadInitial() async {
     await _loadImageRequestHeaders();
-    await Future.wait([_loadSources(), _loadItems(showLoading: true)]);
+    await Future.wait([
+      _loadAutomationSettings(),
+      _loadSources(),
+      _loadItems(showLoading: true),
+    ]);
   }
 
   Future<void> _loadImageRequestHeaders() async {
@@ -127,6 +134,52 @@ class _AutomaticNewsScreenState extends State<AutomaticNewsScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() => _errorMessage = error.toString());
+    }
+  }
+
+  Future<void> _loadAutomationSettings() async {
+    try {
+      final settings = await widget.repository.fetchAutomationSettings();
+      if (!mounted) return;
+      setState(() {
+        _automationEnabled = settings.enabled;
+        _automationLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _automationLoading = false;
+        _errorMessage = error.toString();
+      });
+    }
+  }
+
+  Future<void> _toggleAutomation(bool value) async {
+    if (_automationLoading ||
+        _automationSaving ||
+        value == _automationEnabled) {
+      return;
+    }
+    setState(() {
+      _automationSaving = true;
+      _errorMessage = '';
+    });
+    try {
+      final settings = await widget.repository.setAutomationEnabled(value);
+      if (!mounted) return;
+      setState(() {
+        _automationEnabled = settings.enabled;
+        _automationSaving = false;
+      });
+      if (settings.enabled) {
+        unawaited(_loadItems(showLoading: true));
+      }
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _automationSaving = false;
+        _errorMessage = error.toString();
+      });
     }
   }
 
@@ -527,6 +580,8 @@ class _AutomaticNewsScreenState extends State<AutomaticNewsScreen> {
                 pageSize: _pageSize,
                 loading: _loading,
                 refreshing: _loading,
+                automationEnabled: _automationEnabled,
+                automationBusy: _automationLoading || _automationSaving,
                 searchController: _searchController,
                 searchQuery: _searchQuery,
                 selectedDraftIds: _selectedDraftIds,
@@ -548,6 +603,8 @@ class _AutomaticNewsScreenState extends State<AutomaticNewsScreen> {
                 onToggleDraft: _toggleDraft,
                 onToggleVisibleDrafts: _toggleVisibleDrafts,
                 onDeleteSelected: () => unawaited(_deleteSelectedDrafts()),
+                onAutomationChanged: (value) =>
+                    unawaited(_toggleAutomation(value)),
                 onRefresh: () => unawaited(_loadItems(showLoading: true)),
                 onOpenSources: _openSourceDialog,
                 onViewDraft: _showDraftPreview,
@@ -740,6 +797,8 @@ class _AutomaticNewsTableCard extends StatelessWidget {
     required this.pageSize,
     required this.loading,
     required this.refreshing,
+    required this.automationEnabled,
+    required this.automationBusy,
     required this.searchController,
     required this.searchQuery,
     required this.selectedDraftIds,
@@ -761,6 +820,7 @@ class _AutomaticNewsTableCard extends StatelessWidget {
     required this.onToggleDraft,
     required this.onToggleVisibleDrafts,
     required this.onDeleteSelected,
+    required this.onAutomationChanged,
     required this.onRefresh,
     required this.onOpenSources,
     required this.onViewDraft,
@@ -776,6 +836,8 @@ class _AutomaticNewsTableCard extends StatelessWidget {
   final int pageSize;
   final bool loading;
   final bool refreshing;
+  final bool automationEnabled;
+  final bool automationBusy;
   final TextEditingController searchController;
   final String searchQuery;
   final Set<int> selectedDraftIds;
@@ -797,6 +859,7 @@ class _AutomaticNewsTableCard extends StatelessWidget {
   final ValueChanged<int> onToggleDraft;
   final VoidCallback onToggleVisibleDrafts;
   final VoidCallback onDeleteSelected;
+  final ValueChanged<bool> onAutomationChanged;
   final VoidCallback onRefresh;
   final VoidCallback onOpenSources;
   final ValueChanged<_AutomaticNewsDraft> onViewDraft;
@@ -818,6 +881,8 @@ class _AutomaticNewsTableCard extends StatelessWidget {
             pageSize: pageSize,
             loading: loading,
             refreshing: refreshing,
+            automationEnabled: automationEnabled,
+            automationBusy: automationBusy,
             searchController: searchController,
             selectedDraftIds: selectedDraftIds,
             platformFilter: platformFilter,
@@ -834,6 +899,7 @@ class _AutomaticNewsTableCard extends StatelessWidget {
             onPageChanged: onPageChanged,
             onToggleDraft: onToggleDraft,
             onDeleteSelected: onDeleteSelected,
+            onAutomationChanged: onAutomationChanged,
             onRefresh: onRefresh,
             onOpenSources: onOpenSources,
             onViewDraft: onViewDraft,
@@ -865,9 +931,12 @@ class _AutomaticNewsTableCard extends StatelessWidget {
               searchQuery: searchQuery,
               selectedCount: selectedDraftIds.length,
               refreshing: refreshing,
+              automationEnabled: automationEnabled,
+              automationBusy: automationBusy,
               onPageSizeChanged: onPageSizeChanged,
               onSearchChanged: onSearchChanged,
               onDeleteSelected: onDeleteSelected,
+              onAutomationChanged: onAutomationChanged,
               onRefresh: onRefresh,
               onOpenSources: onOpenSources,
             ),
@@ -912,6 +981,8 @@ class _AutomaticNewsMobileView extends StatefulWidget {
     required this.pageSize,
     required this.loading,
     required this.refreshing,
+    required this.automationEnabled,
+    required this.automationBusy,
     required this.searchController,
     required this.selectedDraftIds,
     required this.platformFilter,
@@ -928,6 +999,7 @@ class _AutomaticNewsMobileView extends StatefulWidget {
     required this.onPageChanged,
     required this.onToggleDraft,
     required this.onDeleteSelected,
+    required this.onAutomationChanged,
     required this.onRefresh,
     required this.onOpenSources,
     required this.onViewDraft,
@@ -943,6 +1015,8 @@ class _AutomaticNewsMobileView extends StatefulWidget {
   final int pageSize;
   final bool loading;
   final bool refreshing;
+  final bool automationEnabled;
+  final bool automationBusy;
   final TextEditingController searchController;
   final Set<int> selectedDraftIds;
   final String platformFilter;
@@ -959,6 +1033,7 @@ class _AutomaticNewsMobileView extends StatefulWidget {
   final ValueChanged<int> onPageChanged;
   final ValueChanged<int> onToggleDraft;
   final VoidCallback onDeleteSelected;
+  final ValueChanged<bool> onAutomationChanged;
   final VoidCallback onRefresh;
   final VoidCallback onOpenSources;
   final ValueChanged<_AutomaticNewsDraft> onViewDraft;
@@ -1041,6 +1116,9 @@ class _AutomaticNewsMobileViewState extends State<_AutomaticNewsMobileView> {
               )
             : _AutomaticNewsMobileActionRow(
                 refreshing: widget.refreshing,
+                automationEnabled: widget.automationEnabled,
+                automationBusy: widget.automationBusy,
+                onAutomationChanged: widget.onAutomationChanged,
                 onRefresh: widget.onRefresh,
                 onOpenSources: widget.onOpenSources,
               ),
@@ -1487,6 +1565,9 @@ class _AutomaticNewsMobileFilterDropdown extends StatelessWidget {
 class _AutomaticNewsMobileActionRow extends StatelessWidget {
   const _AutomaticNewsMobileActionRow({
     required this.refreshing,
+    required this.automationEnabled,
+    required this.automationBusy,
+    required this.onAutomationChanged,
     required this.onRefresh,
     required this.onOpenSources,
   });
@@ -1494,34 +1575,106 @@ class _AutomaticNewsMobileActionRow extends StatelessWidget {
   static const _red = Color(0xFFF44336);
 
   final bool refreshing;
+  final bool automationEnabled;
+  final bool automationBusy;
+  final ValueChanged<bool> onAutomationChanged;
   final VoidCallback onRefresh;
   final VoidCallback onOpenSources;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
       children: [
-        Expanded(
-          child: _AutomaticNewsMobileActionButton(
-            icon: Symbols.refresh_line,
-            label: refreshing ? 'Yenileniyor...' : 'Listeyi Yenile',
-            backgroundColor: Colors.white,
-            foregroundColor: const Color(0xFF2F4053),
-            borderColor: const Color(0xFFE6EAF0),
-            onPressed: refreshing ? null : onRefresh,
+        Align(
+          alignment: Alignment.centerLeft,
+          child: _AutomaticNewsAutomationSwitch(
+            value: automationEnabled,
+            busy: automationBusy,
+            onChanged: onAutomationChanged,
           ),
         ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _AutomaticNewsMobileActionButton(
-            icon: Symbols.add,
-            label: 'Adres Ekle',
-            backgroundColor: _red,
-            foregroundColor: Colors.white,
-            onPressed: onOpenSources,
-          ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: _AutomaticNewsMobileActionButton(
+                icon: Symbols.refresh_line,
+                label: refreshing ? 'Yenileniyor...' : 'Listeyi Yenile',
+                backgroundColor: Colors.white,
+                foregroundColor: const Color(0xFF2F4053),
+                borderColor: const Color(0xFFE6EAF0),
+                onPressed: refreshing ? null : onRefresh,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _AutomaticNewsMobileActionButton(
+                icon: Symbols.add,
+                label: 'Adres Ekle',
+                backgroundColor: _red,
+                foregroundColor: Colors.white,
+                onPressed: onOpenSources,
+              ),
+            ),
+          ],
         ),
       ],
+    );
+  }
+}
+
+class _AutomaticNewsAutomationSwitch extends StatelessWidget {
+  const _AutomaticNewsAutomationSwitch({
+    required this.value,
+    required this.busy,
+    required this.onChanged,
+  });
+
+  final bool value;
+  final bool busy;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = value ? 'Otomasyon açık' : 'Otomasyon kapalı';
+    return Opacity(
+      opacity: busy ? 0.62 : 1,
+      child: MouseRegion(
+        cursor: busy ? SystemMouseCursors.basic : SystemMouseCursors.click,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: busy ? null : () => onChanged(!value),
+          child: Container(
+            height: AdminTableChrome.toolbarHeight,
+            padding: const EdgeInsets.only(left: 12, right: 10),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(AppRadius.value),
+              border: Border.all(color: AppColors.line.withValues(alpha: 0.72)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.deepOcean,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                IgnorePointer(
+                  ignoring: busy,
+                  child: _CompactSwitch(value: value, onChanged: onChanged),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -2077,9 +2230,12 @@ class _AutomaticNewsToolbar extends StatelessWidget {
     required this.searchQuery,
     required this.selectedCount,
     required this.refreshing,
+    required this.automationEnabled,
+    required this.automationBusy,
     required this.onPageSizeChanged,
     required this.onSearchChanged,
     required this.onDeleteSelected,
+    required this.onAutomationChanged,
     required this.onRefresh,
     required this.onOpenSources,
   });
@@ -2090,9 +2246,12 @@ class _AutomaticNewsToolbar extends StatelessWidget {
   final String searchQuery;
   final int selectedCount;
   final bool refreshing;
+  final bool automationEnabled;
+  final bool automationBusy;
   final ValueChanged<int?> onPageSizeChanged;
   final ValueChanged<String> onSearchChanged;
   final VoidCallback onDeleteSelected;
+  final ValueChanged<bool> onAutomationChanged;
   final VoidCallback onRefresh;
   final VoidCallback onOpenSources;
 
@@ -2127,6 +2286,11 @@ class _AutomaticNewsToolbar extends StatelessWidget {
       label: refreshing ? 'Yenileniyor...' : 'Listeyi Yenile',
       onPressed: refreshing ? () {} : onRefresh,
     );
+    final automationSwitch = _AutomaticNewsAutomationSwitch(
+      value: automationEnabled,
+      busy: automationBusy,
+      onChanged: onAutomationChanged,
+    );
     final addressButton = AdminTablePrimaryActionButton(
       icon: Symbols.add,
       label: 'Adres Ekle',
@@ -2148,7 +2312,7 @@ class _AutomaticNewsToolbar extends StatelessWidget {
           Wrap(
             spacing: 10,
             runSpacing: 10,
-            children: [refreshButton, addressButton],
+            children: [automationSwitch, refreshButton, addressButton],
           ),
         ],
       );
@@ -2161,6 +2325,8 @@ class _AutomaticNewsToolbar extends StatelessWidget {
         const Spacer(),
         search,
         const SizedBox(width: 14),
+        automationSwitch,
+        const SizedBox(width: 10),
         refreshButton,
         const SizedBox(width: 10),
         addressButton,

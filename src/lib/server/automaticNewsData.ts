@@ -7,6 +7,7 @@ const DETAIL_FETCH_TIMEOUT_MS = 6500;
 const MAX_SOURCES_PER_RUN = 60;
 const MAX_CANDIDATES_PER_SOURCE = 8;
 const MAX_FEED_URLS_PER_SOURCE = 5;
+const MAX_NIGDE_ANADOLU_CANDIDATES = 24;
 const MAX_FETCH_BYTES = 2_500_000;
 const SOURCE_LEASE_SECONDS = 150;
 const DISPATCH_BATCH_SIZE = 25;
@@ -14,6 +15,9 @@ const DEFAULT_SOURCE_CONCURRENCY = 8;
 const INSTAGRAM_WEB_APP_ID = '936619743392459';
 const USER_AGENT = 'Pateez-AutomaticNews/1.0 (+https://www.pateez.com)';
 const RECENT_CONTENT_TIME_ZONE = 'Europe/Istanbul';
+const AUTOMATIC_NEWS_SETTINGS_KEY = 'automatic_news.automation';
+const PERSISTENT_EXPIRES_AT = '2099-12-31T23:59:59.000Z';
+const NIGDE_ANADOLU_HOST = 'nigdeanadoluhaber.com.tr';
 
 type AutomaticNewsSourceType = 'website' | 'instagram' | 'rss' | 'other';
 
@@ -87,6 +91,7 @@ export interface AutomaticNewsQueueMessage {
   scheduledAt: string;
   traceId: string;
   leaseOwner: string;
+  enabledAt?: string | null;
   runId?: string;
 }
 
@@ -106,6 +111,16 @@ interface ProcessSourceResult {
   insertedCount: number;
   skippedDuplicateCount: number;
   errorMessage: string;
+}
+
+export interface AutomaticNewsAutomationSettings {
+  enabled: boolean;
+  enabledAt: string | null;
+  updatedAt: string | null;
+}
+
+interface ProcessSourceOptions {
+  enabledAt?: string | null;
 }
 
 const normalizeText = (value: unknown) =>
@@ -190,6 +205,83 @@ const displayNameFromUrl = (value: string) => {
     return value;
   }
 };
+
+const normalizeAutomationSettings = (
+  value: unknown,
+  updatedAt: string | null = null,
+): AutomaticNewsAutomationSettings => {
+  const input = value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+  const enabledAt = normalizeText(input.enabledAt);
+  return {
+    enabled: input.enabled === true,
+    enabledAt: enabledAt && Number.isFinite(Date.parse(enabledAt))
+      ? new Date(enabledAt).toISOString()
+      : null,
+    updatedAt,
+  };
+};
+
+export async function getAutomaticNewsAutomationSettings(): Promise<AutomaticNewsAutomationSettings> {
+  const result = await dbQuery<{ payload: unknown; updated_at: string | null }>(
+    `SELECT payload, updated_at
+     FROM public.app_cache
+     WHERE key = $1
+       AND expires_at > now()
+     LIMIT 1`,
+    [AUTOMATIC_NEWS_SETTINGS_KEY],
+  ).catch(() => ({ rows: [] as Array<{ payload: unknown; updated_at: string | null }> }));
+
+  return normalizeAutomationSettings(
+    result.rows[0]?.payload,
+    result.rows[0]?.updated_at || null,
+  );
+}
+
+export async function setAutomaticNewsAutomationEnabled(enabled: boolean) {
+  const current = await getAutomaticNewsAutomationSettings();
+  const now = new Date().toISOString();
+  const settings: AutomaticNewsAutomationSettings = {
+    enabled,
+    enabledAt: enabled ? (current.enabled ? current.enabledAt || now : now) : null,
+    updatedAt: now,
+  };
+
+  await dbQuery(
+    `INSERT INTO public.app_cache (key, payload, expires_at, updated_at)
+     VALUES ($1, $2::jsonb, $3::timestamptz, now())
+     ON CONFLICT (key) DO UPDATE SET
+       payload = EXCLUDED.payload,
+       expires_at = EXCLUDED.expires_at,
+       updated_at = now()`,
+    [AUTOMATIC_NEWS_SETTINGS_KEY, JSON.stringify(settings), PERSISTENT_EXPIRES_AT],
+  );
+
+  if (enabled) {
+    await dbQuery(
+      `UPDATE public.automatic_news_sources
+       SET
+         next_poll_at = LEAST(COALESCE(next_poll_at, now()), now()),
+         lease_owner = NULL,
+         lease_expires_at = NULL,
+         updated_at = now()
+       WHERE is_active = true`,
+    );
+  } else {
+    await dbQuery(
+      `UPDATE public.automatic_news_sources
+       SET
+         lease_owner = NULL,
+         lease_expires_at = NULL,
+         updated_at = now()
+       WHERE lease_owner IS NOT NULL
+          OR lease_expires_at IS NOT NULL`,
+    );
+  }
+
+  return settings;
+}
 
 const getAttr = (node: any, name: string) => {
   const attrs = Array.isArray(node?.attrs) ? node.attrs : [];
@@ -697,6 +789,19 @@ const isRecentPublishedAt = (value: string | null) => {
 const isRecentAutomaticNewsItem = (item: AutomaticNewsItemInput) =>
   isRecentPublishedAt(item.publishedAt);
 
+const isAfterAutomationWindow = (item: AutomaticNewsItemInput, enabledAt: string | null | undefined) => {
+  if (!enabledAt) return true;
+  const enabledTimestamp = Date.parse(enabledAt);
+  if (!Number.isFinite(enabledTimestamp)) return true;
+  const itemTimestamp = item.publishedAt ? Date.parse(item.publishedAt) : Date.parse(item.discoveredAt);
+  return Number.isFinite(itemTimestamp) && itemTimestamp >= enabledTimestamp;
+};
+
+const filterItemsByAutomationWindow = (
+  items: AutomaticNewsItemInput[],
+  enabledAt: string | null | undefined,
+) => items.filter((item) => isAfterAutomationWindow(item, enabledAt));
+
 const dateConfidenceFor = (publishedAt: string | null): DateConfidence =>
   publishedAt ? 'source' : 'unknown';
 
@@ -785,6 +890,157 @@ const itemFromWebsiteCandidate = (
       mediaUrls: mediaUrlsFor(candidate.imageUrl, candidate.videoUrl, candidate.mediaUrls),
     },
   };
+};
+
+const isNigdeAnadoluSource = (source: AutomaticNewsSourceRow) => {
+  try {
+    return new URL(source.url).hostname.replace(/^www\./, '') === NIGDE_ANADOLU_HOST;
+  } catch {
+    return false;
+  }
+};
+
+const isNigdeAnadoluNewsUrl = (source: AutomaticNewsSourceRow, value: string) => {
+  if (!sameHost(source.url, value)) return false;
+  try {
+    const pathname = new URL(value).pathname.replace(/\/+$/, '');
+    return /^\/haber\/[^/]+$/i.test(pathname);
+  } catch {
+    return false;
+  }
+};
+
+const titleFromNigdeAnadoluUrl = (value: string) => {
+  try {
+    const slug = decodeURIComponent(new URL(value).pathname.split('/').filter(Boolean).pop() || '');
+    return normalizeText(slug.replace(/[-_]+/g, ' '));
+  } catch {
+    return '';
+  }
+};
+
+const parseNigdeAnadoluSitemapCandidates = (
+  source: AutomaticNewsSourceRow,
+  xml: string,
+  baseUrl: string,
+) => {
+  const candidates: WebsiteCandidate[] = [];
+  for (const match of xml.matchAll(/<url\b[\s\S]*?<\/url>/gi)) {
+    const block = match[0];
+    const url = toAbsoluteUrl(baseUrl, decodeXmlText(block.match(/<loc[^>]*>([\s\S]*?)<\/loc>/i)?.[1] || ''));
+    if (!url || !isNigdeAnadoluNewsUrl(source, url)) continue;
+    const imageUrl = toAbsoluteUrl(
+      baseUrl,
+      decodeXmlText(block.match(/<image:loc[^>]*>([\s\S]*?)<\/image:loc>/i)?.[1] || ''),
+    );
+    const title = normalizeText(
+      decodeXmlText(block.match(/<image:title[^>]*>([\s\S]*?)<\/image:title>/i)?.[1] || '') ||
+        titleFromNigdeAnadoluUrl(url),
+    );
+    const lastmod = normalizeText(block.match(/<lastmod[^>]*>([\s\S]*?)<\/lastmod>/i)?.[1] || '');
+    const publishedAt = lastmod && Number.isFinite(Date.parse(lastmod))
+      ? new Date(lastmod).toISOString()
+      : null;
+    const score = Math.max(scoreWebsiteCandidate(url, title), 8) + 14;
+    if (!isGoodNewsTitle(title)) continue;
+    candidates.push({
+      url,
+      title,
+      summary: '',
+      publishedAt,
+      imageUrl,
+      videoUrl: '',
+      mediaUrls: mediaUrlsFor(imageUrl, ''),
+      score,
+      originLabel: 'Niğde Anadolu sitemap',
+    });
+    if (candidates.length >= MAX_NIGDE_ANADOLU_CANDIDATES * 3) break;
+  }
+  return candidates;
+};
+
+const imageAltFromAnchor = (anchor: any) =>
+  findAll(anchor, (node) => node?.tagName === 'img')
+    .map((img) => normalizeText(getAttr(img, 'alt') || getAttr(img, 'title')))
+    .find((text) => text.length >= 18) || '';
+
+const parseNigdeAnadoluPageCandidates = (
+  source: AutomaticNewsSourceRow,
+  document: any,
+  baseUrl: string,
+) => {
+  const candidates: WebsiteCandidate[] = [];
+  for (const anchor of findAll(document, (node) => node?.tagName === 'a')) {
+    const url = toAbsoluteUrl(baseUrl, getAttr(anchor, 'href'));
+    if (!url || !isNigdeAnadoluNewsUrl(source, url)) continue;
+    const title = normalizeText(textContent(anchor) || getAttr(anchor, 'title') || imageAltFromAnchor(anchor) || titleFromNigdeAnadoluUrl(url));
+    if (!isGoodNewsTitle(title)) continue;
+    const imageUrl = toAbsoluteUrl(
+      baseUrl,
+      findAll(anchor, (node) => node?.tagName === 'img')
+        .map((img) => getAttr(img, 'data-src') || getAttr(img, 'src'))
+        .find(Boolean) || '',
+    );
+    candidates.push({
+      url,
+      title,
+      summary: '',
+      publishedAt: null,
+      imageUrl,
+      videoUrl: '',
+      mediaUrls: mediaUrlsFor(imageUrl, ''),
+      score: Math.max(scoreWebsiteCandidate(url, title), 8) + 18,
+      originLabel: 'Niğde Anadolu haber listesi',
+    });
+  }
+  return candidates;
+};
+
+const collectNigdeAnadoluItems = async (source: AutomaticNewsSourceRow) => {
+  const origin = (() => {
+    try {
+      return new URL(source.url).origin;
+    } catch {
+      return 'https://nigdeanadoluhaber.com.tr';
+    }
+  })();
+  const seedUrls = [
+    source.url,
+    `${origin}/haberler`,
+    `${origin}/sitemap.xml`,
+  ];
+  const responses = await Promise.allSettled(seedUrls.map((url) => fetchText(url)));
+  const candidates = new Map<string, WebsiteCandidate>();
+
+  for (const result of responses) {
+    if (result.status !== 'fulfilled') continue;
+    const response = result.value;
+    const parsed = looksXml(response.contentType, response.text)
+      ? parseNigdeAnadoluSitemapCandidates(source, response.text, response.url)
+      : parseNigdeAnadoluPageCandidates(source, parse5.parse(response.text), response.url);
+    for (const item of parsed) {
+      const current = candidates.get(item.url);
+      if (!current || item.score > current.score) candidates.set(item.url, item);
+    }
+  }
+
+  const sortedCandidates = [...candidates.values()]
+    .sort((a, b) => {
+      const dateA = a.publishedAt ? Date.parse(a.publishedAt) || 0 : 0;
+      const dateB = b.publishedAt ? Date.parse(b.publishedAt) || 0 : 0;
+      if (dateA !== dateB) return dateB - dateA;
+      return b.score - a.score;
+    })
+    .slice(0, MAX_NIGDE_ANADOLU_CANDIDATES);
+
+  const parsedItems = await mapLimited(sortedCandidates, 6, async (candidate) =>
+    withTimeout(parseWebsiteArticle(source, candidate), DETAIL_FETCH_TIMEOUT_MS, source.display_name)
+      .catch(() => null)
+  );
+
+  return parsedItems
+    .filter((item): item is AutomaticNewsItemInput => Boolean(item))
+    .filter(isRecentAutomaticNewsItem);
 };
 
 const collectFeedUrls = (document: any, baseUrl: string) => {
@@ -1072,12 +1328,16 @@ const collectInstagramItems = async (source: AutomaticNewsSourceRow) => {
 
 const collectSourceItems = (source: AutomaticNewsSourceRow) => {
   if (source.source_type === 'instagram') return collectInstagramItems(source);
+  if (isNigdeAnadoluSource(source)) return collectNigdeAnadoluItems(source);
   return collectWebsiteItems(source);
 };
 
 const collectSourceLatestItem = async (source: AutomaticNewsSourceRow) => {
   if (source.source_type === 'instagram') {
     return (await collectInstagramItems(source))[0] || null;
+  }
+  if (isNigdeAnadoluSource(source)) {
+    return (await collectNigdeAnadoluItems(source))[0] || null;
   }
   return collectWebsiteLatestItem(source);
 };
@@ -1228,10 +1488,14 @@ const claimAutomaticNewsSources = async (options: {
   return result.rows;
 };
 
-const processSource = async (source: AutomaticNewsSourceRow): Promise<ProcessSourceResult> => {
+const processSource = async (
+  source: AutomaticNewsSourceRow,
+  options: ProcessSourceOptions = {},
+): Promise<ProcessSourceResult> => {
   const startedAt = Date.now();
   try {
-    const items = await collectSourceItems(source);
+    const collectedItems = await collectSourceItems(source);
+    const items = filterItemsByAutomationWindow(collectedItems, options.enabledAt);
     let insertedCount = 0;
     let skippedDuplicateCount = 0;
     for (const item of items) {
@@ -1246,9 +1510,9 @@ const processSource = async (source: AutomaticNewsSourceRow): Promise<ProcessSou
       sourceId: source.id,
       sourceName: source.display_name,
       sourceUrl: source.url,
-      candidatesFound: items.length,
+      candidatesFound: collectedItems.length,
       insertedCount,
-      skippedDuplicateCount,
+      skippedDuplicateCount: skippedDuplicateCount + (collectedItems.length - items.length),
       errorMessage: '',
     };
   } catch (error: any) {
@@ -1267,6 +1531,8 @@ const processSource = async (source: AutomaticNewsSourceRow): Promise<ProcessSou
 };
 
 const processQueueSourceMessage = async (body: AutomaticNewsQueueMessage) => {
+  const settings = await getAutomaticNewsAutomationSettings();
+  if (!settings.enabled) return null;
   const processingOwner = `queue-${crypto.randomUUID()}`;
   const claimed = await dbQuery<AutomaticNewsSourceRow>(
     `UPDATE public.automatic_news_sources
@@ -1282,7 +1548,7 @@ const processQueueSourceMessage = async (body: AutomaticNewsQueueMessage) => {
   );
   const source = claimed.rows[0];
   if (!source) return null;
-  return processSource(source);
+  return processSource(source, { enabledAt: settings.enabledAt || body.enabledAt || null });
 };
 
 const restoreQueueLeaseForRetry = async (body: AutomaticNewsQueueMessage) => {
@@ -1355,6 +1621,19 @@ const mapLimited = async <T, R>(items: T[], limit: number, worker: (item: T) => 
 };
 
 export async function runAutomaticNewsRefresh(options: RefreshOptions = {}) {
+  const automationSettings = await getAutomaticNewsAutomationSettings();
+  if (!automationSettings.enabled) {
+    return {
+      runId: '',
+      status: 'disabled',
+      checkedSources: 0,
+      candidatesFound: 0,
+      insertedCount: 0,
+      skippedDuplicateCount: 0,
+      errorCount: 0,
+      errors: [],
+    };
+  }
   const runType = options.runType || 'manual';
   const runResult = await dbQuery<{ id: string }>(
     `INSERT INTO public.automatic_news_runs (run_type, status)
@@ -1372,7 +1651,9 @@ export async function runAutomaticNewsRefresh(options: RefreshOptions = {}) {
       leaseOwner: `manual-${runId || crypto.randomUUID()}`,
     });
 
-    const sourceResults = await mapLimited(sources, DEFAULT_SOURCE_CONCURRENCY, processSource);
+    const sourceResults = await mapLimited(sources, DEFAULT_SOURCE_CONCURRENCY, (source) =>
+      processSource(source, { enabledAt: automationSettings.enabledAt })
+    );
     const totals = sourceResults.reduce(
       (sum, item) => ({
         checkedSources: sum.checkedSources + 1,
@@ -1450,6 +1731,20 @@ export async function dispatchAutomaticNewsDueSources(options: {
   runType?: 'cron' | 'manual';
   limit?: number;
 } = {}) {
+  const automationSettings = await getAutomaticNewsAutomationSettings();
+  if (!automationSettings.enabled) {
+    return {
+      runId: '',
+      status: 'disabled',
+      checkedSources: 0,
+      candidatesFound: 0,
+      insertedCount: 0,
+      skippedDuplicateCount: 0,
+      errorCount: 0,
+      errors: [],
+      queuedCount: 0,
+    };
+  }
   const runType = options.runType || 'cron';
   const runResult = await dbQuery<{ id: string }>(
     `INSERT INTO public.automatic_news_runs (run_type, status)
@@ -1476,6 +1771,7 @@ export async function dispatchAutomaticNewsDueSources(options: {
               scheduledAt: new Date().toISOString(),
               traceId: crypto.randomUUID(),
               leaseOwner,
+              enabledAt: automationSettings.enabledAt,
               runId,
             },
             contentType: 'json' as const,
@@ -1512,7 +1808,9 @@ export async function dispatchAutomaticNewsDueSources(options: {
       };
     }
 
-    const sourceResults = await mapLimited(sources, DEFAULT_SOURCE_CONCURRENCY, processSource);
+    const sourceResults = await mapLimited(sources, DEFAULT_SOURCE_CONCURRENCY, (source) =>
+      processSource(source, { enabledAt: automationSettings.enabledAt })
+    );
     const totals = sourceResults.reduce(
       (sum, item) => ({
         checkedSources: sum.checkedSources + 1,

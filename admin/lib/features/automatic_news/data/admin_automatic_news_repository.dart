@@ -221,6 +221,26 @@ class AutomaticNewsRefreshResult {
   final List<AutomaticNewsSourcePreview> previews;
 }
 
+class AutomaticNewsAutomationSettings {
+  const AutomaticNewsAutomationSettings({
+    required this.enabled,
+    required this.enabledAt,
+    required this.updatedAt,
+  });
+
+  factory AutomaticNewsAutomationSettings.fromJson(Map<String, Object?> json) {
+    return AutomaticNewsAutomationSettings(
+      enabled: json['enabled'] == true,
+      enabledAt: _parseDate(json['enabledAt']),
+      updatedAt: _parseDate(json['updatedAt']),
+    );
+  }
+
+  final bool enabled;
+  final DateTime? enabledAt;
+  final DateTime? updatedAt;
+}
+
 class AutomaticNewsRefreshError {
   const AutomaticNewsRefreshError({
     required this.sourceId,
@@ -287,6 +307,10 @@ abstract class AdminAutomaticNewsRepository {
   });
 
   Future<List<AutomaticNewsSource>> fetchSources();
+
+  Future<AutomaticNewsAutomationSettings> fetchAutomationSettings();
+
+  Future<AutomaticNewsAutomationSettings> setAutomationEnabled(bool enabled);
 
   Future<List<AutomaticNewsSource>> addSources(List<String> urls);
 
@@ -373,6 +397,40 @@ class SupabaseAdminAutomaticNewsRepository
       for (final row in data)
         if (row is Map) AutomaticNewsSource.fromJson(_asStringKeyMap(row)),
     ];
+  }
+
+  @override
+  Future<AutomaticNewsAutomationSettings> fetchAutomationSettings() async {
+    final result = await withAdminRetry(
+      () => _getJson(_resolveUri('/api/admin/automatic-news/settings')),
+    );
+    _throwIfApiError(result, fallbackMessage: 'Otomasyon durumu alınamadı');
+    final data = result['data'];
+    return data is Map
+        ? AutomaticNewsAutomationSettings.fromJson(_asStringKeyMap(data))
+        : const AutomaticNewsAutomationSettings(
+            enabled: false,
+            enabledAt: null,
+            updatedAt: null,
+          );
+  }
+
+  @override
+  Future<AutomaticNewsAutomationSettings> setAutomationEnabled(
+    bool enabled,
+  ) async {
+    final result = await _postJson('/api/admin/automatic-news/settings', {
+      'enabled': enabled,
+    });
+    _throwIfApiError(result, fallbackMessage: 'Otomasyon durumu kaydedilemedi');
+    final data = result['data'];
+    return data is Map
+        ? AutomaticNewsAutomationSettings.fromJson(_asStringKeyMap(data))
+        : AutomaticNewsAutomationSettings(
+            enabled: enabled,
+            enabledAt: null,
+            updatedAt: null,
+          );
   }
 
   @override
