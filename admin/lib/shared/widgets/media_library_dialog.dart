@@ -328,10 +328,9 @@ class _MediaLibraryDialogState extends State<_MediaLibraryDialog> {
     if (mounted) await _enforceSeoRename(uploaded);
   }
 
-  // After upload, files whose name is machine-generated/meaningless must be
-  // given an SEO-friendly name before the library can be used. Each such file
-  // opens a blocking modal in turn; the modal only closes once a valid name has
-  // been committed (across remote + local + DB by the rename pipeline).
+  // After upload, files whose name is machine-generated/meaningless can be
+  // renamed with the SEO pipeline. Skipping the modal leaves the uploaded file
+  // selected and available with its original name.
   Future<void> _enforceSeoRename(List<MediaItem> uploaded) async {
     for (final uploadedFile in uploaded) {
       if (!mounted) break;
@@ -3173,7 +3172,6 @@ class _MandatorySeoRenameModalState extends State<_MandatorySeoRenameModal> {
   void initState() {
     super.initState();
     _nameCtrl = TextEditingController();
-    unawaited(_fetchSuggestion());
   }
 
   @override
@@ -3282,6 +3280,11 @@ class _MandatorySeoRenameModalState extends State<_MandatorySeoRenameModal> {
     }
   }
 
+  void _close() {
+    if (_saving) return;
+    Navigator.of(context).pop();
+  }
+
   @override
   Widget build(BuildContext context) {
     final isImage = widget.file.type == 'image';
@@ -3289,7 +3292,7 @@ class _MandatorySeoRenameModalState extends State<_MandatorySeoRenameModal> {
     final busy = _saving || _suggesting;
 
     return PopScope(
-      canPop: false,
+      canPop: !_saving,
       child: Center(
         child: Material(
           color: Colors.transparent,
@@ -3337,6 +3340,11 @@ class _MandatorySeoRenameModalState extends State<_MandatorySeoRenameModal> {
                           letterSpacing: 0.3,
                         ),
                       ),
+                    ),
+                    _HoverIconButton(
+                      icon: Symbols.close_rounded,
+                      onTap: _close,
+                      size: 30,
                     ),
                   ],
                 ),
@@ -3464,6 +3472,11 @@ class _MandatorySeoRenameModalState extends State<_MandatorySeoRenameModal> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
+                    _SecondaryButton(
+                      label: context.t('media.close'),
+                      onTap: _close,
+                    ),
+                    const SizedBox(width: 10),
                     _PrimaryButton(
                       enabled: !busy,
                       color: AppColors.warmHorizon,
