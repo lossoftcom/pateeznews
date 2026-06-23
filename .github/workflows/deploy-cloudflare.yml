@@ -52,5 +52,28 @@ jobs:
       - name: Build Astro and Flutter admin web
         run: npm run build:cloudflare
 
+      - name: Ensure Cloudflare Queues
+        run: |
+          set -euo pipefail
+
+          ensure_queue() {
+            local queue_name="$1"
+            if npx wrangler queues create "$queue_name"; then
+              echo "Created queue: $queue_name"
+              return 0
+            fi
+
+            if npx wrangler queues list | grep -q "$queue_name"; then
+              echo "Queue already exists: $queue_name"
+              return 0
+            fi
+
+            echo "Queue could not be created or verified: $queue_name" >&2
+            return 1
+          }
+
+          ensure_queue "pateeznews-automatic-news"
+          ensure_queue "pateeznews-automatic-news-dlq"
+
       - name: Deploy to Cloudflare Workers
         run: npx wrangler deploy --keep-vars --route "pateez.com/*" --route "www.pateez.com/*"
