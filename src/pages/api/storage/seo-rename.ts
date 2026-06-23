@@ -641,6 +641,17 @@ const buildRemoteReplacements = (type: StorageType, oldId: string, newId: string
     return [main, ...thumbs];
 };
 
+const localBackupStatus = (
+    required: boolean,
+    localFileFound: boolean,
+    renamedCount: number,
+) => {
+    if (!required) return 'disabled';
+    if (localFileFound && renamedCount > 0) return 'verified';
+    if (localFileFound) return 'unchanged';
+    return 'index-updated-missing-file';
+};
+
 export const POST: APIRoute = async ({ request }) => {
     try {
         const body = await request.json().catch(() => ({}));
@@ -657,7 +668,7 @@ export const POST: APIRoute = async ({ request }) => {
         }
 
         // A local file (dev / local backup) is optional. On Cloudflare Workers and
-        // remote-only setups there is no filesystem, so it is never required —
+        // remote-only setups there is no filesystem, so it is never required;
         // the remote bucket is the source of truth.
         const baseDir = path.resolve(LOCAL_UPLOAD_ROOT, ref.type);
         let candidateId: string | null = null;
@@ -748,21 +759,6 @@ export const POST: APIRoute = async ({ request }) => {
             const exists = await remoteObjectExists(settings, ref.type, effectiveId);
             if (!exists) return json({ error: 'File not found' }, 404);
             const requireLocalBackup = localBackupEnabled(settings);
-            if (requireLocalBackup && !candidateId) {
-                return json({
-                    error: 'Local backup file not found while local backup is enabled',
-                    generationMode,
-                    modelUsed,
-                    usedVision,
-                    fallbackReason,
-                    storage: {
-                        remoteCopy: 'not-started',
-                        remoteDelete: 'not-started',
-                        localBackup: 'missing',
-                        database: 'not-started',
-                    },
-                }, 409);
-            }
 
             const ext = path.posix.extname(currentName) || (ref.type === 'video' ? '.mp4' : ref.type === 'audio' ? '.mp3' : ref.type === 'file' ? '' : '.webp');
             const driveFileName = `${requestedBase}${ext}`;
@@ -804,7 +800,7 @@ export const POST: APIRoute = async ({ request }) => {
                 storage: {
                     remoteCopy: 'metadata-updated',
                     remoteDelete: 'not-needed',
-                    localBackup: requireLocalBackup ? 'verified' : 'disabled',
+                    localBackup: localBackupStatus(requireLocalBackup, Boolean(candidateId), localBackupRenamed),
                     database: 'committed',
                 },
                 remoteError: '',
@@ -816,21 +812,6 @@ export const POST: APIRoute = async ({ request }) => {
             const exists = await remoteObjectExists(settings, ref.type, effectiveId);
             if (!exists) return json({ error: 'File not found' }, 404);
             const requireLocalBackup = localBackupEnabled(settings);
-            if (requireLocalBackup && !candidateId) {
-                return json({
-                    error: 'Local backup file not found while local backup is enabled',
-                    generationMode,
-                    modelUsed,
-                    usedVision,
-                    fallbackReason,
-                    storage: {
-                        remoteCopy: 'not-started',
-                        remoteDelete: 'not-started',
-                        localBackup: 'missing',
-                        database: 'not-started',
-                    },
-                }, 409);
-            }
 
             const ext = path.posix.extname(effectiveId) || (ref.type === 'video' ? '.mp4' : '.webp');
             const dir = path.posix.dirname(effectiveId);
@@ -854,7 +835,7 @@ export const POST: APIRoute = async ({ request }) => {
                     storage: {
                         remoteCopy: 'unchanged',
                         remoteDelete: 'not-needed',
-                        localBackup: requireLocalBackup ? 'unchanged' : 'disabled',
+                        localBackup: localBackupStatus(requireLocalBackup, Boolean(candidateId), 0),
                         database: 'not-needed',
                     },
                 });
@@ -933,7 +914,7 @@ export const POST: APIRoute = async ({ request }) => {
                 storage: {
                     remoteCopy: 'verified',
                     remoteDelete: remoteCleanup.errors.length ? 'pending-cleanup' : 'deleted',
-                    localBackup: requireLocalBackup ? 'verified' : 'disabled',
+                    localBackup: localBackupStatus(requireLocalBackup, Boolean(candidateId), localBackupRenamed),
                     database: 'committed',
                 },
                 remoteError: remoteCleanup.errors.join('; '),
