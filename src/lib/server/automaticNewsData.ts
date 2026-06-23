@@ -13,6 +13,7 @@ const SOURCE_LEASE_SECONDS = 150;
 const DISPATCH_BATCH_SIZE = 25;
 const DEFAULT_SOURCE_CONCURRENCY = 8;
 const INSTAGRAM_WEB_APP_ID = '936619743392459';
+const INSTAGRAM_BROWSER_USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36';
 const USER_AGENT = 'Pateez-AutomaticNews/1.0 (+https://www.pateez.com)';
 const RECENT_CONTENT_TIME_ZONE = 'Europe/Istanbul';
 const AUTOMATIC_NEWS_SETTINGS_KEY = 'automatic_news.automation';
@@ -1281,21 +1282,81 @@ const collectInstagramMediaImages = (node: any) => {
   return images.slice(0, 12);
 };
 
+const instagramProfileInfoUrl = (username: string) =>
+  `https://www.instagram.com/api/v1/users/web_profile_info/?username=${encodeURIComponent(username)}`;
+
+const instagramRequestHeaders = (username: string, cookie = '') => {
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    Referer: `https://www.instagram.com/${username}/`,
+    'User-Agent': INSTAGRAM_BROWSER_USER_AGENT,
+    'x-asbd-id': '129477',
+    'x-ig-app-id': INSTAGRAM_WEB_APP_ID,
+    'x-ig-www-claim': '0',
+  };
+  if (cookie) {
+    headers.Cookie = cookie;
+    const csrf = /(?:^|;\s*)csrftoken=([^;]+)/.exec(cookie)?.[1];
+    if (csrf) headers['x-csrftoken'] = csrf;
+  }
+  return headers;
+};
+
+const instagramCookieFromSetCookie = (value: string) => {
+  const cookies: string[] = [];
+  const seen = new Set<string>();
+  const pattern = /(?:^|,\s*)((?:csrftoken|mid|ig_did|datr)=([^;,]+))/gi;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(value))) {
+    const pair = match[1];
+    const name = pair.split('=')[0].toLowerCase();
+    if (!seen.has(name)) {
+      seen.add(name);
+      cookies.push(pair);
+    }
+  }
+  return cookies.join('; ');
+};
+
+const instagramSessionCookie = async (username: string) => {
+  const response = await fetch(`https://www.instagram.com/${username}/`, {
+    signal: AbortSignal.timeout(SOURCE_FETCH_TIMEOUT_MS),
+    headers: {
+      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'User-Agent': INSTAGRAM_BROWSER_USER_AGENT,
+    },
+  });
+  if (!response.ok) return '';
+  const cookie = instagramCookieFromSetCookie(response.headers.get('set-cookie') || '');
+  await response.body?.cancel().catch(() => undefined);
+  return cookie;
+};
+
+const fetchInstagramProfileInfo = async (username: string) => {
+  const url = instagramProfileInfoUrl(username);
+  let response = await fetch(url, {
+    signal: AbortSignal.timeout(SOURCE_FETCH_TIMEOUT_MS),
+    headers: instagramRequestHeaders(username),
+  });
+
+  if (response.status === 401 || response.status === 403) {
+    await response.body?.cancel().catch(() => undefined);
+    const cookie = await instagramSessionCookie(username);
+    if (cookie) {
+      response = await fetch(url, {
+        signal: AbortSignal.timeout(SOURCE_FETCH_TIMEOUT_MS),
+        headers: instagramRequestHeaders(username, cookie),
+      });
+    }
+  }
+
+  return response;
+};
+
 const collectInstagramItems = async (source: AutomaticNewsSourceRow) => {
   const username = instagramUsernameFromUrl(source.url);
   if (!username) return [];
-  const response = await fetch(
-    `https://www.instagram.com/api/v1/users/web_profile_info/?username=${encodeURIComponent(username)}`,
-    {
-      signal: AbortSignal.timeout(SOURCE_FETCH_TIMEOUT_MS),
-      headers: {
-        Accept: 'application/json',
-        Referer: `https://www.instagram.com/${username}/`,
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36',
-        'x-ig-app-id': INSTAGRAM_WEB_APP_ID,
-      },
-    },
-  );
+  const response = await fetchInstagramProfileInfo(username);
   if (!response.ok) throw new Error(`Instagram ${username} HTTP ${response.status}`);
   const data = await readJsonLimited(response);
   const edges: any[] = Array.isArray(data?.data?.user?.edge_owner_to_timeline_media?.edges)

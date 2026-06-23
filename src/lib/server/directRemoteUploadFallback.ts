@@ -5,6 +5,20 @@ import { uploadRemoteStorageFile } from './remoteObjectStorage';
 import { recordStorageMediaFile, type StorageSettings } from './storageSettings';
 
 type UploadInput = Pick<File, 'name' | 'type' | 'arrayBuffer'>;
+type ImageOutputFormat = 'webp' | 'jpeg' | 'png';
+
+const OPTIMIZED_IMAGE_STORAGE_TYPES = new Set<StorageType>(['image', 'profile']);
+const IMAGE_EXTENSIONS = new Set([
+  '.jpg',
+  '.jpeg',
+  '.png',
+  '.webp',
+  '.gif',
+  '.avif',
+  '.tif',
+  '.tiff',
+  '.svg',
+]);
 
 function extensionForContentType(contentType: string) {
   const normalized = contentType.toLowerCase().split(';')[0].trim();
@@ -72,6 +86,88 @@ function contentTypeForUpload(id: string, contentType: string) {
   return normalized;
 }
 
+function normalizeImageOutputFormat(value: string): ImageOutputFormat {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'jpg' || normalized === 'jpeg') return 'jpeg';
+  if (normalized === 'png') return 'png';
+  return 'webp';
+}
+
+function extensionForImageOutputFormat(format: ImageOutputFormat) {
+  return format === 'jpeg' ? 'jpg' : format;
+}
+
+function contentTypeForImageOutputFormat(format: ImageOutputFormat) {
+  if (format === 'jpeg') return 'image/jpeg';
+  if (format === 'png') return 'image/png';
+  return 'image/webp';
+}
+
+function withImageOutputExtension(id: string, format: ImageOutputFormat) {
+  const parsed = path.posix.parse(normalizeStoragePath(id));
+  const fileName = `${parsed.name}.${extensionForImageOutputFormat(format)}`;
+  return normalizeStoragePath(
+    parsed.dir ? `${parsed.dir}/${fileName}` : fileName,
+  );
+}
+
+function shouldOptimizeImage(type: StorageType, id: string, contentType: string) {
+  return OPTIMIZED_IMAGE_STORAGE_TYPES.has(type) &&
+    (
+      String(contentType || '').startsWith('image/') ||
+      IMAGE_EXTENSIONS.has(path.posix.extname(id).toLowerCase())
+    );
+}
+
+async function optimizeImageForRemoteFallback(
+  input: ArrayBuffer | Uint8Array,
+  outputFormat: ImageOutputFormat,
+) {
+  const { default: sharp } = await import('sharp');
+  const image = sharp(input, { animated: true });
+  const metadata = await image.metadata();
+  const preset = metadata.hasAlpha ? 'picture' : 'photo';
+  const pipeline = sharp(input, { animated: Boolean(metadata.pages && metadata.pages > 1) })
+    .rotate()
+    .resize({
+      width: 7680,
+      height: 7680,
+      fit: 'inside',
+      withoutEnlargement: true,
+      kernel: 'lanczos3',
+    });
+
+  if (outputFormat === 'jpeg') {
+    return pipeline
+      .flatten({ background: '#ffffff' })
+      .jpeg({
+        quality: 92,
+        mozjpeg: true,
+      })
+      .toBuffer();
+  }
+
+  if (outputFormat === 'png') {
+    return pipeline
+      .png({
+        compressionLevel: 9,
+        adaptiveFiltering: true,
+      })
+      .toBuffer();
+  }
+
+  return pipeline
+    .webp({
+      quality: 92,
+      alphaQuality: 95,
+      effort: 6,
+      smartSubsample: true,
+      smartDeblock: true,
+      preset,
+    })
+    .toBuffer();
+}
+
 function remoteId(file: UploadInput, formData: FormData) {
   const replaceId = normalizeStoragePath(field(formData, 'replaceId'));
   if (replaceId) return replaceId;
@@ -103,9 +199,17 @@ export async function uploadOriginalFileDirectlyToRemoteStorage({
   type: StorageType;
   formData: FormData;
 }) {
-  const id = remoteId(file, formData);
-  const body = await file.arrayBuffer();
-  const contentType = contentTypeForUpload(id, file.type || contentTypeForFilename(file.name));
+  let id = remoteId(file, formData);
+  let body: ArrayBuffer | Uint8Array = await file.arrayBuffer();
+  let contentType = contentTypeForUpload(id, file.type || contentTypeForFilename(file.name));
+
+  if (shouldOptimizeImage(type, id, contentType)) {
+    const outputFormat = normalizeImageOutputFormat(field(formData, 'imageOutputFormat'));
+    body = await optimizeImageForRemoteFallback(body, outputFormat);
+    id = withImageOutputExtension(id, outputFormat);
+    contentType = contentTypeForImageOutputFormat(outputFormat);
+  }
+
   const result = await uploadRemoteStorageFile(storageSettings, {
     type,
     id,
