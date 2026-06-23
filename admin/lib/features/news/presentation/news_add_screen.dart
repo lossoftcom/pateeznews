@@ -9402,7 +9402,7 @@ class _MansetImageRules extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           _MansetImageRuleRow(
-            icon: Symbols.photo_size_select_actual_outlined,
+            icon: Symbols.image_outlined,
             textKey: 'newsAdd.mansetImageRuleSquare',
           ),
           const SizedBox(height: 10),

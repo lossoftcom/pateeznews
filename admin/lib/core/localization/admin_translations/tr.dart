@@ -3098,26 +3098,26 @@ const Map<String, String> adminTrTranslations = <String, String>{
   "newsAdd.manset": "Manşet Slider",
   "newsAdd.mansetImageTitle": "Manşet Slider Görseli",
   "newsAdd.mansetImageSubtitle":
-      "Ana sayfa sliderında kullanılacak kare görsel",
+      "Ana sayfa sliderında kullanılacak görsel",
   "newsAdd.mansetImageHelp":
-      "Manşet Slider yalnızca kare (1:1) bir görsel seçildiğinde aktif edilir. Görsel eklenmeden switch açık kalmaz.",
+      "Manşet Slider yatay, dikey veya kare bir görsel seçildiğinde aktif edilir. Görsel eklenmeden switch açık kalmaz.",
   "newsAdd.mansetImagePickLabel": "Manşet Görseli",
   "newsAdd.mansetImageRulesTitle": "Görsel kuralları",
   "newsAdd.mansetImageRuleSquare":
-      "Seçilen görsel kare olmalıdır. Kare olmayan dosyalarda sistem uyarı verir ve seçim kabul edilmez.",
+      "Yatay, dikey ve kare tüm görseller kabul edilir. Görsel oranı korunarak manşet alanında kullanılır.",
   "newsAdd.mansetImageRuleRequired":
       "Görsel seçilmeden Manşet Slider switch'i aktif edilemez.",
   "newsAdd.mansetImageRuleSeparate":
       "Bu görsel haber kapağından ayrı saklanır ve manşet slider alanında kullanılır.",
-  "newsAdd.mansetImageEmptyBadge": "Henüz kare manşet görseli seçilmedi",
+  "newsAdd.mansetImageEmptyBadge": "Henüz manşet görseli seçilmedi",
   "newsAdd.mansetImageExistingBadge": "Kayıtlı manşet görseli seçili",
-  "newsAdd.mansetImageSizeBadge": "Kare doğrulandı: {width} x {height} px",
+  "newsAdd.mansetImageSizeBadge": "Görsel doğrulandı: {width} x {height} px",
   "newsAdd.mansetImageRequiredError":
-      "Manşet Slider için kare bir manşet görseli seçmelisiniz.",
+      "Manşet Slider için bir manşet görseli seçmelisiniz.",
   "newsAdd.mansetImageLoadError":
       "Görsel boyutu okunamadı. Lütfen farklı bir görsel seçin.",
   "newsAdd.mansetImageSquareError":
-      "Manşet görseli kare olmalıdır. Seçilen görsel: {width} x {height} px.",
+      "Manşet görseli okunamadı. Seçilen görsel: {width} x {height} px.",
   "newsAdd.pin": "Başa Tuttur",
   "newsAdd.ai": "Yapay Zeka İle Üret",
   "newsAdd.aiMediaSeo": "AI Medya SEO",

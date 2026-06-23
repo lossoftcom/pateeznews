@@ -3121,26 +3121,26 @@ const Map<String, String> adminEnTranslations = <String, String>{
   "newsAdd.manset": "Headline Slider",
   "newsAdd.mansetImageTitle": "Headline Slider Image",
   "newsAdd.mansetImageSubtitle":
-      "Square visual used in the home headline slider",
+      "Visual used in the home headline slider",
   "newsAdd.mansetImageHelp":
-      "Headline Slider is enabled only after a square (1:1) image is selected. The switch will not stay active without an image.",
+      "Headline Slider is enabled after a landscape, portrait, or square image is selected. The switch will not stay active without an image.",
   "newsAdd.mansetImagePickLabel": "Headline Image",
   "newsAdd.mansetImageRulesTitle": "Image rules",
   "newsAdd.mansetImageRuleSquare":
-      "The selected image must be square. Non-square files trigger a warning and are not accepted.",
+      "Landscape, portrait, and square images are accepted. The image ratio is preserved in the headline area.",
   "newsAdd.mansetImageRuleRequired":
       "The Headline Slider switch cannot be enabled before choosing an image.",
   "newsAdd.mansetImageRuleSeparate":
       "This image is stored separately from the news cover and is used in the headline slider.",
-  "newsAdd.mansetImageEmptyBadge": "No square headline image selected yet",
+  "newsAdd.mansetImageEmptyBadge": "No headline image selected yet",
   "newsAdd.mansetImageExistingBadge": "Saved headline image selected",
-  "newsAdd.mansetImageSizeBadge": "Square verified: {width} x {height} px",
+  "newsAdd.mansetImageSizeBadge": "Image verified: {width} x {height} px",
   "newsAdd.mansetImageRequiredError":
-      "Choose a square headline image for Headline Slider.",
+      "Choose a headline image for Headline Slider.",
   "newsAdd.mansetImageLoadError":
       "Image dimensions could not be read. Please choose another image.",
   "newsAdd.mansetImageSquareError":
-      "Headline image must be square. Selected image: {width} x {height} px.",
+      "Headline image could not be accepted. Selected image: {width} x {height} px.",
   "newsAdd.pin": "Pin to Top",
   "newsAdd.ai": "Generate with AI",
   "newsAdd.aiMediaSeo": "AI Media SEO",
