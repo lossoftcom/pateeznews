@@ -58,6 +58,7 @@ interface AutomaticNewsSourceRow {
 
 type DateConfidence = 'source' | 'fallback' | 'unknown';
 type DuplicateState = 'none' | 'exact' | 'possible';
+type AdvertisementRiskLevel = 'none' | 'suspected' | 'definite';
 
 interface AutomaticNewsItemInput {
   source: AutomaticNewsSourceRow;
@@ -105,6 +106,12 @@ interface DuplicateMatch {
   matchTitle: string;
   matchUrl: string;
   reason: string;
+}
+
+interface AdvertisementCheck {
+  level: AdvertisementRiskLevel;
+  score: number;
+  reasons: string[];
 }
 
 interface WebsiteCandidate {
@@ -899,6 +906,119 @@ const qualityForText = (title: string, summary: string, body: string, sourceType
   return Math.max(0, Math.min(100, score));
 };
 
+const emptyAdvertisementCheck = (): AdvertisementCheck => ({
+  level: 'none',
+  score: 0,
+  reasons: [],
+});
+
+const matchesAnyPattern = (value: string, patterns: RegExp[]) =>
+  patterns.some((pattern) => pattern.test(value));
+
+const advertisementEvidenceText = (item: AutomaticNewsItemInput) =>
+  trLower(`${item.title} ${item.summary} ${item.contentText}`);
+
+const advertisementNewsEvidencePatterns = [
+  /\b(kaza|yaralı|yarali|vefat|operasyon|gözaltı|gozalti|tutuklama|yangın|yangin|deprem|mahkeme|dava|polis|jandarma|belediye|valilik|kaymakam|emniyet|hastane|sağlık|saglik|okul|üniversite|universite|sınav|sinav|trafik|bakan|açıklama|aciklama|kaçakçılık|kacakcilik)\b/u,
+  /\b(başsavcı|bassavci|kurum|ziyaret|veda|ceza\s+yazıldı|ceza\s+yazildi|yakalandı|yakalandi|araması|aramasi)\b/u,
+];
+
+const advertisementPricePatterns = [
+  /(?:\d[\d.,]{1,8}\s*(?:tl|₺|try|lira)|kişi\s+başı|kisi\s+basi|%\s?\d{1,3}\s*indirim)/u,
+];
+
+const advertisementCallToActionPatterns = [
+  /(?:detaylar?|bilgi|rezervasyon|iletişim|iletisim|kayıt|kayit)\s+için/u,
+  /\b(whatsapp|dm(?:'|’)?den|sipariş|siparis|satın\s+al|satin\s+al|yerinizi\s+ayır|yerinizi\s+ayir|kontenjan|link\s+bio|bize\s+ulaş|bize\s+ulas|arayın|arayin|irtibat)\b/u,
+];
+
+const advertisementTravelPatterns = [
+  /\b(günübirlik|gunubirlik|tur\s+tarihi|tur\s+programı|tur\s+programi|gezi\s+turu|kültür\s+turu|kultur\s+turu|konaklamalı|konaklamali|transfer\s+dahil|safranbolu|amasra|kapadokya)\b/u,
+];
+
+const advertisementCommercialPatterns = [
+  /\b(kampanya|indirim|fırsat|firsat|promosyon|çekiliş|cekilis|satılık|satilik|kiralık|kiralik|rezervasyon|sipariş|siparis|menü|menu|tarife|fiyat|katalog|sponsorlu|reklam|tanıtım|tanitim)\b/u,
+];
+
+const advertisementMarketingPatterns = [
+  /\b(sizleri\s+bekliyoruz|kaçırmayın|kacirmayin|özel\s+fiyat|ozel\s+fiyat|erken\s+kayıt|erken\s+kayit|son\s+kontenjan|yerinizi\s+ayırtın|yerinizi\s+ayirtin)\b/u,
+];
+
+const advertisementPhonePatterns = [
+  /(?:\+?90\s*)?(?:0\s*)?5\d{2}[\s.-]?\d{3}[\s.-]?\d{2}[\s.-]?\d{2}/u,
+];
+
+const advertisementExternalMentionCtaPatterns = [
+  /(?:detaylar?|bilgi|rezervasyon|iletişim|iletisim|kayıt|kayit)\s+için\s+@[a-z0-9_.]+/u,
+];
+
+const advertisementCheckForItem = (item: AutomaticNewsItemInput): AdvertisementCheck => {
+  if (item.source.source_type !== 'instagram') return emptyAdvertisementCheck();
+
+  const text = advertisementEvidenceText(item);
+  const reasons: string[] = [];
+  let score = 0;
+
+  const hasNewsEvidence = matchesAnyPattern(text, advertisementNewsEvidencePatterns);
+  const hasPrice = matchesAnyPattern(text, advertisementPricePatterns);
+  const hasCallToAction = matchesAnyPattern(text, advertisementCallToActionPatterns);
+  const hasTravelOffer = matchesAnyPattern(text, advertisementTravelPatterns);
+  const hasCommercialOffer = matchesAnyPattern(text, advertisementCommercialPatterns);
+  const hasMarketingLanguage = matchesAnyPattern(text, advertisementMarketingPatterns);
+  const hasPhone = matchesAnyPattern(text, advertisementPhonePatterns);
+  const hasExternalMentionCta = matchesAnyPattern(text, advertisementExternalMentionCtaPatterns);
+
+  if (hasPrice) {
+    score += 34;
+    reasons.push('fiyat veya ücret ifadesi');
+  }
+  if (hasCallToAction) {
+    score += 28;
+    reasons.push('ticari çağrı ifadesi');
+  }
+  if (hasTravelOffer) {
+    score += 36;
+    reasons.push('tur/gezi teklifi');
+  }
+  if (hasCommercialOffer) {
+    score += 24;
+    reasons.push('ticari teklif kelimesi');
+  }
+  if (hasMarketingLanguage) {
+    score += 16;
+    reasons.push('pazarlama dili');
+  }
+  if (hasPhone) {
+    score += 20;
+    reasons.push('telefon/iletişim bilgisi');
+  }
+  if (hasExternalMentionCta) {
+    score += 24;
+    reasons.push('harici hesaba yönlendirme');
+  }
+  if (hasNewsEvidence) {
+    score -= 30;
+    reasons.push('haber bağlamı sinyali');
+  }
+
+  score = Math.max(0, Math.min(100, score));
+  const definite = !hasNewsEvidence && (
+    (hasTravelOffer && hasCallToAction) ||
+    (hasPrice && (hasCallToAction || hasCommercialOffer || hasTravelOffer)) ||
+    (hasExternalMentionCta && (hasTravelOffer || hasCommercialOffer || hasMarketingLanguage)) ||
+    (hasPhone && (hasCommercialOffer || hasCallToAction)) ||
+    score >= 72
+  );
+
+  if (definite) {
+    return { level: 'definite', score, reasons };
+  }
+  if (!hasNewsEvidence && score >= 48) {
+    return { level: 'suspected', score, reasons };
+  }
+  return emptyAdvertisementCheck();
+};
+
 const summaryFor = (summary: string, body: string, title: string) => {
   const clean = normalizeText(summary || firstSentence(body));
   if (!clean || trLower(clean) === trLower(title)) return '';
@@ -1554,6 +1674,7 @@ const collectInstagramItems = async (source: AutomaticNewsSourceRow) => {
     })
     .filter((item): item is AutomaticNewsItemInput => Boolean(item))
     .filter(isRecentAutomaticNewsItem)
+    .filter((item) => advertisementCheckForItem(item).level !== 'definite')
     .slice(0, MAX_CANDIDATES_PER_SOURCE);
 };
 
@@ -1874,22 +1995,36 @@ const checkAutomaticNewsDuplicate = async (
 };
 
 const insertAutomaticNewsItem = async (item: AutomaticNewsItemInput) => {
-  const canonicalUrlHash = item.canonicalUrl ? hash(item.canonicalUrl) : '';
-  const sourceUrlHash = item.sourceUrl ? hash(item.sourceUrl) : '';
-  const duplicateMatch = await checkAutomaticNewsDuplicate(item, canonicalUrlHash, sourceUrlHash);
-  if (duplicateMatch.state === 'exact') return false;
-  const finalItem = duplicateMatch.state === 'possible'
+  const advertisementCheck = advertisementCheckForItem(item);
+  if (advertisementCheck.level === 'definite') return false;
+
+  const advertisementProtectedItem = advertisementCheck.level === 'suspected'
     ? {
         ...item,
         status: 'İncele',
+        qualityScore: Math.min(item.qualityScore, 58),
         rawPayload: {
           ...(item.rawPayload || {}),
-          duplicateCheck: duplicateMatch,
+          advertisementCheck,
         },
       }
     : item;
-  const detectedAt = Date.parse(item.discoveredAt);
-  const publishedAt = item.publishedAt ? Date.parse(item.publishedAt) : NaN;
+  const canonicalUrlHash = advertisementProtectedItem.canonicalUrl ? hash(advertisementProtectedItem.canonicalUrl) : '';
+  const sourceUrlHash = advertisementProtectedItem.sourceUrl ? hash(advertisementProtectedItem.sourceUrl) : '';
+  const duplicateMatch = await checkAutomaticNewsDuplicate(advertisementProtectedItem, canonicalUrlHash, sourceUrlHash);
+  if (duplicateMatch.state === 'exact') return false;
+  const finalItem = duplicateMatch.state === 'possible'
+    ? {
+        ...advertisementProtectedItem,
+        status: 'İncele',
+        rawPayload: {
+          ...(advertisementProtectedItem.rawPayload || {}),
+          duplicateCheck: duplicateMatch,
+        },
+      }
+    : advertisementProtectedItem;
+  const detectedAt = Date.parse(finalItem.discoveredAt);
+  const publishedAt = finalItem.publishedAt ? Date.parse(finalItem.publishedAt) : NaN;
   const detectionLatencySeconds = Number.isFinite(detectedAt) && Number.isFinite(publishedAt)
     ? Math.max(0, Math.floor((detectedAt - publishedAt) / 1000))
     : null;
