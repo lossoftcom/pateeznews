@@ -1,13 +1,14 @@
 import type { APIRoute } from 'astro';
-import { adminError, adminJson, requireAdminRequest } from '@/lib/server/adminAuth';
+import { adminError, adminJson, requireAnyAdminPermission } from '@/lib/server/adminAuth';
 import { adminSecurityHeaders } from '@/lib/server/securityHeaders';
 import { dbQuery } from '@/lib/server/supabaseDb';
 
 const USER_AGENT = 'Pateez-AutomaticNews/1.0 (+https://www.pateez.com)';
+const MAX_IMAGE_BYTES = 8_000_000;
 
 export const GET: APIRoute = async ({ request, url }) => {
   try {
-    await requireAdminRequest(request, 'view_settings');
+    await requireAnyAdminPermission(request, ['automatic_news_view', 'view_settings', 'settings_access']);
     const id = String(url.searchParams.get('id') || '').trim();
     const inline = String(url.searchParams.get('disposition') || '').trim() === 'inline';
     if (!id) {
@@ -28,6 +29,7 @@ export const GET: APIRoute = async ({ request, url }) => {
     }
 
     const targetUrl = resolveImageUrl(imageUrl, request.url);
+    assertSafeFetchUrl(targetUrl);
     const response = await fetch(targetUrl, {
       signal: AbortSignal.timeout(12000),
       headers: {
@@ -35,12 +37,16 @@ export const GET: APIRoute = async ({ request, url }) => {
         'User-Agent': USER_AGENT,
       },
     });
+    assertSafeFetchUrl(response.url || targetUrl);
     if (!response.ok) {
       throw Object.assign(new Error('Görsel indirilemedi'), { status: response.status });
     }
 
     const contentType = response.headers.get('content-type') || 'application/octet-stream';
-    const bytes = await response.arrayBuffer();
+    if (!/^image\//i.test(contentType)) {
+      throw Object.assign(new Error('Görsel yanıtı geçersiz'), { status: 415 });
+    }
+    const bytes = await readArrayBufferLimited(response, MAX_IMAGE_BYTES);
     const fileName = imageFileName(String(row.title || ''), Number(row.display_id || 0), contentType, targetUrl);
     return new Response(bytes, {
       status: 200,
@@ -71,6 +77,59 @@ function resolveImageUrl(imageUrl: string, requestUrl: string) {
     // Relative upload paths are resolved against the current admin origin.
   }
   return new URL(imageUrl, new URL(requestUrl).origin).toString();
+}
+
+function assertSafeFetchUrl(value: string) {
+  const parsed = new URL(value);
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw Object.assign(new Error('Geçersiz görsel adresi'), { status: 400 });
+  }
+  const host = parsed.hostname.toLowerCase().replace(/^\[(.*)]$/, '$1');
+  if (
+    host === 'localhost' ||
+    host.endsWith('.localhost') ||
+    host === 'metadata.google.internal' ||
+    host === '169.254.169.254' ||
+    /^0\./.test(host) ||
+    /^10\./.test(host) ||
+    /^127\./.test(host) ||
+    /^169\.254\./.test(host) ||
+    /^172\.(1[6-9]|2\d|3[0-1])\./.test(host) ||
+    /^192\.168\./.test(host) ||
+    host === '::1' ||
+    host.startsWith('fc') ||
+    host.startsWith('fd') ||
+    host.startsWith('fe80:')
+  ) {
+    throw Object.assign(new Error('Güvenli olmayan görsel adresi engellendi'), { status: 400 });
+  }
+}
+
+async function readArrayBufferLimited(response: Response, maxBytes: number) {
+  const contentLength = Number(response.headers.get('content-length') || 0);
+  if (contentLength > maxBytes) throw Object.assign(new Error('Görsel çok büyük'), { status: 413 });
+  if (!response.body) return new ArrayBuffer(0);
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => undefined);
+      throw Object.assign(new Error('Görsel çok büyük'), { status: 413 });
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes.buffer;
 }
 
 function imageFileName(title: string, displayId: number, contentType: string, imageUrl: string) {

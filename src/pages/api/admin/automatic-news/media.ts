@@ -1,15 +1,20 @@
 import type { APIRoute } from 'astro';
-import { adminError, adminJson, requireAdminRequest } from '@/lib/server/adminAuth';
+import { adminError, adminJson, requireAnyAdminPermission } from '@/lib/server/adminAuth';
 import { adminSecurityHeaders } from '@/lib/server/securityHeaders';
 import { dbQuery } from '@/lib/server/supabaseDb';
 
 const USER_AGENT = 'Pateez-AutomaticNewsMedia/1.0 (+https://www.pateez.com)';
 const IMAGE_RE = /\.(avif|webp|jpe?g|png|gif)(\?|$)/i;
+const VIDEO_RE = /\.(m3u8|mp4|mov|m4v|webm)(\?|$)/i;
+const MAX_PAGE_BYTES = 2_500_000;
+const MAX_IMAGE_BYTES = 8_000_000;
 
 type Row = {
   source_url: string | null;
   canonical_url: string | null;
   image_url: string | null;
+  video_url: string | null;
+  media_urls: unknown;
   raw_payload: unknown;
 };
 
@@ -43,6 +48,11 @@ function isUsefulImage(url: string, context = '') {
   return true;
 }
 
+function isUsefulVideo(url: string, context = '') {
+  if (!url) return false;
+  return VIDEO_RE.test(url) || /(video|reel|player|stream|cdninstagram|instagram\.com\/(?:p|reel)\b)/i.test(`${url} ${context}`);
+}
+
 function payloadImages(payload: unknown) {
   const images: string[] = [];
   const visit = (value: unknown, depth = 0) => {
@@ -67,8 +77,72 @@ function payloadImages(payload: unknown) {
   return images;
 }
 
+function payloadVideos(payload: unknown) {
+  const videos: string[] = [];
+  const visit = (value: unknown, depth = 0) => {
+    if (depth > 5 || value == null) return;
+    if (typeof value === 'string') {
+      if (/^https?:\/\//i.test(value) && isUsefulVideo(value)) addUnique(videos, value);
+      return;
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) visit(item, depth + 1);
+      return;
+    }
+    if (typeof value === 'object') {
+      for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+        if (/(video|player|stream|media|url|shortcode|reel)/i.test(key)) {
+          visit(item, depth + 1);
+        }
+      }
+    }
+  };
+  visit(payload);
+  return videos;
+}
+
+function payloadMediaUrls(payload: unknown, mediaUrls: unknown) {
+  const urls: string[] = [];
+  const visit = (value: unknown, depth = 0) => {
+    if (depth > 4 || value == null) return;
+    if (typeof value === 'string') {
+      if (/^https?:\/\//i.test(value)) addUnique(urls, value);
+      return;
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) visit(item, depth + 1);
+      return;
+    }
+    if (typeof value === 'object') {
+      for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+        if (/(image|photo|picture|media|display|thumbnail|carousel|sidecar|video|player|url)/i.test(key)) {
+          visit(item, depth + 1);
+        }
+      }
+    }
+  };
+  visit(mediaUrls);
+  visit(payload);
+  return urls;
+}
+
 function srcsetBest(srcset: string) {
   return clean(srcset).split(',').map((part) => part.trim()).filter(Boolean).pop()?.split(/\s+/)[0] || '';
+}
+
+function htmlVideos(html: string, baseUrl: string, primary: string) {
+  const videos: string[] = [];
+  addUnique(videos, absoluteUrl(baseUrl, primary));
+  for (const match of html.matchAll(/<meta[^>]+(?:property|name)=["'](?:og:video(?::secure_url|:url)?|twitter:player)["'][^>]+content=["']([^"']+)["'][^>]*>/gi)) {
+    addUnique(videos, absoluteUrl(baseUrl, match[1]));
+  }
+  for (const match of html.matchAll(/<(?:video|source|iframe)[^>]+>/gi)) {
+    const tag = match[0];
+    const src = tag.match(/\s(?:src|data-src)=["']([^"']+)["']/i)?.[1] || '';
+    const url = absoluteUrl(baseUrl, src);
+    if (isUsefulVideo(url, tag)) addUnique(videos, url);
+  }
+  return videos.slice(0, 12);
 }
 
 function htmlImages(html: string, baseUrl: string, primary: string) {
@@ -88,54 +162,130 @@ function htmlImages(html: string, baseUrl: string, primary: string) {
   return images.slice(0, 12);
 }
 
-async function fetchPageImages(pageUrl: string, primary: string) {
-  if (!pageUrl) return [];
+async function readTextLimited(response: Response) {
+  const contentLength = Number(response.headers.get('content-length') || 0);
+  if (contentLength > MAX_PAGE_BYTES) throw new Error('Sayfa yanıtı çok büyük');
+  if (!response.body) return '';
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+    total += value.byteLength;
+    if (total > MAX_PAGE_BYTES) {
+      await reader.cancel().catch(() => undefined);
+      throw new Error('Sayfa yanıtı çok büyük');
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder('utf-8').decode(bytes);
+}
+
+async function readArrayBufferLimited(response: Response, maxBytes: number) {
+  const contentLength = Number(response.headers.get('content-length') || 0);
+  if (contentLength > maxBytes) throw Object.assign(new Error('Görsel çok büyük'), { status: 413 });
+  if (!response.body) return new ArrayBuffer(0);
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => undefined);
+      throw Object.assign(new Error('Görsel çok büyük'), { status: 413 });
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes.buffer;
+}
+
+async function fetchPageMedia(pageUrl: string, primaryImage: string, primaryVideo: string) {
+  if (!pageUrl) return { images: [] as string[], videos: [] as string[] };
+  assertSafeFetchUrl(pageUrl);
   const response = await fetch(pageUrl, {
     signal: AbortSignal.timeout(5500),
     redirect: 'follow',
     headers: { Accept: 'text/html,application/xhtml+xml,*/*;q=0.8', 'User-Agent': USER_AGENT },
   });
-  if (!response.ok || !/text\/html|application\/xhtml/i.test(response.headers.get('content-type') || '')) return [];
-  return htmlImages(await response.text(), response.url || pageUrl, primary);
+  assertSafeFetchUrl(response.url || pageUrl);
+  if (!response.ok || !/text\/html|application\/xhtml/i.test(response.headers.get('content-type') || '')) {
+    return { images: [], videos: [] };
+  }
+  const html = await readTextLimited(response);
+  const baseUrl = response.url || pageUrl;
+  return {
+    images: htmlImages(html, baseUrl, primaryImage),
+    videos: htmlVideos(html, baseUrl, primaryVideo),
+  };
 }
 
-async function loadImages(id: string) {
+async function loadMedia(id: string) {
   const result = await dbQuery<Row>(
-    `SELECT source_url, canonical_url, image_url, raw_payload
+    `SELECT source_url, canonical_url, image_url, video_url, media_urls, raw_payload
        FROM public.automatic_news_items
       WHERE id = $1
       LIMIT 1`,
     [id],
   );
   const row = result.rows[0];
-  if (!row) return { images: [] as string[], row: null as Row | null };
+  if (!row) return { images: [] as string[], videos: [] as string[], mediaUrls: [] as string[], row: null as Row | null };
   const primary = clean(row.image_url);
+  const primaryVideo = clean(row.video_url);
   const pageUrl = clean(row.canonical_url || row.source_url);
   const images: string[] = [];
+  const videos: string[] = [];
+  const mediaUrls: string[] = [];
   for (const image of payloadImages(row.raw_payload)) addUnique(images, image);
+  for (const video of payloadVideos(row.raw_payload)) addUnique(videos, video);
+  for (const url of payloadMediaUrls(row.raw_payload, row.media_urls)) addUnique(mediaUrls, url);
   addUnique(images, primary);
-  for (const image of await fetchPageImages(pageUrl, primary).catch(() => [])) addUnique(images, image);
-  return { images: images.slice(0, 12), row };
+  addUnique(videos, primaryVideo);
+  for (const mediaUrl of [primary, primaryVideo]) addUnique(mediaUrls, mediaUrl);
+  const pageMedia = await fetchPageMedia(pageUrl, primary, primaryVideo).catch(() => ({ images: [], videos: [] }));
+  for (const image of pageMedia.images) addUnique(images, image);
+  for (const video of pageMedia.videos) addUnique(videos, video);
+  for (const image of images) addUnique(mediaUrls, image);
+  for (const video of videos) addUnique(mediaUrls, video);
+  return { images: images.slice(0, 12), videos: videos.slice(0, 12), mediaUrls: mediaUrls.slice(0, 20), row };
 }
 
 export const GET: APIRoute = async ({ request, url }) => {
   try {
-    await requireAdminRequest(request, 'view_settings');
+    await requireAnyAdminPermission(request, ['automatic_news_view', 'view_settings', 'settings_access']);
     const id = clean(url.searchParams.get('id'));
     if (!id) return adminJson({ data: { images: [] }, error: { message: 'Haber id gerekli' } }, 400);
-    const { images, row } = await loadImages(id);
+    const { images, videos, mediaUrls, row } = await loadMedia(id);
     if (!row) return adminJson({ data: { images: [] }, error: { message: 'Haber bulunamadı' } }, 404);
 
     const imageIndex = Number(url.searchParams.get('image'));
     if (Number.isInteger(imageIndex) && imageIndex >= 0) {
       const target = images[imageIndex];
       if (!target) return adminJson({ data: null, error: { message: 'Görsel bulunamadı' } }, 404);
+      assertSafeFetchUrl(target);
       const imageResponse = await fetch(target, {
         signal: AbortSignal.timeout(12000),
         headers: { Accept: 'image/*,*/*;q=0.8', 'User-Agent': USER_AGENT },
       });
+      assertSafeFetchUrl(imageResponse.url || target);
       if (!imageResponse.ok) throw Object.assign(new Error('Görsel alınamadı'), { status: imageResponse.status });
-      const bytes = await imageResponse.arrayBuffer();
+      const bytes = await readArrayBufferLimited(imageResponse, MAX_IMAGE_BYTES);
       return new Response(bytes, {
         status: 200,
         headers: {
@@ -147,8 +297,45 @@ export const GET: APIRoute = async ({ request, url }) => {
       });
     }
 
-    return adminJson({ data: { images, primaryImageUrl: clean(row.image_url), sourceUrl: row.source_url || '', canonicalUrl: row.canonical_url || '' }, error: null });
+    return adminJson({
+      data: {
+        images,
+        videos,
+        mediaUrls,
+        primaryImageUrl: clean(row.image_url),
+        primaryVideoUrl: clean(row.video_url),
+        sourceUrl: row.source_url || '',
+        canonicalUrl: row.canonical_url || '',
+      },
+      error: null,
+    });
   } catch (error) {
     return adminError(error);
   }
 };
+
+function assertSafeFetchUrl(value: string) {
+  const parsed = new URL(value);
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw Object.assign(new Error('Geçersiz medya adresi'), { status: 400 });
+  }
+  const host = parsed.hostname.toLowerCase().replace(/^\[(.*)]$/, '$1');
+  if (
+    host === 'localhost' ||
+    host.endsWith('.localhost') ||
+    host === 'metadata.google.internal' ||
+    host === '169.254.169.254' ||
+    /^0\./.test(host) ||
+    /^10\./.test(host) ||
+    /^127\./.test(host) ||
+    /^169\.254\./.test(host) ||
+    /^172\.(1[6-9]|2\d|3[0-1])\./.test(host) ||
+    /^192\.168\./.test(host) ||
+    host === '::1' ||
+    host.startsWith('fc') ||
+    host.startsWith('fd') ||
+    host.startsWith('fe80:')
+  ) {
+    throw Object.assign(new Error('Güvenli olmayan medya adresi engellendi'), { status: 400 });
+  }
+}

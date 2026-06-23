@@ -5,7 +5,7 @@
   "compatibility_date": "2026-05-31",
   "compatibility_flags": ["nodejs_compat"],
   "triggers": {
-    "crons": ["*/5 * * * *", "*/30 * * * *"]
+    "crons": ["* * * * *", "*/5 * * * *", "*/30 * * * *"]
   },
   "dev": {
     "inspector_port": 0
@@ -23,6 +23,25 @@
       "id": "68c47e07dd41448c9c2e914bd26803e5"
     }
   ],
+  "queues": {
+    "producers": [
+      {
+        "binding": "AUTOMATIC_NEWS_QUEUE",
+        "queue": "pateeznews-automatic-news"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "pateeznews-automatic-news",
+        "max_batch_size": 4,
+        "max_batch_timeout": 5,
+        "max_retries": 3,
+        "dead_letter_queue": "pateeznews-automatic-news-dlq",
+        "max_concurrency": 8,
+        "retry_delay": 60
+      }
+    ]
+  },
   "vars": {
     "PATEEZ_ADMIN_API_DB_ROLE": "pateez_admin_api",
     "PATEEZ_AUTH_ISSUER": "https://pateez.com",

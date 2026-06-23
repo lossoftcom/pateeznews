@@ -1,12 +1,17 @@
 import type { APIRoute } from 'astro';
-import { adminError, adminJson, requireAdminRequest } from '@/lib/server/adminAuth';
+import { adminError, adminJson, requireAnyAdminPermission } from '@/lib/server/adminAuth';
 import { listAutomaticNewsItems, runAutomaticNewsRefresh, testAutomaticNewsSources } from '@/lib/server/automaticNewsData';
 
 export const POST: APIRoute = async ({ request, url }) => {
   try {
-    await requireAdminRequest(request, 'settings_access');
     const body = await request.json().catch(() => ({}));
     const mode = String(body?.mode || '').trim();
+    await requireAnyAdminPermission(
+      request,
+      mode === 'test'
+        ? ['automatic_news_view', 'automatic_news_run', 'settings_access']
+        : ['automatic_news_run', 'settings_access'],
+    );
     const totals = mode === 'test'
       ? await testAutomaticNewsSources()
       : await runAutomaticNewsRefresh({

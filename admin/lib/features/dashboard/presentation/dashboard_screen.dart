@@ -328,12 +328,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool _canOpen(_DashboardPage page) {
     return switch (page) {
       _DashboardPage.home => _hasAny(['dashboard_access', 'view_overview']),
-      _DashboardPage.newsAdd ||
-      _DashboardPage.news ||
-      _DashboardPage.automaticNews => _hasAny([
+      _DashboardPage.newsAdd || _DashboardPage.news => _hasAny([
         'posts_access',
         'manage_content',
         'news_access',
+      ]),
+      _DashboardPage.automaticNews => _hasAny([
+        'automatic_news_view',
+        'view_settings',
+        'settings_access',
       ]),
       _DashboardPage.stories => _hasAny(['stories_access', 'manage_stories']),
       _DashboardPage.pages => _hasAny(['pages_access', 'manage_pages']),

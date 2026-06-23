@@ -125,6 +125,19 @@ export async function requireAdminRequest(request: Request, permission?: string)
   return requireAdminToken(bearerTokenFromRequest(request), permission);
 }
 
+export async function requireAnyAdminPermission(request: Request, permissions: string[]) {
+  let permissionError: unknown;
+  for (const permission of permissions) {
+    try {
+      return await requireAdminRequest(request, permission);
+    } catch (error) {
+      if ((error as { status?: number })?.status !== 403) throw error;
+      permissionError = error;
+    }
+  }
+  throw permissionError || Object.assign(new Error('Admin permission denied'), { status: 403 });
+}
+
 export function adminJson(data: any, status = 200) {
   return new Response(JSON.stringify(data), {
     status,

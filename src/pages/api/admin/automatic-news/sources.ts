@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { adminError, adminJson, requireAdminRequest } from '@/lib/server/adminAuth';
+import { adminError, adminJson, requireAnyAdminPermission } from '@/lib/server/adminAuth';
 import {
   deleteAutomaticNewsSource,
   listAutomaticNewsSources,
@@ -10,7 +10,7 @@ import {
 
 export const GET: APIRoute = async ({ request }) => {
   try {
-    await requireAdminRequest(request, 'view_settings');
+    await requireAnyAdminPermission(request, ['automatic_news_view', 'automatic_news_manage_sources', 'view_settings', 'settings_access']);
     return adminJson({
       data: await listAutomaticNewsSources({ includeInactive: true }),
       error: null,
@@ -22,7 +22,7 @@ export const GET: APIRoute = async ({ request }) => {
 
 export const POST: APIRoute = async ({ request }) => {
   try {
-    await requireAdminRequest(request, 'settings_access');
+    await requireAnyAdminPermission(request, ['automatic_news_manage_sources', 'settings_access']);
     const body = await request.json().catch(() => ({}));
     const action = String(body?.action || 'addMany');
 

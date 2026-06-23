@@ -63,6 +63,8 @@ class AutomaticNewsItem {
     required this.qualityScore,
     required this.imageUrl,
     required this.videoUrl,
+    required this.mediaUrls,
+    required this.dateConfidence,
     required this.publishedAt,
     required this.capturedAt,
   });
@@ -86,6 +88,8 @@ class AutomaticNewsItem {
       qualityScore: _asInt(json['qualityScore']),
       imageUrl: json['imageUrl']?.toString() ?? '',
       videoUrl: json['videoUrl']?.toString() ?? '',
+      mediaUrls: _stringList(json['mediaUrls']),
+      dateConfidence: json['dateConfidence']?.toString() ?? 'source',
       publishedAt: _parseDate(json['publishedAt']),
       capturedAt: _parseDate(json['capturedAt']) ?? DateTime.now(),
     );
@@ -108,6 +112,8 @@ class AutomaticNewsItem {
   final int qualityScore;
   final String imageUrl;
   final String videoUrl;
+  final List<String> mediaUrls;
+  final String dateConfidence;
   final DateTime? publishedAt;
   final DateTime capturedAt;
 }
@@ -137,28 +143,31 @@ class AutomaticNewsImageFile {
 class AutomaticNewsMediaResult {
   const AutomaticNewsMediaResult({
     required this.images,
+    required this.videos,
+    required this.mediaUrls,
     required this.primaryImageUrl,
+    required this.primaryVideoUrl,
     required this.sourceUrl,
     required this.canonicalUrl,
   });
 
   factory AutomaticNewsMediaResult.fromJson(Map<String, Object?> json) {
-    final rawImages = json['images'];
     return AutomaticNewsMediaResult(
-      images: rawImages is List
-          ? [
-              for (final item in rawImages)
-                if (item.toString().trim().isNotEmpty) item.toString().trim(),
-            ]
-          : const [],
+      images: _stringList(json['images']),
+      videos: _stringList(json['videos']),
+      mediaUrls: _stringList(json['mediaUrls']),
       primaryImageUrl: json['primaryImageUrl']?.toString() ?? '',
+      primaryVideoUrl: json['primaryVideoUrl']?.toString() ?? '',
       sourceUrl: json['sourceUrl']?.toString() ?? '',
       canonicalUrl: json['canonicalUrl']?.toString() ?? '',
     );
   }
 
   final List<String> images;
+  final List<String> videos;
+  final List<String> mediaUrls;
   final String primaryImageUrl;
+  final String primaryVideoUrl;
   final String sourceUrl;
   final String canonicalUrl;
 }
@@ -509,7 +518,10 @@ class SupabaseAdminAutomaticNewsRepository
     if (normalized.isEmpty) {
       return const AutomaticNewsMediaResult(
         images: [],
+        videos: [],
+        mediaUrls: [],
         primaryImageUrl: '',
+        primaryVideoUrl: '',
         sourceUrl: '',
         canonicalUrl: '',
       );
@@ -527,7 +539,10 @@ class SupabaseAdminAutomaticNewsRepository
     if (data is! Map) {
       return const AutomaticNewsMediaResult(
         images: [],
+        videos: [],
+        mediaUrls: [],
         primaryImageUrl: '',
+        primaryVideoUrl: '',
         sourceUrl: '',
         canonicalUrl: '',
       );
@@ -675,6 +690,14 @@ DateTime? _parseDate(Object? value) {
   final raw = value?.toString();
   if (raw == null || raw.isEmpty) return null;
   return DateTime.tryParse(raw)?.toLocal();
+}
+
+List<String> _stringList(Object? value) {
+  if (value is! List) return const [];
+  return [
+    for (final item in value)
+      if (item.toString().trim().isNotEmpty) item.toString().trim(),
+  ];
 }
 
 Map<String, Object?> _asStringKeyMap(Map<dynamic, dynamic> value) {

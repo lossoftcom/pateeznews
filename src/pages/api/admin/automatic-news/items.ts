@@ -1,10 +1,10 @@
 import type { APIRoute } from 'astro';
-import { adminError, adminJson, requireAdminRequest } from '@/lib/server/adminAuth';
+import { adminError, adminJson, requireAnyAdminPermission } from '@/lib/server/adminAuth';
 import { deleteAutomaticNewsItems, listAutomaticNewsItems } from '@/lib/server/automaticNewsData';
 
 export const GET: APIRoute = async ({ request, url }) => {
   try {
-    await requireAdminRequest(request, 'view_settings');
+    await requireAnyAdminPermission(request, ['automatic_news_view', 'view_settings', 'settings_access']);
     const payload = await listAutomaticNewsItems({
       search: url.searchParams.get('search') || '',
       platform: url.searchParams.get('platform') || '',
@@ -24,7 +24,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 
 export const POST: APIRoute = async ({ request }) => {
   try {
-    await requireAdminRequest(request, 'settings_access');
+    await requireAnyAdminPermission(request, ['automatic_news_delete', 'settings_access']);
     const body = await request.json().catch(() => ({}));
     const action = String(body?.action || '').trim();
     if (action !== 'delete') {

@@ -7,6 +7,10 @@ const DETAIL_FETCH_TIMEOUT_MS = 6500;
 const MAX_SOURCES_PER_RUN = 60;
 const MAX_CANDIDATES_PER_SOURCE = 8;
 const MAX_FEED_URLS_PER_SOURCE = 5;
+const MAX_FETCH_BYTES = 2_500_000;
+const SOURCE_LEASE_SECONDS = 150;
+const DISPATCH_BATCH_SIZE = 25;
+const DEFAULT_SOURCE_CONCURRENCY = 8;
 const INSTAGRAM_WEB_APP_ID = '936619743392459';
 const USER_AGENT = 'Pateez-AutomaticNews/1.0 (+https://www.pateez.com)';
 const RECENT_CONTENT_TIME_ZONE = 'Europe/Istanbul';
@@ -23,10 +27,27 @@ interface AutomaticNewsSourceRow {
   last_checked_at: string | null;
   last_success_at: string | null;
   last_error: string | null;
+  next_poll_at?: string | null;
+  lease_owner?: string | null;
+  lease_expires_at?: string | null;
+  last_started_at?: string | null;
+  last_finished_at?: string | null;
+  consecutive_failures?: number | null;
+  resolved_feed_url?: string | null;
+  etag?: string | null;
+  last_modified?: string | null;
+  last_seen_external_id?: string | null;
+  health_state?: string | null;
+  priority?: number | null;
+  sla_tier?: string | null;
+  last_duration_ms?: number | null;
+  last_detected_latency_seconds?: number | null;
   sort_order: number;
   created_at: string;
   updated_at: string;
 }
+
+type DateConfidence = 'source' | 'fallback' | 'unknown';
 
 interface AutomaticNewsItemInput {
   source: AutomaticNewsSourceRow;
@@ -42,7 +63,10 @@ interface AutomaticNewsItemInput {
   qualityScore: number;
   imageUrl: string;
   videoUrl: string;
+  mediaUrls: string[];
   publishedAt: string | null;
+  dateConfidence: DateConfidence;
+  discoveredAt: string;
   rawPayload: Record<string, unknown>;
 }
 
@@ -52,8 +76,18 @@ interface WebsiteCandidate {
   summary: string;
   publishedAt: string | null;
   imageUrl: string;
+  videoUrl: string;
+  mediaUrls: string[];
   score: number;
   originLabel: string;
+}
+
+export interface AutomaticNewsQueueMessage {
+  sourceId: string;
+  scheduledAt: string;
+  traceId: string;
+  leaseOwner: string;
+  runId?: string;
 }
 
 interface RefreshOptions {
@@ -270,7 +304,72 @@ const sameHost = (a: string, b: string) => {
   }
 };
 
+const privateIpv4Patterns = [
+  /^0\./,
+  /^10\./,
+  /^127\./,
+  /^169\.254\./,
+  /^172\.(1[6-9]|2\d|3[0-1])\./,
+  /^192\.168\./,
+];
+
+const assertSafeFetchUrl = (value: string) => {
+  const url = new URL(value);
+  if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Geçersiz kaynak protokolü');
+  const hostname = url.hostname.toLowerCase().replace(/^\[(.*)]$/, '$1');
+  if (
+    hostname === 'localhost' ||
+    hostname.endsWith('.localhost') ||
+    hostname === 'metadata.google.internal' ||
+    hostname === '169.254.169.254'
+  ) {
+    throw new Error('Güvenli olmayan kaynak adresi engellendi');
+  }
+  if (privateIpv4Patterns.some((pattern) => pattern.test(hostname))) {
+    throw new Error('Özel ağ kaynak adresi engellendi');
+  }
+  if (hostname === '::1' || hostname.startsWith('fc') || hostname.startsWith('fd') || hostname.startsWith('fe80:')) {
+    throw new Error('Özel ağ kaynak adresi engellendi');
+  }
+};
+
+const readArrayBufferLimited = async (response: Response, maxBytes = MAX_FETCH_BYTES) => {
+  const contentLength = Number(response.headers.get('content-length') || 0);
+  if (contentLength > maxBytes) throw new Error('Kaynak yanıtı çok büyük');
+  if (!response.body) return new ArrayBuffer(0);
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => undefined);
+      throw new Error('Kaynak yanıtı çok büyük');
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes.buffer;
+};
+
+const readJsonLimited = async (response: Response) => {
+  try {
+    return JSON.parse(new TextDecoder('utf-8').decode(await readArrayBufferLimited(response)));
+  } catch {
+    return null;
+  }
+};
+
 const fetchText = async (url: string, timeoutMs = SOURCE_FETCH_TIMEOUT_MS) => {
+  assertSafeFetchUrl(url);
   const response = await fetch(url, {
     signal: AbortSignal.timeout(timeoutMs),
     headers: {
@@ -278,9 +377,10 @@ const fetchText = async (url: string, timeoutMs = SOURCE_FETCH_TIMEOUT_MS) => {
       'User-Agent': USER_AGENT,
     },
   });
+  assertSafeFetchUrl(response.url || url);
   if (!response.ok) throw new Error(`${url} HTTP ${response.status}`);
   const contentType = response.headers.get('content-type') || '';
-  const arrayBuffer = await response.arrayBuffer();
+  const arrayBuffer = await readArrayBufferLimited(response);
   const decoder = /charset=iso-8859-9/i.test(contentType)
     ? new TextDecoder('iso-8859-9')
     : new TextDecoder('utf-8');
@@ -365,10 +465,11 @@ const parseXmlCandidates = (xml: string, baseUrl: string): WebsiteCandidate[] =>
         block.match(/<(pubDate|published|updated|dc:date)[^>]*>([\s\S]*?)<\/\1>/i)?.[2] || ''
       ) || null;
       const imageUrl = toAbsoluteUrl(baseUrl, getXmlImage(block));
+      const videoUrl = toAbsoluteUrl(baseUrl, getXmlVideo(block));
       const url = toAbsoluteUrl(baseUrl, link);
       const score = scoreWebsiteCandidate(url, title) + 8;
       return url && score > 0
-        ? { url, title, summary, publishedAt, imageUrl, score, originLabel: 'RSS akışı' }
+        ? { url, title, summary, publishedAt, imageUrl, videoUrl, mediaUrls: mediaUrlsFor(imageUrl, videoUrl), score, originLabel: 'RSS akışı' }
         : null;
     })
     .filter((item): item is WebsiteCandidate => Boolean(item));
@@ -377,10 +478,27 @@ const parseXmlCandidates = (xml: string, baseUrl: string): WebsiteCandidate[] =>
 const getXmlAttrLink = (block: string) =>
   block.match(/<link[^>]+href=["']([^"']+)["'][^>]*>/i)?.[1] || '';
 
+const xmlTagUrl = (tag: string) => tag.match(/\surl=["']([^"']+)["']/i)?.[1] || '';
+
+const getXmlMediaUrl = (block: string, kind: 'image' | 'video') => {
+  for (const match of block.matchAll(/<(?:media:content|enclosure)\b[^>]+>/gi)) {
+    const tag = match[0];
+    const url = xmlTagUrl(tag);
+    if (!url) continue;
+    if (new RegExp(`(?:medium|type)=["'][^"']*${kind}`, 'i').test(tag)) return url;
+    if (kind === 'image' && /\.(avif|webp|jpe?g|png|gif)(\?|$)/i.test(url)) return url;
+    if (kind === 'video' && /\.(m3u8|mp4|mov|m4v|webm)(\?|$)/i.test(url)) return url;
+  }
+  return '';
+};
+
 const getXmlImage = (block: string) =>
-  block.match(/<media:content[^>]+url=["']([^"']+)["'][^>]*>/i)?.[1] ||
   block.match(/<media:thumbnail[^>]+url=["']([^"']+)["'][^>]*>/i)?.[1] ||
-  block.match(/<enclosure[^>]+url=["']([^"']+)["'][^>]*>/i)?.[1] ||
+  getXmlMediaUrl(block, 'image') ||
+  '';
+
+const getXmlVideo = (block: string) =>
+  getXmlMediaUrl(block, 'video') ||
   '';
 
 const articleContentNodePattern =
@@ -492,6 +610,33 @@ const extractDate = (document: any, fallback: string | null) => {
 const imageFromDocument = (document: any, baseUrl: string, fallback: string) =>
   toAbsoluteUrl(baseUrl, metaContent(document, 'og:image') || metaContent(document, 'twitter:image') || fallback);
 
+const addUniqueUrl = (items: string[], value: string) => {
+  const url = normalizeText(value);
+  if (!url) return;
+  const key = url.replace(/[?#].*$/, '');
+  if (!items.some((item) => item.replace(/[?#].*$/, '') === key)) items.push(url);
+};
+
+const videoFromDocument = (document: any, baseUrl: string, fallback = '') => {
+  const direct = metaContent(document, 'og:video:secure_url') ||
+    metaContent(document, 'og:video:url') ||
+    metaContent(document, 'og:video') ||
+    metaContent(document, 'twitter:player') ||
+    fallback;
+  const directUrl = toAbsoluteUrl(baseUrl, direct);
+  if (directUrl) return directUrl;
+  const source = findAll(document, (node) => node?.tagName === 'source' || node?.tagName === 'video')
+    .map((node) => toAbsoluteUrl(baseUrl, getAttr(node, 'src') || getAttr(node, 'data-src')))
+    .find(Boolean);
+  return source || '';
+};
+
+const mediaUrlsFor = (imageUrl: string, videoUrl: string, extra: string[] = []) => {
+  const urls: string[] = [];
+  for (const url of [imageUrl, videoUrl, ...extra]) addUniqueUrl(urls, url);
+  return urls.slice(0, 16);
+};
+
 const categoryForText = (value: string) => {
   const text = trLower(value);
   if (/(ekonomi|piyasa|fiyat|zam|ihale|ticaret|borsa|esnaf)/i.test(text)) return 'Ekonomi';
@@ -543,7 +688,7 @@ const recentContentDateKeys = () => {
 };
 
 const isRecentPublishedAt = (value: string | null) => {
-  if (!value) return false;
+  if (!value) return true;
   const timestamp = Date.parse(value);
   if (!Number.isFinite(timestamp)) return false;
   return recentContentDateKeys().has(istanbulDateKey(new Date(timestamp)));
@@ -551,6 +696,11 @@ const isRecentPublishedAt = (value: string | null) => {
 
 const isRecentAutomaticNewsItem = (item: AutomaticNewsItemInput) =>
   isRecentPublishedAt(item.publishedAt);
+
+const dateConfidenceFor = (publishedAt: string | null): DateConfidence =>
+  publishedAt ? 'source' : 'unknown';
+
+const discoveredAtNow = () => new Date().toISOString();
 
 const parseWebsiteArticle = async (
   source: AutomaticNewsSourceRow,
@@ -574,6 +724,9 @@ const parseWebsiteArticle = async (
   const canonicalUrl = linkHref(document, 'canonical', response.url) || response.url;
   const publishedAt = extractDate(document, candidate.publishedAt);
   const qualityScore = qualityForText(title, summary, body, source.source_type);
+  const imageUrl = imageFromDocument(document, response.url, candidate.imageUrl);
+  const videoUrl = videoFromDocument(document, response.url, candidate.videoUrl);
+  const mediaUrls = mediaUrlsFor(imageUrl, videoUrl, candidate.mediaUrls);
 
   return {
     source,
@@ -587,13 +740,17 @@ const parseWebsiteArticle = async (
     status: qualityScore >= 78 ? 'Hazır' : 'İncele',
     originLabel: candidate.originLabel || 'Kaynak haber sayfası',
     qualityScore,
-    imageUrl: imageFromDocument(document, response.url, candidate.imageUrl),
-    videoUrl: '',
+    imageUrl,
+    videoUrl,
+    mediaUrls,
     publishedAt,
+    dateConfidence: dateConfidenceFor(publishedAt),
+    discoveredAt: discoveredAtNow(),
     rawPayload: {
       discoveredUrl: candidate.url,
       canonicalUrl,
       contentType: response.contentType,
+      mediaUrls,
     },
   };
 };
@@ -617,11 +774,15 @@ const itemFromWebsiteCandidate = (
     originLabel: candidate.originLabel || 'Kaynak son içerik',
     qualityScore,
     imageUrl: candidate.imageUrl,
-    videoUrl: '',
+    videoUrl: candidate.videoUrl,
+    mediaUrls: mediaUrlsFor(candidate.imageUrl, candidate.videoUrl, candidate.mediaUrls),
     publishedAt: candidate.publishedAt,
+    dateConfidence: dateConfidenceFor(candidate.publishedAt),
+    discoveredAt: discoveredAtNow(),
     rawPayload: {
       discoveredUrl: candidate.url,
       fastPreview: true,
+      mediaUrls: mediaUrlsFor(candidate.imageUrl, candidate.videoUrl, candidate.mediaUrls),
     },
   };
 };
@@ -658,7 +819,11 @@ const commonFeedUrls = (baseUrl: string) => {
 const collectWebsiteItems = async (source: AutomaticNewsSourceRow) => {
   const candidates = new Map<string, WebsiteCandidate>();
   const attempted = new Set<string>();
-  const feedUrls = new Set<string>([source.url, ...commonFeedUrls(source.url)]);
+  const feedUrls = new Set<string>([
+    source.resolved_feed_url || '',
+    source.url,
+    ...commonFeedUrls(source.url),
+  ].filter(Boolean));
 
   const collectFromUrl = async (url: string) => {
     if (!url || attempted.has(url)) return;
@@ -690,6 +855,8 @@ const collectWebsiteItems = async (source: AutomaticNewsSourceRow) => {
         summary: '',
         publishedAt: null,
         imageUrl: '',
+        videoUrl: '',
+        mediaUrls: [],
         score,
         originLabel: 'Kaynak haber sayfası',
       };
@@ -705,14 +872,19 @@ const collectWebsiteItems = async (source: AutomaticNewsSourceRow) => {
   const parsedItems: AutomaticNewsItemInput[] = [];
   for (const candidate of [...candidates.values()].sort((a, b) => b.score - a.score).slice(0, MAX_CANDIDATES_PER_SOURCE)) {
     const parsed = await parseWebsiteArticle(source, candidate).catch(() => null);
-    if (parsed && isRecentAutomaticNewsItem(parsed)) parsedItems.push(parsed);
+    const item = parsed || itemFromWebsiteCandidate(source, candidate);
+    if (isRecentAutomaticNewsItem(item)) parsedItems.push(item);
   }
   return parsedItems;
 };
 
 const collectWebsiteLatestItem = async (source: AutomaticNewsSourceRow) => {
   const candidates = new Map<string, WebsiteCandidate>();
-  const seedUrls = [source.url, ...commonFeedUrls(source.url)].slice(0, MAX_FEED_URLS_PER_SOURCE + 1);
+  const seedUrls = [
+    source.resolved_feed_url || '',
+    source.url,
+    ...commonFeedUrls(source.url),
+  ].filter(Boolean).slice(0, MAX_FEED_URLS_PER_SOURCE + 1);
   const responses = await Promise.allSettled(seedUrls.map((url) => fetchText(url, 2800)));
 
   for (const result of responses) {
@@ -753,6 +925,8 @@ const collectWebsiteLatestItem = async (source: AutomaticNewsSourceRow) => {
           summary: '',
           publishedAt: null,
           imageUrl: '',
+          videoUrl: '',
+          mediaUrls: [],
           score,
           originLabel: 'Kaynak son içerik',
         });
@@ -787,7 +961,7 @@ const instagramTitleFromCaption = (caption: string, sourceName: string) => {
     .split(/\n+/)
     .map((item) => normalizeText(item).replace(/^[^\p{L}\p{N}]+/u, '').replace(/[^\p{L}\p{N}]+$/u, ''))
     .find((item) => item.replace(/[^\p{L}\p{N}]/gu, '').length >= 18);
-  return (line || `${sourceName} Instagram paylaşımı`).slice(0, 180);
+  return (line || `${sourceName} Instagram yeni haber paylaşımı`).slice(0, 180);
 };
 
 const addInstagramImageUrl = (images: string[], value: unknown) => {
@@ -839,7 +1013,7 @@ const collectInstagramItems = async (source: AutomaticNewsSourceRow) => {
     },
   );
   if (!response.ok) throw new Error(`Instagram ${username} HTTP ${response.status}`);
-  const data = await response.json().catch(() => null);
+  const data = await readJsonLimited(response);
   const edges: any[] = Array.isArray(data?.data?.user?.edge_owner_to_timeline_media?.edges)
     ? data.data.user.edge_owner_to_timeline_media.edges
     : [];
@@ -850,7 +1024,7 @@ const collectInstagramItems = async (source: AutomaticNewsSourceRow) => {
       const shortcode = normalizeText(node.shortcode);
       const caption = instagramCaption(node);
       const title = instagramTitleFromCaption(caption, source.display_name);
-      if (!shortcode || !caption || !isGoodNewsTitle(title)) return null;
+      if (!shortcode || !isGoodNewsTitle(title)) return null;
       const sourceUrl = `https://www.instagram.com/p/${shortcode}/`;
       const summary = summaryFor(caption, caption, title);
       const qualityScore = qualityForText(title, summary, caption, 'instagram');
@@ -859,6 +1033,10 @@ const collectInstagramItems = async (source: AutomaticNewsSourceRow) => {
         ? new Date(Number(node.taken_at_timestamp) * 1000).toISOString()
         : null;
       const mediaImages = collectInstagramMediaImages(node);
+      const videoUrl = Boolean(node.is_video)
+        ? normalizeText(node.video_url) || sourceUrl
+        : '';
+      const mediaUrls = mediaUrlsFor(mediaImages[0] || normalizeText(node.display_url), videoUrl, mediaImages);
       return {
         source,
         sourceUrl,
@@ -872,13 +1050,18 @@ const collectInstagramItems = async (source: AutomaticNewsSourceRow) => {
         originLabel: 'Instagram gönderisi',
         qualityScore,
         imageUrl: mediaImages[0] || normalizeText(node.display_url),
-        videoUrl: Boolean(node.is_video) ? sourceUrl : '',
+        videoUrl,
+        mediaUrls,
         publishedAt,
+        dateConfidence: dateConfidenceFor(publishedAt),
+        discoveredAt: discoveredAtNow(),
         rawPayload: {
           instagramUsername: username,
           instagramShortcode: shortcode,
           isVideo: Boolean(node.is_video),
+          videoUrl,
           mediaImages,
+          mediaUrls,
         },
       } satisfies AutomaticNewsItemInput;
     })
@@ -900,15 +1083,26 @@ const collectSourceLatestItem = async (source: AutomaticNewsSourceRow) => {
 };
 
 const insertAutomaticNewsItem = async (item: AutomaticNewsItemInput) => {
+  const canonicalUrlHash = item.canonicalUrl ? hash(item.canonicalUrl) : '';
+  const sourceUrlHash = item.sourceUrl ? hash(item.sourceUrl) : '';
+  const detectedAt = Date.parse(item.discoveredAt);
+  const publishedAt = item.publishedAt ? Date.parse(item.publishedAt) : NaN;
+  const detectionLatencySeconds = Number.isFinite(detectedAt) && Number.isFinite(publishedAt)
+    ? Math.max(0, Math.floor((detectedAt - publishedAt) / 1000))
+    : null;
   const result = await dbQuery<{ id: string }>(
     `INSERT INTO public.automatic_news_items
        (source_id, source_name, source_type, source_url, canonical_url, external_id,
         title, title_fingerprint, summary, content_text, category, status, language_code,
-        origin_label, quality_score, image_url, video_url, published_at, raw_payload)
+        origin_label, quality_score, image_url, video_url, published_at, discovered_at,
+        date_confidence, media_urls, canonical_url_hash, source_url_hash,
+        detection_latency_seconds, raw_payload)
      VALUES
        ($1, $2, $3, $4, $5, $6,
         $7, $8, $9, $10, $11, $12, 'tr',
-        $13, $14, $15, $16, $17, $18::jsonb)
+        $13, $14, $15, $16, $17, $18,
+        $19, $20::jsonb, $21, $22,
+        $23, $24::jsonb)
      ON CONFLICT DO NOTHING
      RETURNING id`,
     [
@@ -929,26 +1123,113 @@ const insertAutomaticNewsItem = async (item: AutomaticNewsItemInput) => {
       item.imageUrl,
       item.videoUrl,
       item.publishedAt,
-      JSON.stringify(item.rawPayload || {}),
+      item.discoveredAt,
+      item.dateConfidence,
+      JSON.stringify(item.mediaUrls || []),
+      canonicalUrlHash,
+      sourceUrlHash,
+      detectionLatencySeconds,
+      JSON.stringify({
+        ...(item.rawPayload || {}),
+        mediaUrls: item.mediaUrls || [],
+        dateConfidence: item.dateConfidence,
+      }),
     ],
   );
   return (result.rowCount || 0) > 0;
 };
 
-const markSourceChecked = async (sourceId: string, errorMessage = '') => {
+const latestDetectionLatency = (items: AutomaticNewsItemInput[]) => {
+  const latencies = items
+    .map((item) => {
+      const publishedAt = item.publishedAt ? Date.parse(item.publishedAt) : NaN;
+      const discoveredAt = Date.parse(item.discoveredAt);
+      return Number.isFinite(publishedAt) && Number.isFinite(discoveredAt)
+        ? Math.max(0, Math.floor((discoveredAt - publishedAt) / 1000))
+        : null;
+    })
+    .filter((value): value is number => value != null);
+  return latencies.length ? Math.min(...latencies) : null;
+};
+
+const markSourceChecked = async (
+  sourceId: string,
+  startedAt: number,
+  errorMessage = '',
+  detectedLatencySeconds: number | null = null,
+) => {
+  const durationMs = Math.max(0, Date.now() - startedAt);
   await dbQuery(
     `UPDATE public.automatic_news_sources
      SET
        last_checked_at = now(),
+       last_finished_at = now(),
        last_success_at = CASE WHEN $2 = '' THEN now() ELSE last_success_at END,
        last_error = NULLIF($2, ''),
+       lease_owner = NULL,
+       lease_expires_at = NULL,
+       consecutive_failures = CASE WHEN $2 = '' THEN 0 ELSE consecutive_failures + 1 END,
+       health_state = CASE
+         WHEN $2 = '' THEN CASE WHEN health_state = 'disabled' THEN 'disabled' ELSE 'active' END
+         WHEN consecutive_failures + 1 >= 3 THEN 'watch'
+         ELSE health_state
+       END,
+       last_duration_ms = $3,
+       last_detected_latency_seconds = COALESCE($4, last_detected_latency_seconds),
        updated_at = now()
      WHERE id = $1`,
-    [sourceId, errorMessage.slice(0, 500)],
+    [sourceId, errorMessage.slice(0, 500), durationMs, detectedLatencySeconds],
   );
 };
 
+const claimAutomaticNewsSources = async (options: {
+  force?: boolean;
+  sourceId?: string;
+  limit?: number;
+  leaseOwner?: string;
+}) => {
+  const leaseOwner = options.leaseOwner || `auto-news-${crypto.randomUUID()}`;
+  const result = await dbQuery<AutomaticNewsSourceRow>(
+    `WITH due AS (
+       SELECT id
+       FROM public.automatic_news_sources
+       WHERE is_active = true
+         AND COALESCE(health_state, 'active') <> 'disabled'
+         AND ($1::uuid IS NULL OR id = $1::uuid)
+         AND ($2::boolean OR next_poll_at IS NULL OR next_poll_at <= now())
+         AND (lease_expires_at IS NULL OR lease_expires_at <= now())
+       ORDER BY
+         COALESCE(priority, 100) ASC,
+         next_poll_at NULLS FIRST,
+         last_checked_at NULLS FIRST,
+         sort_order ASC,
+         created_at ASC
+       LIMIT $3
+       FOR UPDATE SKIP LOCKED
+     )
+     UPDATE public.automatic_news_sources AS source
+     SET
+       lease_owner = $4,
+       lease_expires_at = now() + make_interval(secs => $5),
+       last_started_at = now(),
+       next_poll_at = now() + make_interval(mins => poll_interval_minutes),
+       updated_at = now()
+     FROM due
+     WHERE source.id = due.id
+     RETURNING source.*`,
+    [
+      options.sourceId || null,
+      options.force === true,
+      Math.min(Math.max(Number(options.limit || MAX_SOURCES_PER_RUN), 1), 120),
+      leaseOwner,
+      SOURCE_LEASE_SECONDS,
+    ],
+  );
+  return result.rows;
+};
+
 const processSource = async (source: AutomaticNewsSourceRow): Promise<ProcessSourceResult> => {
+  const startedAt = Date.now();
   try {
     const items = await collectSourceItems(source);
     let insertedCount = 0;
@@ -960,7 +1241,7 @@ const processSource = async (source: AutomaticNewsSourceRow): Promise<ProcessSou
         skippedDuplicateCount += 1;
       }
     }
-    await markSourceChecked(source.id);
+    await markSourceChecked(source.id, startedAt, '', latestDetectionLatency(items));
     return {
       sourceId: source.id,
       sourceName: source.display_name,
@@ -972,7 +1253,7 @@ const processSource = async (source: AutomaticNewsSourceRow): Promise<ProcessSou
     };
   } catch (error: any) {
     const message = normalizeText(error?.message || 'kaynak taranamadı');
-    await markSourceChecked(source.id, message);
+    await markSourceChecked(source.id, startedAt, message);
     return {
       sourceId: source.id,
       sourceName: source.display_name,
@@ -985,12 +1266,43 @@ const processSource = async (source: AutomaticNewsSourceRow): Promise<ProcessSou
   }
 };
 
+const processQueueSourceMessage = async (body: AutomaticNewsQueueMessage) => {
+  const processingOwner = `queue-${crypto.randomUUID()}`;
+  const claimed = await dbQuery<AutomaticNewsSourceRow>(
+    `UPDATE public.automatic_news_sources
+     SET
+       lease_owner = $2,
+       lease_expires_at = now() + make_interval(secs => $4),
+       updated_at = now()
+     WHERE id = $1
+       AND lease_owner = $3
+       AND (lease_expires_at IS NULL OR lease_expires_at > now())
+     RETURNING *`,
+    [body.sourceId, processingOwner, body.leaseOwner, SOURCE_LEASE_SECONDS],
+  );
+  const source = claimed.rows[0];
+  if (!source) return null;
+  return processSource(source);
+};
+
+const restoreQueueLeaseForRetry = async (body: AutomaticNewsQueueMessage) => {
+  await dbQuery(
+    `UPDATE public.automatic_news_sources
+     SET
+       lease_owner = $2,
+       lease_expires_at = now() + make_interval(secs => $3),
+       next_poll_at = now(),
+       updated_at = now()
+     WHERE id = $1`,
+    [body.sourceId, body.leaseOwner, SOURCE_LEASE_SECONDS],
+  );
+};
+
 const processSourceFastTest = async (source: AutomaticNewsSourceRow): Promise<ProcessSourceResult> => {
   try {
     const item = await withTimeout(collectSourceLatestItem(source), 8500, source.display_name);
     if (!item) {
-      const message = 'Bugün veya dün tarihli son içerik bulunamadı';
-      await markSourceChecked(source.id, message);
+      const message = 'Son içerik bulunamadı';
       return {
         sourceId: source.id,
         sourceName: source.display_name,
@@ -1002,8 +1314,6 @@ const processSourceFastTest = async (source: AutomaticNewsSourceRow): Promise<Pr
       };
     }
 
-    const inserted = await insertAutomaticNewsItem(item);
-    await markSourceChecked(source.id);
     return {
       sourceId: source.id,
       sourceName: source.display_name,
@@ -1011,13 +1321,12 @@ const processSourceFastTest = async (source: AutomaticNewsSourceRow): Promise<Pr
       latestTitle: item.title,
       latestUrl: item.canonicalUrl || item.sourceUrl,
       candidatesFound: 1,
-      insertedCount: inserted ? 1 : 0,
-      skippedDuplicateCount: inserted ? 0 : 1,
+      insertedCount: 0,
+      skippedDuplicateCount: 0,
       errorMessage: '',
     };
   } catch (error: any) {
     const message = normalizeText(error?.message || 'kaynak test edilemedi');
-    await markSourceChecked(source.id, message);
     return {
       sourceId: source.id,
       sourceName: source.display_name,
@@ -1056,26 +1365,14 @@ export async function runAutomaticNewsRefresh(options: RefreshOptions = {}) {
   const runId = runResult.rows[0]?.id;
 
   try {
-    const params: unknown[] = [];
-    const where = ['is_active = true'];
-    if (options.sourceId) {
-      params.push(options.sourceId);
-      where.push(`id = $${params.length}`);
-    }
-    if (!options.force) {
-      where.push(`(last_checked_at IS NULL OR last_checked_at <= now() - make_interval(mins => poll_interval_minutes))`);
-    }
-    params.push(MAX_SOURCES_PER_RUN);
-    const sources = await dbQuery<AutomaticNewsSourceRow>(
-      `SELECT *
-       FROM public.automatic_news_sources
-       WHERE ${where.join(' AND ')}
-       ORDER BY last_checked_at NULLS FIRST, sort_order, created_at
-       LIMIT $${params.length}`,
-      params,
-    );
+    const sources = await claimAutomaticNewsSources({
+      force: options.force,
+      sourceId: options.sourceId,
+      limit: MAX_SOURCES_PER_RUN,
+      leaseOwner: `manual-${runId || crypto.randomUUID()}`,
+    });
 
-    const sourceResults = await mapLimited(sources.rows, 4, processSource);
+    const sourceResults = await mapLimited(sources, DEFAULT_SOURCE_CONCURRENCY, processSource);
     const totals = sourceResults.reduce(
       (sum, item) => ({
         checkedSources: sum.checkedSources + 1,
@@ -1100,7 +1397,7 @@ export async function runAutomaticNewsRefresh(options: RefreshOptions = {}) {
         sourceUrl: item.sourceUrl,
         message: item.errorMessage,
       }));
-    const status = totals.errorCount === 0 ? 'success' : totals.errorCount === totals.checkedSources ? 'error' : 'partial';
+    const status = totals.errorCount === 0 ? 'success' : totals.errorCount === totals.checkedSources && totals.checkedSources > 0 ? 'error' : 'partial';
 
     await dbQuery(
       `UPDATE public.automatic_news_runs
@@ -1148,13 +1445,166 @@ export async function runAutomaticNewsRefresh(options: RefreshOptions = {}) {
   }
 }
 
-export async function testAutomaticNewsSources() {
+export async function dispatchAutomaticNewsDueSources(options: {
+  queue?: Queue<AutomaticNewsQueueMessage>;
+  runType?: 'cron' | 'manual';
+  limit?: number;
+} = {}) {
+  const runType = options.runType || 'cron';
   const runResult = await dbQuery<{ id: string }>(
     `INSERT INTO public.automatic_news_runs (run_type, status)
-     VALUES ('manual', 'running')
+     VALUES ($1, 'running')
      RETURNING id`,
+    [runType],
   );
-  const runId = runResult.rows[0]?.id;
+  const runId = String(runResult.rows[0]?.id || '');
+  const leaseOwner = `dispatch-${runId || crypto.randomUUID()}`;
+
+  try {
+    const sources = await claimAutomaticNewsSources({
+      limit: options.limit || MAX_SOURCES_PER_RUN,
+      leaseOwner,
+    });
+
+    if (options.queue && sources.length > 0) {
+      for (let index = 0; index < sources.length; index += DISPATCH_BATCH_SIZE) {
+        const chunk = sources.slice(index, index + DISPATCH_BATCH_SIZE);
+        await options.queue.sendBatch(
+          chunk.map((source) => ({
+            body: {
+              sourceId: source.id,
+              scheduledAt: new Date().toISOString(),
+              traceId: crypto.randomUUID(),
+              leaseOwner,
+              runId,
+            },
+            contentType: 'json' as const,
+          })),
+        );
+      }
+      await dbQuery(
+        `UPDATE public.automatic_news_runs
+         SET
+           status = 'success',
+           finished_at = now(),
+           checked_sources = $2,
+           details = $3::jsonb
+         WHERE id = $1`,
+        [
+          runId,
+          sources.length,
+          JSON.stringify({
+            queued: sources.length,
+            queue: 'pateeznews-automatic-news',
+          }),
+        ],
+      );
+      return {
+        runId,
+        status: 'success',
+        checkedSources: sources.length,
+        candidatesFound: 0,
+        insertedCount: 0,
+        skippedDuplicateCount: 0,
+        errorCount: 0,
+        errors: [],
+        queuedCount: sources.length,
+      };
+    }
+
+    const sourceResults = await mapLimited(sources, DEFAULT_SOURCE_CONCURRENCY, processSource);
+    const totals = sourceResults.reduce(
+      (sum, item) => ({
+        checkedSources: sum.checkedSources + 1,
+        candidatesFound: sum.candidatesFound + item.candidatesFound,
+        insertedCount: sum.insertedCount + item.insertedCount,
+        skippedDuplicateCount: sum.skippedDuplicateCount + item.skippedDuplicateCount,
+        errorCount: sum.errorCount + (item.errorMessage ? 1 : 0),
+      }),
+      {
+        checkedSources: 0,
+        candidatesFound: 0,
+        insertedCount: 0,
+        skippedDuplicateCount: 0,
+        errorCount: 0,
+      },
+    );
+    const errors = sourceResults
+      .filter((item) => item.errorMessage)
+      .map((item) => ({
+        sourceId: item.sourceId,
+        sourceName: item.sourceName,
+        sourceUrl: item.sourceUrl,
+        message: item.errorMessage,
+      }));
+    const status = totals.errorCount === 0 ? 'success' : totals.errorCount === totals.checkedSources && totals.checkedSources > 0 ? 'error' : 'partial';
+    await dbQuery(
+      `UPDATE public.automatic_news_runs
+       SET
+         status = $2,
+         finished_at = now(),
+         checked_sources = $3,
+         candidates_found = $4,
+         inserted_count = $5,
+         skipped_duplicate_count = $6,
+         error_count = $7,
+         error_message = $8,
+         details = $9::jsonb
+       WHERE id = $1`,
+      [
+        runId,
+        status,
+        totals.checkedSources,
+        totals.candidatesFound,
+        totals.insertedCount,
+        totals.skippedDuplicateCount,
+        totals.errorCount,
+        errors[0]?.message || null,
+        JSON.stringify({ errors, fallback: true }),
+      ],
+    );
+    return {
+      runId,
+      status,
+      ...totals,
+      errors,
+      queuedCount: 0,
+    };
+  } catch (error: any) {
+    const message = normalizeText(error?.message || 'otomatik haber kuyruğa alınamadı');
+    if (runId) {
+      await dbQuery(
+        `UPDATE public.automatic_news_runs
+         SET status = 'error', finished_at = now(), error_count = 1, error_message = $2
+         WHERE id = $1`,
+        [runId, message.slice(0, 500)],
+      );
+    }
+    throw error;
+  }
+}
+
+export async function processAutomaticNewsQueueBatch(batch: MessageBatch<AutomaticNewsQueueMessage>) {
+  await Promise.all(
+    batch.messages.map(async (message) => {
+      try {
+        const result = await processQueueSourceMessage(message.body);
+        if (result?.errorMessage) {
+          await restoreQueueLeaseForRetry(message.body);
+          message.retry({ delaySeconds: 60 });
+          return;
+        }
+        message.ack();
+      } catch (error) {
+        console.error('automatic news queue message failed', error);
+        await restoreQueueLeaseForRetry(message.body).catch(() => undefined);
+        message.retry({ delaySeconds: 60 });
+      }
+    }),
+  );
+}
+
+export async function testAutomaticNewsSources() {
   const sources = await dbQuery<AutomaticNewsSourceRow>(
     `SELECT *
      FROM public.automatic_news_sources
@@ -1199,36 +1649,10 @@ export async function testAutomaticNewsSources() {
       url: item.latestUrl,
       inserted: item.insertedCount > 0,
     }));
-  const status = totals.errorCount === 0 ? 'success' : totals.errorCount === totals.checkedSources ? 'error' : 'partial';
-
-  await dbQuery(
-    `UPDATE public.automatic_news_runs
-     SET
-       status = $2,
-       finished_at = now(),
-       checked_sources = $3,
-       candidates_found = $4,
-       inserted_count = $5,
-       skipped_duplicate_count = $6,
-       error_count = $7,
-       error_message = $8,
-       details = $9::jsonb
-     WHERE id = $1`,
-    [
-      runId,
-      status,
-      totals.checkedSources,
-      totals.candidatesFound,
-      totals.insertedCount,
-      totals.skippedDuplicateCount,
-      totals.errorCount,
-      errors[0]?.message || null,
-      JSON.stringify({ errors, previews }),
-    ],
-  );
+  const status = totals.errorCount === 0 ? 'success' : totals.errorCount === totals.checkedSources && totals.checkedSources > 0 ? 'error' : 'partial';
 
   return {
-    runId,
+    runId: null,
     status,
     ...totals,
     errors,
@@ -1251,20 +1675,25 @@ export async function upsertAutomaticNewsSourcesFromUrls(urls: string[]) {
   const normalized = [...new Set(urls.map(normalizeSourceUrl).filter(Boolean))].slice(0, 100);
   const saved = [];
   for (const url of normalized) {
+    const sourceType = sourceTypeFromUrl(url);
+    const pollIntervalMinutes = sourceType === 'instagram' ? 2 : 1;
+    const priority = sourceType === 'instagram' ? 200 : sourceType === 'rss' ? 20 : 50;
     const result = await dbQuery<AutomaticNewsSourceRow>(
       `INSERT INTO public.automatic_news_sources
-         (url, display_name, source_type, is_active, poll_interval_minutes, updated_at)
-       VALUES ($1, $2, $3, true, 5, now())
+         (url, display_name, source_type, is_active, poll_interval_minutes, next_poll_at, priority, updated_at)
+       VALUES ($1, $2, $3, true, $4, now(), $5, now())
        ON CONFLICT (url) DO UPDATE
        SET
          display_name = EXCLUDED.display_name,
          source_type = EXCLUDED.source_type,
          is_active = true,
-         poll_interval_minutes = 5,
+         poll_interval_minutes = EXCLUDED.poll_interval_minutes,
+         next_poll_at = LEAST(COALESCE(public.automatic_news_sources.next_poll_at, now()), now()),
+         priority = EXCLUDED.priority,
          last_error = NULL,
          updated_at = now()
        RETURNING *`,
-      [url, displayNameFromUrl(url), sourceTypeFromUrl(url)],
+      [url, displayNameFromUrl(url), sourceType, pollIntervalMinutes, priority],
     );
     if (result.rows[0]) saved.push(rowToSource(result.rows[0]));
   }
@@ -1296,7 +1725,10 @@ export async function syncAutomaticNewsSourcesFromUrls(urls: string[]) {
 export async function setAutomaticNewsSourceActive(id: string, isActive: boolean) {
   const result = await dbQuery<AutomaticNewsSourceRow>(
     `UPDATE public.automatic_news_sources
-     SET is_active = $2, updated_at = now()
+     SET
+       is_active = $2,
+       next_poll_at = CASE WHEN $2 THEN now() ELSE next_poll_at END,
+       updated_at = now()
      WHERE id = $1
      RETURNING *`,
     [id, isActive],
@@ -1421,6 +1853,16 @@ const rowToSource = (row: AutomaticNewsSourceRow) => ({
   lastCheckedAt: row.last_checked_at,
   lastSuccessAt: row.last_success_at,
   lastError: row.last_error || '',
+  nextPollAt: row.next_poll_at || null,
+  lastStartedAt: row.last_started_at || null,
+  lastFinishedAt: row.last_finished_at || null,
+  consecutiveFailures: Number(row.consecutive_failures || 0),
+  healthState: row.health_state || 'active',
+  priority: Number(row.priority || 100),
+  lastDurationMs: row.last_duration_ms == null ? null : Number(row.last_duration_ms),
+  lastDetectedLatencySeconds: row.last_detected_latency_seconds == null
+    ? null
+    : Number(row.last_detected_latency_seconds),
 });
 
 const displayContentText = (row: any) => {
@@ -1447,6 +1889,10 @@ const rowToItem = (row: any) => ({
   qualityScore: Number(row.quality_score || 0),
   imageUrl: String(row.image_url || ''),
   videoUrl: String(row.video_url || ''),
+  mediaUrls: Array.isArray(row.media_urls)
+    ? row.media_urls.map((item: unknown) => String(item || '').trim()).filter(Boolean)
+    : [],
+  dateConfidence: String(row.date_confidence || 'source'),
   publishedAt: row.published_at || null,
   capturedAt: row.captured_at || null,
 });

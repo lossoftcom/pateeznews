@@ -72,15 +72,24 @@ class _AutomaticNewsScreenState extends State<AutomaticNewsScreen> {
   var _sortState = const TableSortState(key: 'date', ascending: false);
   var _imageRequestHeaders = const <String, String>{};
   String? _downloadingImageDraftId;
+  Timer? _searchDebounce;
+  Timer? _fallbackPollTimer;
+  var _itemsRequestId = 0;
 
   @override
   void initState() {
     super.initState();
     unawaited(_loadInitial());
+    _fallbackPollTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (!mounted || _loading) return;
+      unawaited(_loadItems());
+    });
   }
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
+    _fallbackPollTimer?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -122,6 +131,7 @@ class _AutomaticNewsScreenState extends State<AutomaticNewsScreen> {
   }
 
   Future<void> _loadItems({bool showLoading = false}) async {
+    final requestId = ++_itemsRequestId;
     if (showLoading && mounted) {
       setState(() {
         _loading = true;
@@ -140,7 +150,7 @@ class _AutomaticNewsScreenState extends State<AutomaticNewsScreen> {
         sortKey: _sortState.key,
         sortAscending: _sortState.ascending,
       );
-      if (!mounted) return;
+      if (!mounted || requestId != _itemsRequestId) return;
       setState(() {
         _drafts = [
           for (final item in result.items) _AutomaticNewsDraft.fromItem(item),
@@ -151,7 +161,7 @@ class _AutomaticNewsScreenState extends State<AutomaticNewsScreen> {
         _selectedDraftIds.clear();
       });
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted || requestId != _itemsRequestId) return;
       setState(() {
         _loading = false;
         _errorMessage = error.toString();
@@ -169,7 +179,10 @@ class _AutomaticNewsScreenState extends State<AutomaticNewsScreen> {
       _searchQuery = value;
       _resetPageAndSelection();
     });
-    unawaited(_loadItems());
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 350), () {
+      unawaited(_loadItems());
+    });
   }
 
   void _changeFilter({
@@ -444,6 +457,20 @@ class _AutomaticNewsScreenState extends State<AutomaticNewsScreen> {
             });
           }
           await _loadItems();
+          return _AutomaticNewsSourceTestPayload(
+            result: result,
+            sources: sources,
+          );
+        },
+        onScanSources: () async {
+          final result = await widget.repository.refreshNow();
+          final sources = await widget.repository.fetchSources();
+          if (mounted) {
+            setState(() {
+              _sources = sources;
+            });
+          }
+          await _loadItems(showLoading: true);
           return _AutomaticNewsSourceTestPayload(
             result: result,
             sources: sources,
@@ -1477,7 +1504,7 @@ class _AutomaticNewsMobileActionRow extends StatelessWidget {
         Expanded(
           child: _AutomaticNewsMobileActionButton(
             icon: Symbols.refresh_line,
-            label: refreshing ? 'Yenileniyor...' : 'Yenile',
+            label: refreshing ? 'Yenileniyor...' : 'Listeyi Yenile',
             backgroundColor: Colors.white,
             foregroundColor: const Color(0xFF2F4053),
             borderColor: const Color(0xFFE6EAF0),
@@ -1682,7 +1709,7 @@ class _AutomaticNewsMobileCard extends StatelessWidget {
               ),
               _AutomaticNewsMobileMetricChip(
                 icon: Symbols.verified,
-                label: '%${draft.quality} güven',
+                label: '%${draft.quality} kalite',
               ),
             ],
           ),
@@ -2097,7 +2124,7 @@ class _AutomaticNewsToolbar extends StatelessWidget {
     );
     final refreshButton = AdminTableSecondaryActionButton(
       icon: Symbols.refresh_line,
-      label: refreshing ? 'Yenileniyor...' : 'Yenile',
+      label: refreshing ? 'Yenileniyor...' : 'Listeyi Yenile',
       onPressed: refreshing ? () {} : onRefresh,
     );
     final addressButton = AdminTablePrimaryActionButton(
@@ -2364,7 +2391,7 @@ class _AutomaticNewsHeader extends StatelessWidget {
           ),
           const SizedBox(
             width: _AutomaticNewsDataTable._qualityWidth,
-            child: _HeaderText('Güven', centered: true),
+            child: _HeaderText('Kalite', centered: true),
           ),
           _SortableColumnHeader(
             width: _AutomaticNewsDataTable._dateWidth,
@@ -3501,6 +3528,14 @@ class _AutomaticNewsPreviewDialogState
                             draft,
                             snapshot.data,
                           );
+                          final mediaVideos = _previewMediaVideos(
+                            draft,
+                            snapshot.data,
+                          );
+                          final mediaUrls = _previewMediaUrls(
+                            draft,
+                            snapshot.data,
+                          );
                           final mediaLoading =
                               snapshot.connectionState != ConnectionState.done;
                           final mediaLoaded = snapshot.hasData;
@@ -3515,6 +3550,8 @@ class _AutomaticNewsPreviewDialogState
                                       _AutomaticNewsPreviewMedia(
                                         draft: draft,
                                         mediaImages: mediaImages,
+                                        mediaVideos: mediaVideos,
+                                        mediaUrls: mediaUrls,
                                         mediaLoading: mediaLoading,
                                         mediaLoaded: mediaLoaded,
                                         imageRequestHeaders:
@@ -3536,6 +3573,8 @@ class _AutomaticNewsPreviewDialogState
                                         child: _AutomaticNewsPreviewMedia(
                                           draft: draft,
                                           mediaImages: mediaImages,
+                                          mediaVideos: mediaVideos,
+                                          mediaUrls: mediaUrls,
                                           mediaLoading: mediaLoading,
                                           mediaLoaded: mediaLoaded,
                                           imageRequestHeaders:
@@ -3587,6 +3626,61 @@ List<String> _previewMediaImages(
   }
   add(draft.imageUrl);
   return images;
+}
+
+List<String> _previewMediaVideos(
+  _AutomaticNewsDraft draft,
+  AutomaticNewsMediaResult? media,
+) {
+  final videos = <String>[];
+  void add(String value) {
+    final url = value.trim();
+    if (url.isEmpty) return;
+    final key = url.replaceFirst(RegExp(r'[?#].*$'), '');
+    final exists = videos.any(
+      (item) => item.replaceFirst(RegExp(r'[?#].*$'), '') == key,
+    );
+    if (!exists) videos.add(url);
+  }
+
+  add(draft.videoUrl);
+  for (final video in draft.videoUrls) {
+    add(video);
+  }
+  for (final video in media?.videos ?? const <String>[]) {
+    add(video);
+  }
+  return videos;
+}
+
+List<String> _previewMediaUrls(
+  _AutomaticNewsDraft draft,
+  AutomaticNewsMediaResult? media,
+) {
+  final urls = <String>[];
+  void add(String value) {
+    final url = value.trim();
+    if (url.isEmpty) return;
+    final key = url.replaceFirst(RegExp(r'[?#].*$'), '');
+    final exists = urls.any(
+      (item) => item.replaceFirst(RegExp(r'[?#].*$'), '') == key,
+    );
+    if (!exists) urls.add(url);
+  }
+
+  for (final url in draft.allMediaUrls) {
+    add(url);
+  }
+  for (final url in media?.mediaUrls ?? const <String>[]) {
+    add(url);
+  }
+  for (final url in media?.images ?? const <String>[]) {
+    add(url);
+  }
+  for (final url in media?.videos ?? const <String>[]) {
+    add(url);
+  }
+  return urls;
 }
 
 class _AutomaticNewsPreviewHeader extends StatelessWidget {
@@ -3670,6 +3764,8 @@ class _AutomaticNewsPreviewMedia extends StatefulWidget {
   const _AutomaticNewsPreviewMedia({
     required this.draft,
     required this.mediaImages,
+    required this.mediaVideos,
+    required this.mediaUrls,
     required this.mediaLoading,
     required this.mediaLoaded,
     required this.imageRequestHeaders,
@@ -3678,6 +3774,8 @@ class _AutomaticNewsPreviewMedia extends StatefulWidget {
 
   final _AutomaticNewsDraft draft;
   final List<String> mediaImages;
+  final List<String> mediaVideos;
+  final List<String> mediaUrls;
   final bool mediaLoading;
   final bool mediaLoaded;
   final Map<String, String> imageRequestHeaders;
@@ -3735,11 +3833,21 @@ class _AutomaticNewsPreviewMediaState
   Widget build(BuildContext context) {
     final images = widget.mediaImages;
     final hasImage = images.isNotEmpty;
-    final hasVideo = widget.draft.videoUrl.isNotEmpty;
+    final videoUrls = widget.mediaVideos;
+    final hasVideo = videoUrls.isNotEmpty;
     final selectedUrl = hasImage ? images[_index] : '';
     final mediaUrl = selectedUrl.isNotEmpty
         ? selectedUrl
         : widget.draft.mediaUrl;
+    final extraMediaUrls = widget.mediaUrls
+        .where(
+          (url) =>
+              url.trim().isNotEmpty &&
+              url != selectedUrl &&
+              !videoUrls.contains(url),
+        )
+        .take(8)
+        .toList(growable: false);
     final hasMultipleImages = images.length > 1;
 
     return Column(
@@ -3869,6 +3977,28 @@ class _AutomaticNewsPreviewMediaState
             value: mediaUrl,
             compactValue: _compactUrl(mediaUrl),
             linkUrl: mediaUrl,
+          ),
+        ],
+        for (var index = 0; index < videoUrls.length; index++) ...[
+          const SizedBox(height: 10),
+          _PreviewInfoBlock(
+            label: videoUrls.length == 1
+                ? 'Video Linki'
+                : 'Video Linki ${index + 1}',
+            value: videoUrls[index],
+            compactValue: _compactUrl(videoUrls[index]),
+            linkUrl: videoUrls[index],
+          ),
+        ],
+        for (var index = 0; index < extraMediaUrls.length; index++) ...[
+          const SizedBox(height: 10),
+          _PreviewInfoBlock(
+            label: extraMediaUrls.length == 1
+                ? 'Ek Medya Linki'
+                : 'Ek Medya Linki ${index + 1}',
+            value: extraMediaUrls[index],
+            compactValue: _compactUrl(extraMediaUrls[index]),
+            linkUrl: extraMediaUrls[index],
           ),
         ],
         const SizedBox(height: 10),
@@ -4201,7 +4331,7 @@ class _AutomaticNewsPreviewDetails extends StatelessWidget {
             _PreviewBadge(draft.category),
             _PreviewBadge(draft.status, success: draft.status == 'Hazır'),
             _PreviewBadge('${draft.language} dil'),
-            _PreviewBadge('%${draft.quality} güven'),
+            _PreviewBadge('%${draft.quality} içerik kalitesi'),
           ],
         ),
         const SizedBox(height: 12),
@@ -4233,8 +4363,8 @@ String _automaticNewsPreviewCopyText(
     'Haber Linki',
     _readableText(draft.sourceUrl, fallback: ''),
     '',
-    'Medya Linki',
-    _readableText(draft.mediaUrl, fallback: ''),
+    'Medya Linkleri',
+    _readableText(draft.allMediaUrls.join('\n'), fallback: ''),
     '',
     'Kategori',
     _readableText(draft.category, fallback: ''),
@@ -4245,7 +4375,7 @@ String _automaticNewsPreviewCopyText(
     'Dil',
     _readableText(draft.language, fallback: ''),
     '',
-    'Güven',
+    'İçerik Kalitesi',
     '%${draft.quality}',
     '',
     'Gönderi Tarihi',
@@ -4925,6 +5055,7 @@ class _AutomaticNewsSourceDialog extends StatefulWidget {
     required this.initialSources,
     required this.onSaveSources,
     required this.onTestSources,
+    required this.onScanSources,
     required this.onToggleSource,
   });
 
@@ -4932,6 +5063,7 @@ class _AutomaticNewsSourceDialog extends StatefulWidget {
   final Future<List<AutomaticNewsSource>> Function(List<String> urls)
   onSaveSources;
   final Future<_AutomaticNewsSourceTestPayload> Function() onTestSources;
+  final Future<_AutomaticNewsSourceTestPayload> Function() onScanSources;
   final Future<AutomaticNewsSource?> Function(
     AutomaticNewsSource source,
     bool value,
@@ -4950,6 +5082,7 @@ class _AutomaticNewsSourceDialogState
   late List<AutomaticNewsSource> _sources;
   var _saving = false;
   var _testing = false;
+  var _scanning = false;
   var _busySourceId = '';
   var _error = '';
   AutomaticNewsRefreshResult? _testResult;
@@ -5002,7 +5135,7 @@ class _AutomaticNewsSourceDialogState
   }
 
   Future<void> _testSources() async {
-    if (_testing || _saving) return;
+    if (_testing || _saving || _scanning) return;
     setState(() {
       _testing = true;
       _error = '';
@@ -5025,6 +5158,33 @@ class _AutomaticNewsSourceDialogState
       setState(() => _error = error.toString());
     } finally {
       if (mounted) setState(() => _testing = false);
+    }
+  }
+
+  Future<void> _scanSources() async {
+    if (_testing || _saving || _scanning) return;
+    setState(() {
+      _scanning = true;
+      _error = '';
+    });
+    try {
+      final payload = await widget.onScanSources();
+      if (!mounted) return;
+      setState(() {
+        _sources = payload.sources.toList()
+          ..sort((a, b) => a.displayName.compareTo(b.displayName));
+        _addressController.text = _sourceAddressText(_sources);
+        _testResult = payload.result;
+        _latestBySourceId = {
+          for (final preview in payload.result.previews)
+            preview.sourceId: preview,
+        };
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _error = error.toString());
+    } finally {
+      if (mounted) setState(() => _scanning = false);
     }
   }
 
@@ -5145,7 +5305,16 @@ class _AutomaticNewsSourceDialogState
                   AdminTableSecondaryActionButton(
                     icon: Symbols.refresh_line,
                     label: _testing ? 'Test Ediliyor...' : 'Kaynakları Test Et',
-                    onPressed: _testing ? () {} : _testSources,
+                    onPressed: _testing || _scanning || _saving
+                        ? () {}
+                        : _testSources,
+                  ),
+                  AdminTableSecondaryActionButton(
+                    icon: Symbols.bolt_rounded,
+                    label: _scanning ? 'Taranıyor...' : 'Kaynakları Şimdi Tara',
+                    onPressed: _testing || _scanning || _saving
+                        ? () {}
+                        : _scanSources,
                   ),
                   AdminTablePrimaryActionButton(
                     icon: Symbols.add,
@@ -5402,7 +5571,7 @@ class _SourceTestResultStrip extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              '${result.checkedSources} kaynak test edildi · ${result.insertedCount} yeni · ${result.skippedDuplicateCount} aynı başlık · ${result.errorCount} hata',
+              '${result.checkedSources} kaynak kontrol edildi · ${result.candidatesFound} son içerik · ${result.errorCount} hata',
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
@@ -5524,7 +5693,7 @@ class _SourceListRow extends StatelessWidget {
     final status = source.lastError.isNotEmpty
         ? source.lastError
         : latest != null
-        ? '${latest!.inserted ? 'Yeni alındı' : 'Aynı başlık'} · ${latest!.title}'
+        ? 'Son içerik · ${latest!.title}'
         : source.lastSuccessAt == null
         ? 'Hazır'
         : '${_formatDate(source.lastSuccessAt!)} ${_formatTime(source.lastSuccessAt!)}';
@@ -5631,6 +5800,8 @@ class _AutomaticNewsDraft {
     required this.sourceUrl,
     required this.imageUrl,
     required this.videoUrl,
+    required this.mediaUrls,
+    required this.dateConfidence,
     required this.origin,
     required this.category,
     required this.status,
@@ -5661,6 +5832,8 @@ class _AutomaticNewsDraft {
       sourceUrl: sourceUrl,
       imageUrl: item.imageUrl.trim(),
       videoUrl: item.videoUrl.trim(),
+      mediaUrls: item.mediaUrls,
+      dateConfidence: item.dateConfidence,
       origin: item.originLabel.isEmpty ? 'Kaynak adresi' : item.originLabel,
       category: item.category,
       status: item.status,
@@ -5683,6 +5856,8 @@ class _AutomaticNewsDraft {
   final String sourceUrl;
   final String imageUrl;
   final String videoUrl;
+  final List<String> mediaUrls;
+  final String dateConfidence;
   final String origin;
   final String category;
   final String status;
@@ -5691,7 +5866,45 @@ class _AutomaticNewsDraft {
   final DateTime? publishedAt;
   final DateTime capturedAt;
 
-  String get mediaUrl => imageUrl.isNotEmpty ? imageUrl : videoUrl;
+  List<String> get allMediaUrls {
+    final urls = <String>[];
+    void add(String value) {
+      final url = value.trim();
+      if (url.isEmpty) return;
+      final key = url.replaceFirst(RegExp(r'[?#].*$'), '');
+      if (!urls.any(
+        (item) => item.replaceFirst(RegExp(r'[?#].*$'), '') == key,
+      )) {
+        urls.add(url);
+      }
+    }
+
+    add(imageUrl);
+    add(videoUrl);
+    for (final url in mediaUrls) {
+      add(url);
+    }
+    return urls;
+  }
+
+  List<String> get videoUrls {
+    return allMediaUrls
+        .where(
+          (url) =>
+              url == videoUrl ||
+              RegExp(
+                r'\.(m3u8|mp4|mov|m4v|webm)(\?|$)',
+                caseSensitive: false,
+              ).hasMatch(url) ||
+              RegExp(
+                r'(video|reel|player|stream|instagram\.com/(p|reel))',
+                caseSensitive: false,
+              ).hasMatch(url),
+        )
+        .toList(growable: false);
+  }
+
+  String get mediaUrl => allMediaUrls.isEmpty ? '' : allMediaUrls.first;
 
   AutomaticNewsAiDraftSeed toAiDraftSeed() {
     final source = sourceUrl.trim();
