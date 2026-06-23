@@ -336,8 +336,8 @@ class SupabaseAdminLanguagesRepository implements AdminLanguagesRepository {
 
   Uri _defaultLocalApiBaseUrl() {
     return switch (defaultTargetPlatform) {
-      TargetPlatform.android => Uri.parse('http://10.0.2.2:4321'),
-      _ => Uri.parse('http://127.0.0.1:4321'),
+      TargetPlatform.android => Uri.parse('https://pateez.com'),
+      _ => Uri.parse('https://pateez.com'),
     };
   }
 

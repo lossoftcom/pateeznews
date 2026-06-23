@@ -57,6 +57,7 @@ class AdminNewsPost {
     required this.thumbnailUrl,
     required this.viewsCount,
     required this.commentsCount,
+    required this.likesCount,
     required this.languageCode,
     required this.isPinned,
     required this.publisherId,
@@ -79,6 +80,7 @@ class AdminNewsPost {
   final String thumbnailUrl;
   final int viewsCount;
   final int commentsCount;
+  final int likesCount;
   final String languageCode;
   final bool isPinned;
   final String publisherId;

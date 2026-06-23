@@ -252,8 +252,8 @@ class SupabaseAdminSecuritySettingsRepository
     if (baseUrl.isNotEmpty) return Uri.parse(baseUrl).resolve(path);
     if (kIsWeb) return Uri.base.resolve(path);
     return switch (defaultTargetPlatform) {
-      TargetPlatform.android => Uri.parse('http://10.0.2.2:4321').resolve(path),
-      _ => Uri.parse('http://127.0.0.1:4321').resolve(path),
+      TargetPlatform.android => Uri.parse('https://pateez.com').resolve(path),
+      _ => Uri.parse('https://pateez.com').resolve(path),
     };
   }
 }

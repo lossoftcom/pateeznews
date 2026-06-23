@@ -10,6 +10,9 @@ import '../../../../core/localization/admin_date_formatter.dart';
 import '../../../../core/localization/admin_language_controller.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
+import '../../../../frontend/core/mock/home_mock_data.dart';
+import '../../../../frontend/features/news_detail/presentation/news_detail_screen.dart';
+import '../../../../frontend/features/search/data/search_repository.dart';
 import '../../../../shared/data/admin_image_url.dart';
 import '../../../../shared/widgets/admin_cached_image.dart';
 import '../../../../shared/widgets/admin_mobile_list.dart';
@@ -4465,7 +4468,7 @@ class _NewsPagination extends StatelessWidget {
   }
 }
 
-class _NewsMobileView extends StatelessWidget {
+class _NewsMobileView extends StatefulWidget {
   const _NewsMobileView({
     required this.posts,
     required this.filterOptions,
@@ -4536,284 +4539,846 @@ class _NewsMobileView extends StatelessWidget {
   final VoidCallback onToggleTrashMode;
   final VoidCallback onToggleVideoOnly;
 
+  @override
+  State<_NewsMobileView> createState() => _NewsMobileViewState();
+}
+
+class _NewsMobileViewState extends State<_NewsMobileView> {
+  late final TextEditingController _searchController;
+  var _filtersExpanded = false;
+
   int get _activeFilterCount {
     var count = 0;
-    if (languageFilter != 'Tümü') count++;
-    if (categoryFilter != 'Tümü') count++;
-    if (typeFilter != 'Tümü') count++;
-    if (statusFilter != 'Tümü') count++;
-    if (publisherFilter != 'Tümü') count++;
+    if (widget.languageFilter != 'Tümü') count++;
+    if (widget.categoryFilter != 'Tümü') count++;
+    if (widget.typeFilter != 'Tümü') count++;
+    if (widget.statusFilter != 'Tümü') count++;
+    if (widget.publisherFilter != 'Tümü') count++;
     return count;
   }
 
-  void _openFilters(BuildContext context) {
-    showAdminMobileFilterSheet(
-      context: context,
-      onClear: () {
-        onLanguageChanged('Tümü');
-        onCategoryChanged('Tümü');
-        onTypeChanged('Tümü');
-        onStatusChanged('Tümü');
-        onPublisherChanged('Tümü');
-      },
-      contentBuilder: (context, setSheetState) {
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AdminMobileFilterField(
-              label: context.t('Language'),
-              value: languageFilter,
-              items: [
-                DropdownMenuItem(value: 'Tümü', child: Text(context.t('All'))),
-                for (final language in filterOptions.languages)
-                  DropdownMenuItem(
-                    value: language.id,
-                    child: Text(language.label),
-                  ),
-              ],
-              onChanged: (value) {
-                onLanguageChanged(value);
-                setSheetState(() {});
-              },
-            ),
-            AdminMobileFilterField(
-              label: context.t('Category'),
-              value: categoryFilter,
-              items: [
-                DropdownMenuItem(value: 'Tümü', child: Text(context.t('All'))),
-                for (final category in filterOptions.categories)
-                  DropdownMenuItem(
-                    value: category.id,
-                    child: Text(category.displayLabel),
-                  ),
-              ],
-              onChanged: (value) {
-                onCategoryChanged(value);
-                setSheetState(() {});
-              },
-            ),
-            AdminMobileFilterField(
-              label: context.t('Type'),
-              value: typeFilter,
-              items: [
-                DropdownMenuItem(value: 'Tümü', child: Text(context.t('All'))),
-                for (final type in filterOptions.types)
-                  DropdownMenuItem(
-                    value: type.id,
-                    child: Text(context.t(_typeLabel(type.label))),
-                  ),
-              ],
-              onChanged: (value) {
-                onTypeChanged(value);
-                setSheetState(() {});
-              },
-            ),
-            AdminMobileFilterField(
-              label: context.t('Status'),
-              value: statusFilter,
-              items: [
-                DropdownMenuItem(value: 'Tümü', child: Text(context.t('All'))),
-                DropdownMenuItem(
-                  value: 'published',
-                  child: Text(context.t('Published')),
-                ),
-                DropdownMenuItem(
-                  value: 'draft',
-                  child: Text(context.t('Draft')),
-                ),
-              ],
-              onChanged: (value) {
-                onStatusChanged(value);
-                setSheetState(() {});
-              },
-            ),
-            AdminMobileFilterField(
-              label: context.t('Publisher'),
-              value: publisherFilter,
-              items: [
-                DropdownMenuItem(value: 'Tümü', child: Text(context.t('All'))),
-                for (final publisher in filterOptions.publishers)
-                  DropdownMenuItem(
-                    value: publisher.id,
-                    child: Text(publisher.label),
-                  ),
-              ],
-              onChanged: (value) {
-                onPublisherChanged(value);
-                setSheetState(() {});
-              },
-            ),
-            AdminMobileFilterField(
-              label: 'Sayfa boyutu',
-              value: pageSize.toString(),
-              items: const [
-                DropdownMenuItem(value: '25', child: Text('25')),
-                DropdownMenuItem(value: '50', child: Text('50')),
-                DropdownMenuItem(value: '100', child: Text('100')),
-              ],
-              onChanged: (value) {
-                onPageSizeChanged(int.tryParse(value ?? ''));
-                setSheetState(() {});
-              },
-            ),
-          ],
-        );
-      },
-    );
+  @override
+  void initState() {
+    super.initState();
+    _searchController = TextEditingController(text: widget.searchQuery);
+  }
+
+  @override
+  void didUpdateWidget(covariant _NewsMobileView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.searchQuery != _searchController.text) {
+      _searchController.value = TextEditingValue(
+        text: widget.searchQuery,
+        selection: TextSelection.collapsed(offset: widget.searchQuery.length),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _clearFilters() {
+    widget.onLanguageChanged('Tümü');
+    widget.onCategoryChanged('Tümü');
+    widget.onTypeChanged('Tümü');
+    widget.onStatusChanged('Tümü');
+    widget.onPublisherChanged('Tümü');
+  }
+
+  void _toggleFilters() {
+    setState(() => _filtersExpanded = !_filtersExpanded);
+    FocusScope.of(context).unfocus();
   }
 
   @override
   Widget build(BuildContext context) {
-    final lastPage = totalCount == 0 ? 1 : ((totalCount - 1) ~/ pageSize) + 1;
-    final from = totalCount == 0 ? 0 : ((page - 1) * pageSize) + 1;
-    final to = totalCount == 0
+    final lastPage = widget.totalCount == 0
+        ? 1
+        : ((widget.totalCount - 1) ~/ widget.pageSize) + 1;
+    final from = widget.totalCount == 0
         ? 0
-        : (page * pageSize > totalCount ? totalCount : page * pageSize);
+        : ((widget.page - 1) * widget.pageSize) + 1;
+    final to = widget.totalCount == 0
+        ? 0
+        : (widget.page * widget.pageSize > widget.totalCount
+              ? widget.totalCount
+              : widget.page * widget.pageSize);
     final rangeText = context.t(
       'common.recordRange',
-      values: {'from': from, 'to': to, 'total': totalCount},
+      values: {'from': from, 'to': to, 'total': widget.totalCount},
     );
-    final hasSelection = selectedPostIds.isNotEmpty;
+    final hasSelection = widget.selectedPostIds.isNotEmpty;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        AdminMobileToolbar(
-          query: searchQuery,
+        _LosposNewsFilterPanel(
+          searchController: _searchController,
           hintText: context.t('Search posts...'),
-          onSearchChanged: onSearchChanged,
+          onSearchChanged: widget.onSearchChanged,
+          isExpanded: _filtersExpanded,
+          onToggleExpanded: _toggleFilters,
           activeFilterCount: _activeFilterCount,
-          onOpenFilters: () => _openFilters(context),
-          showFilters: false,
+          recordCount: widget.totalCount,
+          pageSize: widget.pageSize,
+          filterOptions: widget.filterOptions,
+          languageFilter: widget.languageFilter,
+          categoryFilter: widget.categoryFilter,
+          typeFilter: widget.typeFilter,
+          statusFilter: widget.statusFilter,
+          publisherFilter: widget.publisherFilter,
+          onPageSizeChanged: widget.onPageSizeChanged,
+          onLanguageChanged: widget.onLanguageChanged,
+          onCategoryChanged: widget.onCategoryChanged,
+          onTypeChanged: widget.onTypeChanged,
+          onStatusChanged: widget.onStatusChanged,
+          onPublisherChanged: widget.onPublisherChanged,
+          onClearFilters: _activeFilterCount == 0 ? null : _clearFilters,
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
         hasSelection
             ? AdminMobileSelectionBar(
-                selectedCount: selectedPostIds.length,
+                selectedCount: widget.selectedPostIds.length,
                 label: context.t(
-                  trashMode
+                  widget.trashMode
                       ? 'news.selectedPermanentDelete'
                       : 'news.selectedDelete',
-                  values: {'count': selectedPostIds.length},
+                  values: {'count': widget.selectedPostIds.length},
                 ),
                 onClear: () {
-                  for (final id in selectedPostIds.toList()) {
-                    onTogglePost(id);
+                  for (final id in widget.selectedPostIds.toList()) {
+                    widget.onTogglePost(id);
                   }
                 },
-                onDelete: onDeleteSelected,
+                onDelete: widget.onDeleteSelected,
               )
-            : LayoutBuilder(
-                builder: (context, constraints) {
-                  final compact = constraints.maxWidth < 520;
-                  final buttonWidth = compact
-                      ? constraints.maxWidth
-                      : (constraints.maxWidth - 30) / 4;
-                  return Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: [
-                      SizedBox(
-                        width: buttonWidth,
-                        child: AdminMobileFiltersButton(
-                          label: context.t('Filtreler'),
-                          count: _activeFilterCount,
-                          active: _activeFilterCount > 0,
-                          fullWidth: true,
-                          onPressed: () => _openFilters(context),
-                        ),
-                      ),
-                      SizedBox(
-                        width: buttonWidth,
-                        child: AdminMobilePrimaryButton(
-                          icon: trashMode ? Symbols.newspaper : Symbols.delete,
-                          label: context.t(
-                            trashMode ? 'news.activePosts' : 'news.trash',
-                          ),
-                          fullWidth: true,
-                          onPressed: onToggleTrashMode,
-                        ),
-                      ),
-                      SizedBox(
-                        width: buttonWidth,
-                        child: AdminMobilePrimaryButton(
-                          icon: videoOnly
-                              ? Symbols.play_circle_rounded
-                              : Symbols.play_circle_outline_rounded,
-                          label: context.t('news.videos.filter'),
-                          backgroundColor: videoOnly
-                              ? AppColors.deepOcean
-                              : AppColors.support,
-                          fullWidth: true,
-                          onPressed: onToggleVideoOnly,
-                        ),
-                      ),
-                      SizedBox(
-                        width: buttonWidth,
-                        child: AdminMobilePrimaryButton(
-                          icon: Symbols.add,
-                          label: context.t('Add Post'),
-                          fullWidth: true,
-                          onPressed: onAddPost,
-                        ),
-                      ),
-                    ],
-                  );
-                },
+            : _LosposNewsActionRow(
+                trashMode: widget.trashMode,
+                videoOnly: widget.videoOnly,
+                onToggleTrashMode: widget.onToggleTrashMode,
+                onToggleVideoOnly: widget.onToggleVideoOnly,
+                onAddPost: widget.onAddPost,
               ),
         const SizedBox(height: 14),
         Expanded(
           child: Stack(
             children: [
               Positioned.fill(
-                child: videoOnly
+                child: widget.videoOnly
                     ? _NewsVideoLibrary(
-                        posts: posts,
-                        loading: loading,
-                        loadingLabel: loadingLabel,
+                        posts: widget.posts,
+                        loading: widget.loading,
+                        loadingLabel: widget.loadingLabel,
                         searching: false,
-                        searchQuery: searchQuery,
-                        onEditPost: onEditPost,
+                        searchQuery: widget.searchQuery,
+                        onEditPost: widget.onEditPost,
                       )
-                    : loading && posts.isEmpty
-                    ? _NewsLoading(label: loadingLabel)
+                    : widget.loading && widget.posts.isEmpty
+                    ? _NewsLoading(label: widget.loadingLabel)
                     : AdminMobileListView(
                         loading: false,
-                        itemCount: posts.length,
+                        itemCount: widget.posts.length,
                         emptyLabel: context.t('No posts found'),
                         itemBuilder: (context, index) {
-                          final post = posts[index];
+                          final post = widget.posts[index];
                           return _NewsMobileCard(
                             post: post,
-                            selected: selectedPostIds.contains(post.id),
-                            onToggle: () => onTogglePost(post.id),
-                            trashMode: trashMode,
-                            onEditPost: onEditPost,
-                            onToggleStatus: onToggleStatus,
-                            onTogglePinned: onTogglePinned,
-                            onDeletePost: onDeletePost,
+                            selected: widget.selectedPostIds.contains(post.id),
+                            onToggle: () => widget.onTogglePost(post.id),
+                            trashMode: widget.trashMode,
+                            onEditPost: widget.onEditPost,
+                            onToggleStatus: widget.onToggleStatus,
+                            onTogglePinned: widget.onTogglePinned,
+                            onDeletePost: widget.onDeletePost,
                           );
                         },
                       ),
               ),
-              if (loading && posts.isNotEmpty)
+              if (widget.loading && widget.posts.isNotEmpty)
                 Positioned.fill(
-                  child: _NewsLoadingOverlay(label: loadingLabel),
+                  child: _NewsLoadingOverlay(label: widget.loadingLabel),
                 ),
             ],
           ),
         ),
-        if (!videoOnly) ...[
-          const SizedBox(height: 12),
-          AdminMobilePager(
-            page: page,
+        if (!widget.videoOnly) ...[
+          const SizedBox(height: 8),
+          _NewsMobileBottomPager(
+            page: widget.page,
             lastPage: lastPage,
             rangeText: rangeText,
-            loading: loading,
-            onPageChanged: onPageChanged,
+            loading: widget.loading,
+            onPageChanged: widget.onPageChanged,
           ),
         ],
       ],
+    );
+  }
+}
+
+class _NewsMobileBottomPager extends StatelessWidget {
+  const _NewsMobileBottomPager({
+    required this.page,
+    required this.lastPage,
+    required this.rangeText,
+    required this.loading,
+    required this.onPageChanged,
+  });
+
+  final int page;
+  final int lastPage;
+  final String rangeText;
+  final bool loading;
+  final ValueChanged<int> onPageChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasPrevious = page > 1 && !loading;
+    final hasNext = page < lastPage && !loading;
+    return Transform.translate(
+      offset: const Offset(0, 22),
+      child: SizedBox(
+        height: 34,
+        child: Row(
+          children: [
+            _NewsMobileBottomPagerArrow(
+              icon: Symbols.chevron_left,
+              enabled: hasPrevious,
+              onPressed: () => onPageChanged(page - 1),
+            ),
+            Expanded(
+              child: Text(
+                rangeText,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Color(0xFFB8BDC3),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 0,
+                ),
+              ),
+            ),
+            _NewsMobileBottomPagerArrow(
+              icon: Symbols.chevron_right,
+              enabled: hasNext,
+              onPressed: () => onPageChanged(page + 1),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NewsMobileBottomPagerArrow extends StatelessWidget {
+  const _NewsMobileBottomPagerArrow({
+    required this.icon,
+    required this.enabled,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final bool enabled;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      onPressed: enabled ? onPressed : null,
+      icon: Icon(
+        icon,
+        color: enabled ? AppColors.deepOcean : const Color(0xFFC5CAD0),
+        size: 20,
+      ),
+      constraints: const BoxConstraints.tightFor(width: 34, height: 34),
+      padding: EdgeInsets.zero,
+      splashRadius: 18,
+      visualDensity: VisualDensity.compact,
+    );
+  }
+}
+
+class _LosposNewsFilterPanel extends StatelessWidget {
+  const _LosposNewsFilterPanel({
+    required this.searchController,
+    required this.hintText,
+    required this.onSearchChanged,
+    required this.isExpanded,
+    required this.onToggleExpanded,
+    required this.activeFilterCount,
+    required this.recordCount,
+    required this.pageSize,
+    required this.filterOptions,
+    required this.languageFilter,
+    required this.categoryFilter,
+    required this.typeFilter,
+    required this.statusFilter,
+    required this.publisherFilter,
+    required this.onPageSizeChanged,
+    required this.onLanguageChanged,
+    required this.onCategoryChanged,
+    required this.onTypeChanged,
+    required this.onStatusChanged,
+    required this.onPublisherChanged,
+    required this.onClearFilters,
+  });
+
+  static const _borderColor = Color(0xFFE6EAF0);
+  static const _muted = Color(0xFF9AA3AA);
+  static const _navy = Color(0xFF2F4053);
+
+  final TextEditingController searchController;
+  final String hintText;
+  final ValueChanged<String> onSearchChanged;
+  final bool isExpanded;
+  final VoidCallback onToggleExpanded;
+  final int activeFilterCount;
+  final int recordCount;
+  final int pageSize;
+  final AdminNewsFilterOptions filterOptions;
+  final String languageFilter;
+  final String categoryFilter;
+  final String typeFilter;
+  final String statusFilter;
+  final String publisherFilter;
+  final ValueChanged<int?> onPageSizeChanged;
+  final ValueChanged<String?> onLanguageChanged;
+  final ValueChanged<String?> onCategoryChanged;
+  final ValueChanged<String?> onTypeChanged;
+  final ValueChanged<String?> onStatusChanged;
+  final ValueChanged<String?> onPublisherChanged;
+  final VoidCallback? onClearFilters;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _borderColor),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            height: 72,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 10, 12, 9),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Row(
+                      children: [
+                        const SymbolIcon(
+                          Symbols.search,
+                          color: _muted,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              TextField(
+                                controller: searchController,
+                                onChanged: onSearchChanged,
+                                textAlignVertical: TextAlignVertical.center,
+                                cursorColor: _navy,
+                                style: const TextStyle(
+                                  fontSize: 14.5,
+                                  color: _navy,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                decoration: InputDecoration(
+                                  hintText: hintText,
+                                  hintStyle: const TextStyle(
+                                    color: _muted,
+                                    fontSize: 14.5,
+                                    fontWeight: FontWeight.w400,
+                                  ),
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.zero,
+                                  border: InputBorder.none,
+                                  enabledBorder: InputBorder.none,
+                                  focusedBorder: InputBorder.none,
+                                ),
+                              ),
+                              Container(
+                                height: 1,
+                                color: const Color(0xFFB9BEC4),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: onToggleExpanded,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                isExpanded ? 'Gizle' : 'Göster',
+                                style: const TextStyle(
+                                  color: _navy,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                  height: 1,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              RotatedBox(
+                                quarterTurns: isExpanded ? 2 : 0,
+                                child: const SymbolIcon(
+                                  Symbols.keyboard_arrow_down,
+                                  color: _navy,
+                                  size: 17,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            '$recordCount kayıt',
+                            style: const TextStyle(
+                              color: _navy,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w800,
+                              height: 1,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            activeFilterCount == 0
+                                ? 'Filtre yok'
+                                : '$activeFilterCount filtre',
+                            style: const TextStyle(
+                              color: _muted,
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w500,
+                              height: 1,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (isExpanded) ...[
+            const Divider(height: 1, color: _borderColor),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      _LosposPageSizeDropdown(
+                        value: pageSize,
+                        onChanged: onPageSizeChanged,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _LosposInlineFilterDropdown(
+                          icon: Symbols.language,
+                          label: context.t('Language'),
+                          value: languageFilter,
+                          items: [
+                            DropdownMenuItem(
+                              value: 'Tümü',
+                              child: Text(context.t('All')),
+                            ),
+                            for (final language in filterOptions.languages)
+                              DropdownMenuItem(
+                                value: language.id,
+                                child: Text(language.label),
+                              ),
+                          ],
+                          onChanged: onLanguageChanged,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _LosposInlineFilterDropdown(
+                          icon: Symbols.folder_open,
+                          label: context.t('Category'),
+                          value: categoryFilter,
+                          items: [
+                            DropdownMenuItem(
+                              value: 'Tümü',
+                              child: Text(context.t('All')),
+                            ),
+                            for (final category in filterOptions.categories)
+                              DropdownMenuItem(
+                                value: category.id,
+                                child: Text(category.displayLabel),
+                              ),
+                          ],
+                          onChanged: onCategoryChanged,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _LosposInlineFilterDropdown(
+                          icon: Symbols.article,
+                          label: context.t('Type'),
+                          value: typeFilter,
+                          items: [
+                            DropdownMenuItem(
+                              value: 'Tümü',
+                              child: Text(context.t('All')),
+                            ),
+                            for (final type in filterOptions.types)
+                              DropdownMenuItem(
+                                value: type.id,
+                                child: Text(context.t(_typeLabel(type.label))),
+                              ),
+                          ],
+                          onChanged: onTypeChanged,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _LosposInlineFilterDropdown(
+                          icon: Symbols.visibility,
+                          label: context.t('Status'),
+                          value: statusFilter,
+                          items: [
+                            DropdownMenuItem(
+                              value: 'Tümü',
+                              child: Text(context.t('All')),
+                            ),
+                            DropdownMenuItem(
+                              value: 'published',
+                              child: Text(context.t('Published')),
+                            ),
+                            DropdownMenuItem(
+                              value: 'draft',
+                              child: Text(context.t('Draft')),
+                            ),
+                          ],
+                          onChanged: onStatusChanged,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _LosposInlineFilterDropdown(
+                          icon: Symbols.person,
+                          label: context.t('Publisher'),
+                          value: publisherFilter,
+                          items: [
+                            DropdownMenuItem(
+                              value: 'Tümü',
+                              child: Text(context.t('All')),
+                            ),
+                            for (final publisher in filterOptions.publishers)
+                              DropdownMenuItem(
+                                value: publisher.id,
+                                child: Text(publisher.label),
+                              ),
+                          ],
+                          onChanged: onPublisherChanged,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (onClearFilters != null) ...[
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: onClearFilters,
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.actionRed,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          minimumSize: const Size(0, 32),
+                        ),
+                        child: const Text(
+                          'Temizle',
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _LosposPageSizeDropdown extends StatelessWidget {
+  const _LosposPageSizeDropdown({required this.value, required this.onChanged});
+
+  static const _values = ['25', '50', '100'];
+
+  final int value;
+  final ValueChanged<int?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = _values.contains(value.toString())
+        ? value.toString()
+        : '25';
+    return Container(
+      width: 66,
+      height: 42,
+      padding: const EdgeInsets.only(left: 10, right: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE6EAF0)),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: selected,
+          isDense: true,
+          isExpanded: true,
+          borderRadius: BorderRadius.circular(10),
+          icon: const SymbolIcon(
+            Symbols.keyboard_arrow_down,
+            color: Color(0xFF6F7780),
+            size: 16,
+          ),
+          style: const TextStyle(
+            color: Color(0xFF2F4053),
+            fontSize: 14.5,
+            fontWeight: FontWeight.w500,
+          ),
+          items: const [
+            DropdownMenuItem(value: '25', child: Text('25')),
+            DropdownMenuItem(value: '50', child: Text('50')),
+            DropdownMenuItem(value: '100', child: Text('100')),
+          ],
+          onChanged: (value) => onChanged(int.tryParse(value ?? '')),
+        ),
+      ),
+    );
+  }
+}
+
+class _LosposInlineFilterDropdown extends StatelessWidget {
+  const _LosposInlineFilterDropdown({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.items,
+    required this.onChanged,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final List<DropdownMenuItem<String>> items;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final safeValue = items.any((item) => item.value == value)
+        ? value
+        : (items.isEmpty ? null : items.first.value);
+
+    return Container(
+      height: 42,
+      padding: const EdgeInsets.only(left: 10, right: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE6EAF0)),
+      ),
+      child: Row(
+        children: [
+          SymbolIcon(icon, color: const Color(0xFF7C858D), size: 17),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Color(0xFF6B7076),
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: safeValue,
+                isDense: true,
+                isExpanded: true,
+                alignment: Alignment.centerRight,
+                borderRadius: BorderRadius.circular(10),
+                dropdownColor: Colors.white,
+                icon: const SymbolIcon(
+                  Symbols.keyboard_arrow_down,
+                  color: Color(0xFFB0B8BE),
+                  size: 16,
+                ),
+                style: const TextStyle(
+                  color: Color(0xFF2F4053),
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                ),
+                items: items,
+                onChanged: onChanged,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LosposNewsActionRow extends StatelessWidget {
+  const _LosposNewsActionRow({
+    required this.trashMode,
+    required this.videoOnly,
+    required this.onToggleTrashMode,
+    required this.onToggleVideoOnly,
+    required this.onAddPost,
+  });
+
+  static const _navy = Color(0xFF2F4053);
+  static const _red = Color(0xFFF44336);
+
+  final bool trashMode;
+  final bool videoOnly;
+  final VoidCallback onToggleTrashMode;
+  final VoidCallback onToggleVideoOnly;
+  final VoidCallback onAddPost;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _LosposNewsActionButton(
+            icon: trashMode ? Symbols.newspaper : Symbols.delete,
+            label: context.t(trashMode ? 'news.activePosts' : 'news.trash'),
+            backgroundColor: Colors.white,
+            foregroundColor: trashMode ? _navy : const Color(0xFF8C9298),
+            borderColor: const Color(0xFFE6EAF0),
+            onPressed: onToggleTrashMode,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _LosposNewsActionButton(
+            icon: Symbols.add,
+            label: context.t('Add Post'),
+            backgroundColor: _red,
+            foregroundColor: Colors.white,
+            onPressed: onAddPost,
+          ),
+        ),
+        const SizedBox(width: 8),
+        _LosposNewsActionButton(
+          width: 40,
+          icon: videoOnly
+              ? Symbols.play_circle_rounded
+              : Symbols.play_circle_outline_rounded,
+          backgroundColor: _navy,
+          foregroundColor: Colors.white,
+          onPressed: onToggleVideoOnly,
+        ),
+      ],
+    );
+  }
+}
+
+class _LosposNewsActionButton extends StatelessWidget {
+  const _LosposNewsActionButton({
+    required this.icon,
+    required this.backgroundColor,
+    required this.foregroundColor,
+    required this.onPressed,
+    this.label,
+    this.width,
+    this.borderColor,
+  });
+
+  final IconData icon;
+  final String? label;
+  final double? width;
+  final Color backgroundColor;
+  final Color foregroundColor;
+  final Color? borderColor;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      height: 40,
+      child: TextButton(
+        onPressed: onPressed,
+        style: TextButton.styleFrom(
+          backgroundColor: backgroundColor,
+          foregroundColor: foregroundColor,
+          padding: EdgeInsets.symmetric(horizontal: label == null ? 0 : 10),
+          minimumSize: const Size(0, 40),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+            side: BorderSide(color: borderColor ?? backgroundColor),
+          ),
+          textStyle: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SymbolIcon(icon, color: foregroundColor, size: 17),
+            if (label != null) ...[
+              const SizedBox(width: 7),
+              Flexible(
+                child: Text(
+                  label!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }
@@ -4841,31 +5406,30 @@ class _NewsMobileCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final thumb = post.thumbnailUrl.trim();
     final statusColor = post.published
         ? const Color(0xFF198754)
-        : AppColors.support;
+        : const Color(0xFFFF9800);
+    final statusLabel = context.t(post.published ? 'Published' : 'Draft');
+    final typeLabel = context.t(_typeLabel(post.displayType));
 
     return AdminMobileCard(
       selected: selected,
-      onTap: onToggle,
+      onTap: trashMode
+          ? onToggle
+          : () => unawaited(_openPostDetail(context, post)),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              AdminMobileCheckbox(
-                value: selected,
-                onChanged: (_) => onToggle(),
-              ),
-              const SizedBox(width: 12),
-              AdminMobileThumb(
-                imageUrl: thumb.isEmpty
-                    ? null
-                    : adminImageUrl(thumb, width: 180),
-                fallbackIcon: Symbols.newspaper,
-                fit: BoxFit.cover,
+              Padding(
+                padding: const EdgeInsets.only(top: 1),
+                child: AdminMobileCheckbox(
+                  value: selected,
+                  onChanged: (_) => onToggle(),
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -4880,140 +5444,211 @@ class _NewsMobileCard extends StatelessWidget {
                             padding: EdgeInsets.only(top: 2),
                             child: SymbolIcon(
                               Symbols.push_pin,
-                              color: AppColors.warmHorizon,
+                              color: Color(0xFFFF9800),
                               size: 15,
                             ),
                           ),
                           const SizedBox(width: 5),
                         ],
-                        Expanded(child: _PostTitleLink(post: post)),
+                        Expanded(
+                          child: HighlightedText(
+                            post.displayTitle,
+                            query: _NewsSearchScope.of(context),
+                            style: const TextStyle(
+                              color: Color(0xFF2F4053),
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14.2,
+                              height: 1.2,
+                            ),
+                          ),
+                        ),
                       ],
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 5),
                     HighlightedText(
-                      '#${post.id} · ${post.displayCategory}',
+                      '${post.id} • ${post.displayCategory} • $typeLabel',
                       query: _NewsSearchScope.of(context),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.support,
+                        color: Color(0xFF7A7F85),
+                        fontSize: 12.5,
                         fontWeight: FontWeight.w600,
+                        height: 1.15,
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [
-                        AdminMobileChip(
-                          label: context.t(_typeLabel(post.displayType)),
-                          color: AppColors.deepOcean,
-                          filled: true,
-                        ),
-                        AdminMobileChip(
-                          label: _languageLabel(post.displayLanguage),
-                          color: AppColors.support,
-                        ),
-                      ],
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 8),
               if (trashMode)
                 const Padding(
-                  padding: EdgeInsets.only(top: 4),
+                  padding: EdgeInsets.only(top: 3),
                   child: SymbolIcon(
                     Symbols.delete,
-                    color: AppColors.iconMuted,
+                    color: Color(0xFF9AA3AA),
                     size: 18,
                   ),
                 )
               else
-                AdminMobileMenuButton(
-                  tooltip: context.t('Post actions'),
-                  actions: [
-                    AdminMobileMenuAction(
-                      icon: Symbols.edit_square,
-                      label: context.t('Edit'),
-                      onTap: () => onEditPost(post),
-                    ),
-                    AdminMobileMenuAction(
-                      icon: post.published
-                          ? Symbols.visibility_off
-                          : Symbols.check,
-                      label: context.t(
-                        post.published ? 'Unpublish' : 'Publish',
+                Transform.scale(
+                  scale: 0.88,
+                  alignment: Alignment.topRight,
+                  child: AdminMobileMenuButton(
+                    tooltip: context.t('Post actions'),
+                    actions: [
+                      AdminMobileMenuAction(
+                        icon: Symbols.edit_square,
+                        label: context.t('Edit'),
+                        onTap: () => onEditPost(post),
                       ),
-                      onTap: () => onToggleStatus(post),
-                    ),
-                    AdminMobileMenuAction(
-                      icon: post.isPinned
-                          ? Symbols.visibility_off
-                          : Symbols.verified,
-                      label: context.t(post.isPinned ? 'Unpin' : 'Pin'),
-                      onTap: () => onTogglePinned(post),
-                    ),
-                    AdminMobileMenuAction(
-                      icon: Symbols.delete,
-                      label: context.t('Delete'),
-                      danger: true,
-                      onTap: () => onDeletePost(post),
-                    ),
-                  ],
-                ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Divider(height: 1, color: AppColors.softLine.withValues(alpha: 0.9)),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              AdminMobileStatusPill(
-                label: context.t(post.published ? 'Published' : 'Draft'),
-                color: statusColor,
-              ),
-              const Spacer(),
-              AdminMobileMeta(
-                icon: Symbols.visibility,
-                value: '${post.viewsCount}',
-              ),
-              const SizedBox(width: 12),
-              AdminMobileMeta(
-                icon: Symbols.short_text,
-                value: '${post.commentsCount}',
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  post.displayPublisher,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 11.5,
-                    color: AppColors.support,
-                    fontWeight: FontWeight.w600,
+                      AdminMobileMenuAction(
+                        icon: post.published
+                            ? Symbols.visibility_off
+                            : Symbols.check,
+                        label: context.t(
+                          post.published ? 'Unpublish' : 'Publish',
+                        ),
+                        onTap: () => onToggleStatus(post),
+                      ),
+                      AdminMobileMenuAction(
+                        icon: post.isPinned
+                            ? Symbols.visibility_off
+                            : Symbols.verified,
+                        label: context.t(post.isPinned ? 'Unpin' : 'Pin'),
+                        onTap: () => onTogglePinned(post),
+                      ),
+                      AdminMobileMenuAction(
+                        icon: Symbols.delete,
+                        label: context.t('Delete'),
+                        danger: true,
+                        onTap: () => onDeletePost(post),
+                      ),
+                    ],
                   ),
                 ),
+            ],
+          ),
+          const SizedBox(height: 13),
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              _LosposNewsStatusBadge(label: statusLabel, color: statusColor),
+              _LosposNewsMetricChip(
+                icon: Symbols.visibility,
+                label: '${post.viewsCount} görüntüleme',
               ),
-              const SizedBox(width: 8),
-              Text(
-                formatAdminFullDate(context, post.createdAt),
-                style: const TextStyle(
-                  fontSize: 11.5,
-                  color: AppColors.support,
-                  fontWeight: FontWeight.w500,
-                ),
+              _LosposNewsMetricChip(
+                icon: Symbols.chat_bubble_outline,
+                label: '${post.commentsCount} yorum',
+              ),
+              _LosposNewsMetricChip(
+                icon: Symbols.favorite_outline_rounded,
+                label: '${post.likesCount} beğeni',
               ),
             ],
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _openPostDetail(BuildContext context, AdminNewsPost post) async {
+    final resolved = await _resolveFrontendArticle(post);
+    if (!context.mounted) return;
+    if (resolved == null) {
+      final messenger = ScaffoldMessenger.maybeOf(context);
+      messenger?.hideCurrentSnackBar();
+      messenger?.showSnackBar(
+        const SnackBar(content: Text('Haber içeriği alınamadı.')),
+      );
+      return;
+    }
+
+    Navigator.of(context).push<void>(
+      PageRouteBuilder<void>(
+        transitionDuration: const Duration(milliseconds: 320),
+        reverseTransitionDuration: const Duration(milliseconds: 240),
+        pageBuilder: (_, _, _) => NewsDetailScreen(
+          articles: resolved.articles,
+          initialIndex: resolved.initialIndex,
+        ),
+        transitionsBuilder: (context, animation, secondary, child) {
+          final fade = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+            reverseCurve: Curves.easeInCubic,
+          );
+          final slide = Tween<Offset>(
+            begin: const Offset(0, 0.04),
+            end: Offset.zero,
+          ).animate(fade);
+          return FadeTransition(
+            opacity: fade,
+            child: SlideTransition(position: slide, child: child),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _LosposNewsStatusBadge extends StatelessWidget {
+  const _LosposNewsStatusBadge({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(5),
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: color,
+          fontSize: 11.5,
+          fontWeight: FontWeight.w800,
+          height: 1,
+        ),
+      ),
+    );
+  }
+}
+
+class _LosposNewsMetricChip extends StatelessWidget {
+  const _LosposNewsMetricChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SymbolIcon(icon, color: const Color(0xFF9AA3AA), size: 13),
+        const SizedBox(width: 3),
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: Color(0xFF7A7F85),
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            height: 1,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -5023,6 +5658,73 @@ String _typeLabel(String value) {
   if (normalized.isEmpty) return 'standard';
   final key = 'admin.post.tab.$normalized';
   return key;
+}
+
+class _ResolvedFrontendArticle {
+  const _ResolvedFrontendArticle({
+    required this.articles,
+    required this.initialIndex,
+  });
+
+  final List<NewsArticle> articles;
+  final int initialIndex;
+}
+
+Future<_ResolvedFrontendArticle?> _resolveFrontendArticle(
+  AdminNewsPost post,
+) async {
+  const repository = SearchRepository();
+  for (final key in _frontendArticleSearchKeys(post)) {
+    final data = await repository.search(
+      query: key,
+      lang: post.displayLanguage,
+    );
+    final index = _frontendArticleIndex(data.posts, post);
+    if (index >= 0) {
+      return _ResolvedFrontendArticle(
+        articles: data.posts,
+        initialIndex: index,
+      );
+    }
+  }
+  return null;
+}
+
+List<String> _frontendArticleSearchKeys(AdminNewsPost post) {
+  final keys = <String>[];
+  final seen = <String>{};
+
+  void add(String value) {
+    final clean = value.trim();
+    if (clean.length < 2) return;
+    final normalized = clean.toLowerCase();
+    if (seen.add(normalized)) keys.add(clean);
+  }
+
+  add(post.slug);
+  add(post.displayTitle);
+  add(post.id);
+  return keys;
+}
+
+int _frontendArticleIndex(List<NewsArticle> articles, AdminNewsPost post) {
+  final id = post.id.trim().toLowerCase();
+  final slug = post.slug.trim().toLowerCase();
+  final title = post.displayTitle.trim().toLowerCase();
+
+  for (var i = 0; i < articles.length; i++) {
+    final article = articles[i];
+    if (id.isNotEmpty && article.id.trim().toLowerCase() == id) return i;
+    if (slug.isNotEmpty && article.slug.trim().toLowerCase() == slug) return i;
+  }
+
+  for (var i = 0; i < articles.length; i++) {
+    if (title.isNotEmpty && articles[i].title.trim().toLowerCase() == title) {
+      return i;
+    }
+  }
+
+  return -1;
 }
 
 String _postUrl(AdminNewsPost post) {
@@ -5035,8 +5737,8 @@ String _postUrl(AdminNewsPost post) {
 Uri _siteBaseUri() {
   if (!kIsWeb) {
     return switch (defaultTargetPlatform) {
-      TargetPlatform.android => Uri.parse('http://10.0.2.2:4321'),
-      _ => Uri.parse('http://127.0.0.1:4321'),
+      TargetPlatform.android => Uri.parse('https://pateez.com'),
+      _ => Uri.parse('https://pateez.com'),
     };
   }
   return Uri.base;

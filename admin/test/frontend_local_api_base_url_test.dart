@@ -13,16 +13,16 @@ void main() {
     debugDefaultTargetPlatformOverride = null;
   });
 
-  test('Android emulator host makineye 10.0.2.2 ile baglanir', () {
+  test('Android emulator varsayilan olarak canli APIye baglanir', () {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
 
-    expect(frontendLocalApiBaseUrl().toString(), 'http://10.0.2.2:4321');
+    expect(frontendLocalApiBaseUrl().toString(), 'https://pateez.com');
   });
 
-  test('iOS ve desktop local dev icin explicit IPv4 kullanir', () {
+  test('iOS simulator varsayilan olarak canli APIye baglanir', () {
     debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
 
-    expect(frontendLocalApiBaseUrl().toString(), 'http://127.0.0.1:4321');
+    expect(frontendLocalApiBaseUrl().toString(), 'https://pateez.com');
   });
 
   test(
@@ -40,7 +40,7 @@ void main() {
   );
 
   test(
-    'Font ayarlari Androidde dart-define olmadan local APIyi kullanir',
+    'Font ayarlari Androidde dart-define olmadan canli APIyi kullanir',
     () async {
       debugDefaultTargetPlatformOverride = TargetPlatform.android;
       final requestedUrls = <String>[];
@@ -68,7 +68,7 @@ void main() {
 
       expect(
         requestedUrls,
-        contains('http://10.0.2.2:4321/api/app/font-settings?lang=tr'),
+        contains('https://pateez.com/api/app/font-settings?lang=tr'),
       );
     },
   );
@@ -130,18 +130,18 @@ void main() {
     );
     expect(
       direct.siteSettings.logoUrl,
-      'http://10.0.2.2:4321/api/storage/file/logo/tr/pateezlogoson.png',
+      'https://pateez.com/api/storage/file/logo/tr/pateezlogoson.png',
     );
 
     final data = await repository.fetch('tr');
 
     expect(
       requestedUrls,
-      contains('http://10.0.2.2:4321/api/app/shell?lang=tr'),
+      contains('https://pateez.com/api/app/shell?lang=tr'),
     );
     expect(
       data.siteSettings.logoUrl,
-      'http://10.0.2.2:4321/api/storage/file/logo/tr/pateezlogoson.png',
+      'https://pateez.com/api/storage/file/logo/tr/pateezlogoson.png',
     );
     expect(data.topNavigationItems.single.label, 'Ana Sayfa');
     expect(data.sidebarNavigationItems.single.label, 'Niğde');

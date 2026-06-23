@@ -408,6 +408,7 @@ class SupabaseAdminNewsRepository implements AdminNewsRepository {
       thumbnailUrl: json['thumbnail_url']?.toString() ?? '',
       viewsCount: _asInt(json['views_count'] ?? json['likes_count']),
       commentsCount: _asInt(json['comments_count']),
+      likesCount: _asInt(json['likes_count']),
       languageCode: json['language_code']?.toString() ?? 'tr',
       isPinned: json['is_pinned'] == true,
       publisherId: json['publisher_id']?.toString() ?? '',
@@ -515,8 +516,8 @@ class SupabaseAdminNewsRepository implements AdminNewsRepository {
     }
     if (!kIsWeb) {
       final host = defaultTargetPlatform == TargetPlatform.android
-          ? 'http://10.0.2.2:4321'
-          : 'http://127.0.0.1:4321';
+          ? 'https://pateez.com'
+          : 'https://pateez.com';
       return Uri.parse(host).resolve(path);
     }
     return Uri.base.resolve(path);

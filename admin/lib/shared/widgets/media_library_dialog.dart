@@ -356,14 +356,17 @@ class _MediaLibraryDialogState extends State<_MediaLibraryDialog> {
   void _applyRenameResult(MediaItem original, MediaSeoRenameResult result) {
     MediaSeoReplacement? main;
     for (final replacement in result.replacements) {
-      if (replacement.oldId == original.id || replacement.oldSrc == original.src) {
+      if (replacement.oldId == original.id ||
+          replacement.oldSrc == original.src) {
         main = replacement;
         break;
       }
     }
     main ??= result.replacements.isNotEmpty ? result.replacements.first : null;
 
-    final newSrc = (main != null && main.newSrc.isNotEmpty) ? main.newSrc : result.src;
+    final newSrc = (main != null && main.newSrc.isNotEmpty)
+        ? main.newSrc
+        : result.src;
     if (newSrc.isEmpty) return;
     final newId = (main != null && main.newId.isNotEmpty)
         ? main.newId
@@ -386,8 +389,11 @@ class _MediaLibraryDialogState extends State<_MediaLibraryDialog> {
       if (index != -1) _files[index] = updated;
       _resolvedUrls.remove(original.id);
       _resolvedUrls[updated.id] = widget.type == 'image'
-          ? widget.mediaService
-              .resolveImageUrl('$newSrc?v=$version', width: 260, quality: 86)
+          ? widget.mediaService.resolveImageUrl(
+              '$newSrc?v=$version',
+              width: 260,
+              quality: 86,
+            )
           : widget.mediaService.resolveUrl(newSrc);
       final selected = Set<String>.of(_selectedSrcs.value);
       if (selected.remove(original.src)) {
@@ -752,8 +758,51 @@ class _MediaLibraryDialogState extends State<_MediaLibraryDialog> {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
-    final width = (size.width * 0.86).clamp(720.0, 1240.0);
-    final height = (size.height * 0.80).clamp(500.0, 820.0);
+    final narrow = size.width < 720;
+    final width = narrow
+        ? (size.width - 24).clamp(280.0, 720.0).toDouble()
+        : (size.width * 0.86).clamp(720.0, 1240.0).toDouble();
+    final height = narrow
+        ? (size.height - 96).clamp(420.0, size.height).toDouble()
+        : (size.height * 0.80).clamp(500.0, 820.0).toDouble();
+
+    final uploadArea = _UploadSidebar(
+      type: widget.type,
+      settings: _uploadSettings,
+      uploading: _uploading,
+      uploadProgress: _uploadProgress,
+      processing: _uploadProcessing,
+      remaining: _uploadRemaining,
+      batchIndex: _uploadBatchIndex,
+      batchTotal: _uploadBatchTotal,
+      compact: narrow,
+      onPickFile: _pickAndUpload,
+      onEmptyTap: () => unawaited(_openSelectedImagePreviewOr(_pickAndUpload)),
+    );
+
+    final gridArea = ValueListenableBuilder<String>(
+      valueListenable: _searchTerm,
+      builder: (_, _, _) {
+        if (_loading) return const _LoadingState();
+        final filtered = _filteredFiles;
+        if (filtered.isEmpty) {
+          return _EmptyState(type: widget.type);
+        }
+        return _ImageGrid(
+          files: filtered,
+          resolvedUrls: _resolvedUrls,
+          selectedSrcs: _selectedSrcs,
+          busyFileId: _busyFileId,
+          onSelect: _toggleSelection,
+          onUseFile: _useFile,
+          onGridTap: () =>
+              unawaited(_openSelectedImagePreviewOr(_clearSelection)),
+          onPreview: (file) => unawaited(_openPreviewModal(file)),
+          onEdit: _openEditModal,
+          onDelete: _deleteFile,
+        );
+      },
+    );
 
     return Center(
       child: Material(
@@ -780,58 +829,28 @@ class _MediaLibraryDialogState extends State<_MediaLibraryDialog> {
           clipBehavior: Clip.antiAlias,
           child: Column(
             children: [
-              _Header(searchTerm: _searchTerm, onClose: _close),
+              _Header(searchTerm: _searchTerm, onClose: _close, narrow: narrow),
               Expanded(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _UploadSidebar(
-                      type: widget.type,
-                      settings: _uploadSettings,
-                      uploading: _uploading,
-                      uploadProgress: _uploadProgress,
-                      processing: _uploadProcessing,
-                      remaining: _uploadRemaining,
-                      batchIndex: _uploadBatchIndex,
-                      batchTotal: _uploadBatchTotal,
-                      onPickFile: _pickAndUpload,
-                      onEmptyTap: () => unawaited(
-                        _openSelectedImagePreviewOr(_pickAndUpload),
+                child: narrow
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          uploadArea,
+                          Expanded(child: gridArea),
+                        ],
+                      )
+                    : Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          uploadArea,
+                          Expanded(child: gridArea),
+                        ],
                       ),
-                    ),
-                    Expanded(
-                      child: ValueListenableBuilder<String>(
-                        valueListenable: _searchTerm,
-                        builder: (_, _, _) {
-                          if (_loading) return const _LoadingState();
-                          final filtered = _filteredFiles;
-                          if (filtered.isEmpty) {
-                            return _EmptyState(type: widget.type);
-                          }
-                          return _ImageGrid(
-                            files: filtered,
-                            resolvedUrls: _resolvedUrls,
-                            selectedSrcs: _selectedSrcs,
-                            busyFileId: _busyFileId,
-                            onSelect: _toggleSelection,
-                            onUseFile: _useFile,
-                            onGridTap: () => unawaited(
-                              _openSelectedImagePreviewOr(_clearSelection),
-                            ),
-                            onPreview: (file) =>
-                                unawaited(_openPreviewModal(file)),
-                            onEdit: _openEditModal,
-                            onDelete: _deleteFile,
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
               ),
               _Footer(
                 selectedSrcs: _selectedSrcs,
                 uploading: _uploading,
+                narrow: narrow,
                 onUse: () {
                   if (widget.multiSelect) {
                     _close(_selectedSrcs.value.toList(growable: false));
@@ -855,13 +874,74 @@ class _MediaLibraryDialogState extends State<_MediaLibraryDialog> {
 // HEADER
 // ─────────────────────────────────────────────────────────────────────────────
 class _Header extends StatelessWidget {
-  const _Header({required this.searchTerm, required this.onClose});
+  const _Header({
+    required this.searchTerm,
+    required this.onClose,
+    this.narrow = false,
+  });
 
   final ValueNotifier<String> searchTerm;
   final VoidCallback onClose;
+  final bool narrow;
 
   @override
   Widget build(BuildContext context) {
+    final titleRow = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 4,
+          height: 20,
+          decoration: BoxDecoration(
+            color: AppColors.actionRed,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Text(
+          context.t('media.title'),
+          style: const TextStyle(
+            color: AppColors.deepOcean,
+            fontSize: 15,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.3,
+          ),
+        ),
+      ],
+    );
+
+    final closeButton = _HoverIconButton(
+      icon: Symbols.close_rounded,
+      onTap: onClose,
+      hoverColor: AppColors.actionRed.withValues(alpha: 0.08),
+      hoverIconColor: AppColors.actionRed,
+    );
+
+    if (narrow) {
+      // Phone: title + close on one row, the search field gets its own full
+      // width row below so it no longer overlaps the title.
+      return Container(
+        padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          border: Border(bottom: BorderSide(color: _mlSoftBorder)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Expanded(child: titleRow),
+                closeButton,
+              ],
+            ),
+            const SizedBox(height: 12),
+            _SearchField(searchTerm: searchTerm),
+          ],
+        ),
+      );
+    }
+
     return Container(
       height: 64,
       padding: const EdgeInsets.symmetric(horizontal: 22),
@@ -880,41 +960,8 @@ class _Header extends StatelessWidget {
               ),
             ),
           ),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 4,
-                  height: 20,
-                  decoration: BoxDecoration(
-                    color: AppColors.actionRed,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  context.t('media.title'),
-                  style: const TextStyle(
-                    color: AppColors.deepOcean,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.3,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Align(
-            alignment: Alignment.centerRight,
-            child: _HoverIconButton(
-              icon: Symbols.close_rounded,
-              onTap: onClose,
-              hoverColor: AppColors.actionRed.withValues(alpha: 0.08),
-              hoverIconColor: AppColors.actionRed,
-            ),
-          ),
+          Align(alignment: Alignment.centerLeft, child: titleRow),
+          Align(alignment: Alignment.centerRight, child: closeButton),
         ],
       ),
     );
@@ -1001,6 +1048,7 @@ class _UploadSidebar extends StatelessWidget {
     required this.batchTotal,
     required this.onPickFile,
     required this.onEmptyTap,
+    this.compact = false,
   });
 
   final String type;
@@ -1013,6 +1061,7 @@ class _UploadSidebar extends StatelessWidget {
   final int batchTotal;
   final VoidCallback onPickFile;
   final VoidCallback onEmptyTap;
+  final bool compact;
 
   List<String> _extensions(BuildContext context) {
     final extensions = settings.extensionsFor(type);
@@ -1022,6 +1071,7 @@ class _UploadSidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (compact) return _buildCompact(context);
     return Container(
       width: 360,
       decoration: const BoxDecoration(
@@ -1150,6 +1200,130 @@ class _UploadSidebar extends StatelessWidget {
     );
   }
 
+  // Phone: a slim full-width upload strip above the gallery, so the image
+  // grid gets the rest of the height instead of being squeezed to nothing.
+  Widget _buildCompact(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        color: _mlSurface,
+        border: Border(bottom: BorderSide(color: _mlSoftBorder)),
+      ),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      child: uploading
+          ? Row(
+              children: [
+                SizedBox(
+                  width: 34,
+                  height: 34,
+                  child: Padding(
+                    padding: const EdgeInsets.all(5),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      value: processing ? null : uploadProgress,
+                      color: AppColors.deepOcean,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _uploadStatusText(context),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.deepOcean,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(AppRadius.value),
+                        child: LinearProgressIndicator(
+                          minHeight: 5,
+                          value: uploadProgress,
+                          backgroundColor: _mlSoftBorder,
+                          color: processing
+                              ? AppColors.actionRed
+                              : AppColors.deepOcean,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 38,
+                      height: 38,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: _mlSoftBorder, width: 1.2),
+                      ),
+                      child: Icon(
+                        Symbols.cloud_upload_outlined,
+                        size: 19,
+                        color: _mlMuted.withValues(alpha: 0.55),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            context.t('media.dragDrop'),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: _mlMuted.withValues(alpha: 0.85),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              height: 1.2,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            _extensions(context).join('  ·  '),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: _mlMuted.withValues(alpha: 0.6),
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _BrowseButton(
+                  enabled: !uploading,
+                  onTap: onPickFile,
+                  fullWidth: true,
+                ),
+              ],
+            ),
+    );
+  }
+
   String _uploadStatusText(BuildContext context) {
     final progress = uploadProgress;
     final percent = progress == null
@@ -1231,10 +1405,15 @@ class _ExtChip extends StatelessWidget {
 }
 
 class _BrowseButton extends StatefulWidget {
-  const _BrowseButton({required this.enabled, required this.onTap});
+  const _BrowseButton({
+    required this.enabled,
+    required this.onTap,
+    this.fullWidth = false,
+  });
 
   final bool enabled;
   final VoidCallback onTap;
+  final bool fullWidth;
 
   @override
   State<_BrowseButton> createState() => _BrowseButtonState();
@@ -1247,7 +1426,7 @@ class _BrowseButtonState extends State<_BrowseButton> {
   Widget build(BuildContext context) {
     final disabled = !widget.enabled;
     return SizedBox(
-      width: 210,
+      width: widget.fullWidth ? double.infinity : 210,
       height: 40,
       child: MouseRegion(
         cursor: disabled ? SystemMouseCursors.basic : SystemMouseCursors.click,
@@ -2007,6 +2186,7 @@ class _Footer extends StatelessWidget {
     required this.onClose,
     required this.onDeleteSelected,
     required this.type,
+    this.narrow = false,
   });
 
   final ValueNotifier<Set<String>> selectedSrcs;
@@ -2015,9 +2195,11 @@ class _Footer extends StatelessWidget {
   final VoidCallback onClose;
   final VoidCallback onDeleteSelected;
   final String type;
+  final bool narrow;
 
   @override
   Widget build(BuildContext context) {
+    if (narrow) return _buildNarrow(context);
     return Container(
       height: 60,
       padding: const EdgeInsets.symmetric(horizontal: 22),
@@ -2057,6 +2239,61 @@ class _Footer extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               _SecondaryButton(label: context.t('media.close'), onTap: onClose),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  // Phone: stack the actions so the four buttons never overflow the row.
+  // The selection-delete row only appears when something is selected; "Kullan"
+  // gets a full-width primary slot as the main action.
+  Widget _buildNarrow(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+      decoration: const BoxDecoration(
+        color: _mlSurface,
+        border: Border(top: BorderSide(color: _mlSoftBorder)),
+      ),
+      child: ValueListenableBuilder<Set<String>>(
+        valueListenable: selectedSrcs,
+        builder: (_, selected, _) {
+          final selectedCount = selected.length;
+          final hasSelection = selectedCount > 0 && !uploading;
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (hasSelection) ...[
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: _OutlinedActionButton(
+                    enabled: hasSelection,
+                    color: AppColors.actionRed,
+                    icon: Symbols.delete_sweep_outlined,
+                    label:
+                        '${context.t('media.deleteSelected')} ($selectedCount)',
+                    onTap: onDeleteSelected,
+                  ),
+                ),
+                const SizedBox(height: 10),
+              ],
+              Row(
+                children: [
+                  _SecondaryButton(
+                    label: context.t('media.close'),
+                    onTap: onClose,
+                  ),
+                  const Spacer(),
+                  _PrimaryButton(
+                    enabled: hasSelection,
+                    color: AppColors.warmHorizon,
+                    icon: Symbols.check_circle_outline_rounded,
+                    label: _useLabel(context, type),
+                    onTap: onUse,
+                  ),
+                ],
+              ),
             ],
           );
         },
@@ -2949,8 +3186,18 @@ class _MandatorySeoRenameModalState extends State<_MandatorySeoRenameModal> {
       widget.file.value.isNotEmpty ? widget.file.value : 'haber görseli';
 
   static const _turkishSlugMap = {
-    'ğ': 'g', 'Ğ': 'g', 'ü': 'u', 'Ü': 'u', 'ş': 's', 'Ş': 's',
-    'ı': 'i', 'İ': 'i', 'ö': 'o', 'Ö': 'o', 'ç': 'c', 'Ç': 'c',
+    'ğ': 'g',
+    'Ğ': 'g',
+    'ü': 'u',
+    'Ü': 'u',
+    'ş': 's',
+    'Ş': 's',
+    'ı': 'i',
+    'İ': 'i',
+    'ö': 'o',
+    'Ö': 'o',
+    'ç': 'c',
+    'Ç': 'c',
   };
 
   String _slugPreview(String value) {
@@ -2989,8 +3236,9 @@ class _MandatorySeoRenameModalState extends State<_MandatorySeoRenameModal> {
       final suggestion = result?.filename.trim() ?? '';
       if (suggestion.isNotEmpty && !_userEdited) {
         _nameCtrl.text = suggestion;
-        _nameCtrl.selection =
-            TextSelection.collapsed(offset: suggestion.length);
+        _nameCtrl.selection = TextSelection.collapsed(
+          offset: suggestion.length,
+        );
       }
     } catch (_) {
       // Suggestion is optional; the user can still type a name manually.
@@ -3112,7 +3360,9 @@ class _MandatorySeoRenameModalState extends State<_MandatorySeoRenameModal> {
                           errorWidget: Icon(
                             Symbols.broken_image_outlined,
                             size: 28,
-                            color: AppColors.placeholder.withValues(alpha: 0.45),
+                            color: AppColors.placeholder.withValues(
+                              alpha: 0.45,
+                            ),
                           ),
                         ),
                       ),
@@ -3258,7 +3508,9 @@ class _SeoSuggestButton extends StatelessWidget {
             color: AppColors.deepOcean.withValues(alpha: enabled ? 0.06 : 0.03),
             borderRadius: BorderRadius.circular(AppRadius.value),
             border: Border.all(
-              color: AppColors.deepOcean.withValues(alpha: enabled ? 0.25 : 0.12),
+              color: AppColors.deepOcean.withValues(
+                alpha: enabled ? 0.25 : 0.12,
+              ),
             ),
           ),
           child: Row(
@@ -3284,7 +3536,9 @@ class _SeoSuggestButton extends StatelessWidget {
               Text(
                 label,
                 style: TextStyle(
-                  color: AppColors.deepOcean.withValues(alpha: enabled ? 1 : 0.4),
+                  color: AppColors.deepOcean.withValues(
+                    alpha: enabled ? 1 : 0.4,
+                  ),
                   fontSize: 11,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0.2,

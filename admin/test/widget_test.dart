@@ -1107,6 +1107,7 @@ class _FakeAdminNewsRepository implements AdminNewsRepository {
       thumbnailUrl: '',
       viewsCount: 0,
       commentsCount: 0,
+      likesCount: 0,
       languageCode: 'tr',
       isPinned: true,
       publisherId: '6c1a27d3-ce8e-4c42-bec1-fc092139e3ee',
@@ -1140,6 +1141,7 @@ class _FakeAdminNewsRepository implements AdminNewsRepository {
       thumbnailUrl: '',
       viewsCount: 4,
       commentsCount: 2,
+      likesCount: 1,
       languageCode: 'tr',
       isPinned: false,
       publisherId: '6c1a27d3-ce8e-4c42-bec1-fc092139e3ee',
@@ -1482,6 +1484,7 @@ class _FakeAdminNewsRepository implements AdminNewsRepository {
       thumbnailUrl: post.thumbnailUrl,
       viewsCount: post.viewsCount,
       commentsCount: post.commentsCount,
+      likesCount: post.likesCount,
       languageCode: post.languageCode,
       isPinned: isPinned ?? post.isPinned,
       publisherId: post.publisherId,
@@ -3668,7 +3671,7 @@ void main() {
         );
   });
 
-  test('Desktop auth client localhost API adresini kullanır', () async {
+  test('Desktop auth client canli API adresini kullanır', () async {
     debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
     addTearDown(() {
       debugDefaultTargetPlatformOverride = null;
@@ -3704,13 +3707,13 @@ void main() {
     expect(
       requestedUrls,
       containsAllInOrder([
-        'http://127.0.0.1:4321/api/app/auth',
-        'http://127.0.0.1:4321/api/admin/query',
+        'https://pateez.com/api/app/auth',
+        'https://pateez.com/api/admin/query',
       ]),
     );
   });
 
-  test('Android auth client emulator API adresini kullanır', () async {
+  test('Android auth client canli API adresini kullanır', () async {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
     addTearDown(() {
       debugDefaultTargetPlatformOverride = null;
@@ -3745,8 +3748,8 @@ void main() {
     expect(
       requestedUrls,
       containsAllInOrder([
-        'http://10.0.2.2:4321/api/app/auth',
-        'http://10.0.2.2:4321/api/admin/query',
+        'https://pateez.com/api/app/auth',
+        'https://pateez.com/api/admin/query',
       ]),
     );
   });

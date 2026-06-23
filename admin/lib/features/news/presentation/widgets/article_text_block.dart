@@ -69,6 +69,118 @@ class ArticleTextBlockCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 560) {
+          return _buildCompact(context);
+        }
+        return _buildWide(context);
+      },
+    );
+  }
+
+  // ── Phone: slim accent rail on the left, inline reorder/delete actions ──
+  // Uses a Stack (not IntrinsicHeight) for the accent bar, because the editor
+  // is a LayoutBuilder and LayoutBuilder cannot answer intrinsic-height queries.
+  Widget _buildCompact(BuildContext context) {
+    return _ArticleSectionCard(
+      padding: EdgeInsets.zero,
+      child: Stack(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 13, 12, 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    if (blockNumber != null) ...[
+                      _BlockNumberChip(blockNumber!),
+                      const SizedBox(width: 10),
+                    ],
+                    const Icon(
+                      Symbols.text_fields,
+                      color: AppColors.actionRed,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        context.t('newsAdd.textBlock'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.deepOcean,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    _BlockActionMini(
+                      icon: Symbols.keyboard_arrow_up,
+                      active: canMoveUp,
+                      onTap: onMoveUp,
+                    ),
+                    const SizedBox(width: 4),
+                    _BlockActionMini(
+                      icon: Symbols.keyboard_arrow_down,
+                      active: canMoveDown,
+                      onTap: onMoveDown,
+                    ),
+                    const SizedBox(width: 4),
+                    _BlockActionMini(
+                      icon: Symbols.delete_outline,
+                      active: canDelete,
+                      activeColor: AppColors.actionRed,
+                      onTap: onDelete,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _ArticleTextInputBox(
+                  controller: blockTitleController,
+                  hintTextKey: 'newsAdd.blockTitleHint',
+                  fontSize: 13,
+                  bold: true,
+                ),
+                const SizedBox(height: 14),
+                const _ArticleFieldLabel('newsAdd.contentLabel'),
+                ArticleRichTextEditor(
+                  controller: editorController,
+                  placeholder: 'newsAdd.contentHint',
+                ),
+                _ExtraSettingsPanel(
+                  expanded: extraSettingsExpanded,
+                  sourceController: sourceController,
+                  onToggle: onToggleExtraSettings,
+                ),
+              ],
+            ),
+          ),
+          Positioned(
+            left: 0,
+            top: 0,
+            bottom: 0,
+            child: Container(
+              width: 4,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [AppColors.actionRed, Color(0xFFB7301F)],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Desktop / tablet: original layout with the full left action rail ──
+  Widget _buildWide(BuildContext context) {
     return _ArticleSectionCard(
       padding: EdgeInsets.zero,
       child: Stack(
@@ -160,6 +272,79 @@ class ArticleTextBlockCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _BlockNumberChip extends StatelessWidget {
+  const _BlockNumberChip(this.number);
+
+  final int number;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 26,
+      constraints: const BoxConstraints(minWidth: 26),
+      alignment: Alignment.center,
+      padding: const EdgeInsets.symmetric(horizontal: 7),
+      decoration: BoxDecoration(
+        color: AppColors.deepOcean,
+        borderRadius: BorderRadius.circular(AppRadius.value),
+      ),
+      child: Text(
+        '$number',
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+}
+
+class _BlockActionMini extends StatelessWidget {
+  const _BlockActionMini({
+    required this.icon,
+    required this.active,
+    required this.onTap,
+    this.activeColor = AppColors.deepOcean,
+  });
+
+  final IconData icon;
+  final bool active;
+  final VoidCallback onTap;
+  final Color activeColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = active
+        ? activeColor
+        : AppColors.placeholder.withValues(alpha: 0.7);
+    return MouseRegion(
+      cursor: active ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: active ? onTap : null,
+        child: Container(
+          width: 30,
+          height: 30,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: active
+                ? activeColor.withValues(alpha: 0.06)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(AppRadius.value),
+            border: Border.all(
+              color: active
+                  ? activeColor.withValues(alpha: 0.16)
+                  : _articleBlockSoftLine,
+            ),
+          ),
+          child: Icon(icon, size: 16, color: color),
+        ),
       ),
     );
   }
@@ -483,84 +668,134 @@ class ArticleRichTextEditor extends StatelessWidget {
   final String placeholder;
   final double minHeight;
 
+  // Full desktop toolbar — every formatting affordance, wraps onto multiple rows.
+  static const _fullToolbarConfig = quill.QuillSimpleToolbarConfig(
+    toolbarIconAlignment: WrapAlignment.start,
+    toolbarIconCrossAlignment: WrapCrossAlignment.center,
+    multiRowsDisplay: true,
+    showFontFamily: true,
+    showFontSize: true,
+    showBoldButton: true,
+    showItalicButton: true,
+    showSmallButton: true,
+    showUnderLineButton: true,
+    showLineHeightButton: true,
+    showStrikeThrough: true,
+    showInlineCode: true,
+    showColorButton: true,
+    showBackgroundColorButton: true,
+    showClearFormat: true,
+    showHeaderStyle: true,
+    showAlignmentButtons: true,
+    showLeftAlignment: true,
+    showCenterAlignment: true,
+    showRightAlignment: true,
+    showJustifyAlignment: true,
+    showListNumbers: true,
+    showListBullets: true,
+    showListCheck: true,
+    showCodeBlock: true,
+    showQuote: true,
+    showIndent: true,
+    showLink: true,
+    showUndo: true,
+    showRedo: true,
+    showDirection: true,
+    showSearchButton: true,
+    showSubscript: true,
+    showSuperscript: true,
+  );
+
+  // Phone toolbar — a single slim, horizontally scrollable row with just the
+  // essentials, so the editor never dominates the screen.
+  static const _compactToolbarConfig = quill.QuillSimpleToolbarConfig(
+    toolbarIconAlignment: WrapAlignment.start,
+    toolbarIconCrossAlignment: WrapCrossAlignment.center,
+    multiRowsDisplay: false,
+    showFontFamily: false,
+    showFontSize: false,
+    showBoldButton: true,
+    showItalicButton: true,
+    showSmallButton: false,
+    showUnderLineButton: true,
+    showLineHeightButton: false,
+    showStrikeThrough: true,
+    showInlineCode: false,
+    showColorButton: true,
+    showBackgroundColorButton: false,
+    showClearFormat: true,
+    showHeaderStyle: true,
+    showAlignmentButtons: true,
+    showLeftAlignment: true,
+    showCenterAlignment: true,
+    showRightAlignment: true,
+    showJustifyAlignment: false,
+    showListNumbers: true,
+    showListBullets: true,
+    showListCheck: false,
+    showCodeBlock: false,
+    showQuote: true,
+    showIndent: false,
+    showLink: true,
+    showUndo: true,
+    showRedo: true,
+    showDirection: false,
+    showSearchButton: false,
+    showSubscript: false,
+    showSuperscript: false,
+  );
+
   @override
   Widget build(BuildContext context) {
     final radius = BorderRadius.circular(AppRadius.value);
-    return Container(
-      decoration: BoxDecoration(color: Colors.white, borderRadius: radius),
-      foregroundDecoration: BoxDecoration(
-        borderRadius: radius,
-        border: Border.all(color: _articleBlockStrongLine),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          DecoratedBox(
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              border: Border(bottom: BorderSide(color: _articleBlockSoftLine)),
-            ),
-            child: quill.QuillSimpleToolbar(
-              controller: controller,
-              config: const quill.QuillSimpleToolbarConfig(
-                toolbarIconAlignment: WrapAlignment.start,
-                toolbarIconCrossAlignment: WrapCrossAlignment.center,
-                multiRowsDisplay: true,
-                showFontFamily: true,
-                showFontSize: true,
-                showBoldButton: true,
-                showItalicButton: true,
-                showSmallButton: true,
-                showUnderLineButton: true,
-                showLineHeightButton: true,
-                showStrikeThrough: true,
-                showInlineCode: true,
-                showColorButton: true,
-                showBackgroundColorButton: true,
-                showClearFormat: true,
-                showHeaderStyle: true,
-                showAlignmentButtons: true,
-                showLeftAlignment: true,
-                showCenterAlignment: true,
-                showRightAlignment: true,
-                showJustifyAlignment: true,
-                showListNumbers: true,
-                showListBullets: true,
-                showListCheck: true,
-                showCodeBlock: true,
-                showQuote: true,
-                showIndent: true,
-                showLink: true,
-                showUndo: true,
-                showRedo: true,
-                showDirection: true,
-                showSearchButton: true,
-                showSubscript: true,
-                showSuperscript: true,
-              ),
-            ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 520;
+        final editorHeight = compact ? 210.0 : minHeight;
+        return Container(
+          decoration: BoxDecoration(color: Colors.white, borderRadius: radius),
+          foregroundDecoration: BoxDecoration(
+            borderRadius: radius,
+            border: Border.all(color: _articleBlockStrongLine),
           ),
-          SizedBox(
-            height: minHeight,
-            child: ColoredBox(
-              color: Colors.white,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-                child: quill.QuillEditor.basic(
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: compact ? const Color(0xFFFAFBFC) : Colors.white,
+                  border: const Border(
+                    bottom: BorderSide(color: _articleBlockSoftLine),
+                  ),
+                ),
+                child: quill.QuillSimpleToolbar(
                   controller: controller,
-                  config: quill.QuillEditorConfig(
-                    placeholder: context.t(placeholder),
-                    padding: EdgeInsets.zero,
-                    embedBuilders: adminQuillEmbedBuilders,
-                    unknownEmbedBuilder: adminQuillUnknownEmbedBuilder,
+                  config: compact ? _compactToolbarConfig : _fullToolbarConfig,
+                ),
+              ),
+              SizedBox(
+                height: editorHeight,
+                child: ColoredBox(
+                  color: Colors.white,
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(14, compact ? 10 : 12, 14, 14),
+                    child: quill.QuillEditor.basic(
+                      controller: controller,
+                      config: quill.QuillEditorConfig(
+                        placeholder: context.t(placeholder),
+                        padding: EdgeInsets.zero,
+                        embedBuilders: adminQuillEmbedBuilders,
+                        unknownEmbedBuilder: adminQuillUnknownEmbedBuilder,
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

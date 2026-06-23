@@ -570,7 +570,7 @@ class _NewsScreenState extends State<NewsScreen> {
               horizontalPadding,
               18,
               horizontalPadding,
-              28,
+              0,
             ),
             child: content,
           );
@@ -647,8 +647,8 @@ class _NewsErrorBanner extends StatelessWidget {
 Uri _siteBaseUri() {
   if (!kIsWeb) {
     return switch (defaultTargetPlatform) {
-      TargetPlatform.android => Uri.parse('http://10.0.2.2:4321'),
-      _ => Uri.parse('http://127.0.0.1:4321'),
+      TargetPlatform.android => Uri.parse('https://pateez.com'),
+      _ => Uri.parse('https://pateez.com'),
     };
   }
   return Uri.base;
