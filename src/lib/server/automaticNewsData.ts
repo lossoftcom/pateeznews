@@ -18,6 +18,13 @@ const INSTAGRAM_BROWSER_USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_
 const INSTAGRAM_RETRY_DELAY_MS = 1200;
 const INSTAGRAM_TEST_CONCURRENCY = 1;
 const INSTAGRAM_TEST_START_DELAY_MS = 1400;
+const INSTAGRAM_FAST_SOURCE_LIMIT = 8;
+const INSTAGRAM_FAST_POLL_MINUTES = 5;
+const INSTAGRAM_STANDARD_POLL_MINUTES = 30;
+const INSTAGRAM_TRANSIENT_COOLDOWN_MINUTES = 15;
+const INSTAGRAM_AUTH_COOLDOWN_MINUTES = 30;
+const INSTAGRAM_EXTENDED_COOLDOWN_MINUTES = 90;
+const INSTAGRAM_MAX_COOLDOWN_MINUTES = 180;
 const USER_AGENT = 'Pateez-AutomaticNews/1.0 (+https://www.pateez.com)';
 const RECENT_CONTENT_TIME_ZONE = 'Europe/Istanbul';
 const AUTOMATIC_NEWS_SETTINGS_KEY = 'automatic_news.automation';
@@ -42,6 +49,9 @@ interface AutomaticNewsSourceRow {
   last_started_at?: string | null;
   last_finished_at?: string | null;
   consecutive_failures?: number | null;
+  cooldown_until?: string | null;
+  last_error_code?: string | null;
+  last_http_status?: number | null;
   resolved_feed_url?: string | null;
   etag?: string | null;
   last_modified?: string | null;
@@ -161,6 +171,8 @@ interface ProcessSourceResult {
   insertedCount: number;
   skippedDuplicateCount: number;
   errorMessage: string;
+  errorCode?: string;
+  shouldRetry?: boolean;
 }
 
 export interface AutomaticNewsAutomationSettings {
@@ -171,6 +183,7 @@ export interface AutomaticNewsAutomationSettings {
 
 interface ProcessSourceOptions {
   enabledAt?: string | null;
+  runId?: string | null;
 }
 
 const normalizeText = (value: unknown) =>
@@ -312,11 +325,16 @@ export async function setAutomaticNewsAutomationEnabled(enabled: boolean) {
     await dbQuery(
       `UPDATE public.automatic_news_sources
        SET
-         next_poll_at = LEAST(COALESCE(next_poll_at, now()), now()),
+         next_poll_at = CASE
+           WHEN source_type = 'instagram' AND sla_tier <> 'urgent'
+             THEN GREATEST(COALESCE(next_poll_at, now() + make_interval(mins => $1)), now() + make_interval(mins => $1))
+           ELSE LEAST(COALESCE(next_poll_at, now()), now())
+         END,
          lease_owner = NULL,
          lease_expires_at = NULL,
          updated_at = now()
        WHERE is_active = true`,
+      [INSTAGRAM_STANDARD_POLL_MINUTES],
     );
   } else {
     await dbQuery(
@@ -2102,13 +2120,115 @@ const latestDetectionLatency = (items: AutomaticNewsItemInput[]) => {
   return latencies.length ? Math.min(...latencies) : null;
 };
 
+const sourceErrorHttpStatus = (message: string) => {
+  const match = normalizeText(message).match(/\bHTTP\s+(\d{3})\b/i);
+  return match ? Number(match[1]) : null;
+};
+
+const sourceErrorCode = (source: AutomaticNewsSourceRow, message: string) => {
+  const normalized = trLower(message);
+  const status = sourceErrorHttpStatus(message);
+  if (source.source_type === 'instagram') {
+    if (status === 401 || status === 403) return 'instagram_auth_required';
+    if (status === 429) return 'instagram_rate_limited';
+    if (status && status >= 500) return 'instagram_server_error';
+    if (/timeout|timed out|aborted|network|fetch/i.test(normalized)) return 'instagram_transient';
+    return message ? 'instagram_error' : '';
+  }
+  if (status === 429) return 'rate_limited';
+  if (status && status >= 500) return 'server_error';
+  if (/timeout|timed out|aborted|network|fetch/i.test(normalized)) return 'transient';
+  return message ? 'source_error' : '';
+};
+
+const shouldRetrySourceError = (source: AutomaticNewsSourceRow, errorCode: string) => {
+  if (!errorCode) return false;
+  // Instagram private web endpoint limits are account/IP/session based. Queue retrying
+  // the same minute makes 401/429 worse, so the source cooldown controls the next try.
+  if (source.source_type === 'instagram') return false;
+  return true;
+};
+
+const instagramSuccessPollMinutes = (source: AutomaticNewsSourceRow) => {
+  const tier = normalizeText(source.sla_tier || 'standard');
+  const priority = Number(source.priority || 100);
+  if (tier === 'urgent' || priority <= 20) return INSTAGRAM_FAST_POLL_MINUTES;
+  return INSTAGRAM_STANDARD_POLL_MINUTES;
+};
+
+const instagramCooldownMinutes = (source: AutomaticNewsSourceRow, errorCode: string) => {
+  if (source.source_type !== 'instagram' || !errorCode) return null;
+  const failures = Math.max(0, Number(source.consecutive_failures || 0)) + 1;
+  if (errorCode === 'instagram_auth_required' || errorCode === 'instagram_rate_limited') {
+    if (failures >= 12) return INSTAGRAM_MAX_COOLDOWN_MINUTES;
+    if (failures >= 6) return INSTAGRAM_EXTENDED_COOLDOWN_MINUTES;
+    if (failures >= 3) return 45;
+    return INSTAGRAM_AUTH_COOLDOWN_MINUTES;
+  }
+  if (errorCode === 'instagram_server_error' || errorCode === 'instagram_transient') {
+    return failures >= 3 ? INSTAGRAM_AUTH_COOLDOWN_MINUTES : INSTAGRAM_TRANSIENT_COOLDOWN_MINUTES;
+  }
+  return INSTAGRAM_AUTH_COOLDOWN_MINUTES;
+};
+
+const numericRunId = (runId?: string | null) =>
+  /^\d+$/.test(String(runId || '')) ? Number(runId) : null;
+
+const recordAutomaticNewsSourceCheck = async (
+  source: AutomaticNewsSourceRow,
+  options: {
+    runId?: string | null;
+    status: 'success' | 'error';
+    candidatesFound: number;
+    insertedCount: number;
+    skippedDuplicateCount: number;
+    errorMessage: string;
+    errorCode: string;
+    httpStatus: number | null;
+    durationMs: number;
+    detectedLatencySeconds: number | null;
+  },
+) => {
+  try {
+    await dbQuery(
+      `INSERT INTO public.automatic_news_source_checks
+         (source_id, run_id, source_type, status, candidates_found, inserted_count,
+          skipped_duplicate_count, error_message, error_code, http_status, duration_ms,
+          detected_latency_seconds)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, NULLIF($8, ''), NULLIF($9, ''), $10, $11, $12)`,
+      [
+        source.id,
+        numericRunId(options.runId),
+        source.source_type,
+        options.status,
+        options.candidatesFound,
+        options.insertedCount,
+        options.skippedDuplicateCount,
+        options.errorMessage.slice(0, 500),
+        options.errorCode,
+        options.httpStatus,
+        options.durationMs,
+        options.detectedLatencySeconds,
+      ],
+    );
+  } catch (error) {
+    console.warn('automatic news source telemetry failed', error);
+  }
+};
+
 const markSourceChecked = async (
-  sourceId: string,
+  source: AutomaticNewsSourceRow,
   startedAt: number,
   errorMessage = '',
   detectedLatencySeconds: number | null = null,
 ) => {
   const durationMs = Math.max(0, Date.now() - startedAt);
+  const errorCode = sourceErrorCode(source, errorMessage);
+  const httpStatus = sourceErrorHttpStatus(errorMessage);
+  const successPollMinutes = source.source_type === 'instagram' && !errorMessage
+    ? instagramSuccessPollMinutes(source)
+    : null;
+  const cooldownMinutes = errorMessage ? instagramCooldownMinutes(source, errorCode) : null;
   await dbQuery(
     `UPDATE public.automatic_news_sources
      SET
@@ -2121,15 +2241,38 @@ const markSourceChecked = async (
        consecutive_failures = CASE WHEN $2 = '' THEN 0 ELSE consecutive_failures + 1 END,
        health_state = CASE
          WHEN $2 = '' THEN CASE WHEN health_state = 'disabled' THEN 'disabled' ELSE 'active' END
+         WHEN $7 IN ('instagram_auth_required', 'instagram_rate_limited') THEN 'watch'
          WHEN consecutive_failures + 1 >= 3 THEN 'watch'
          ELSE health_state
        END,
+       next_poll_at = CASE
+         WHEN $5::integer IS NOT NULL THEN now() + make_interval(mins => $5)
+         WHEN $6::integer IS NOT NULL THEN now() + make_interval(mins => $6)
+         ELSE next_poll_at
+       END,
+       cooldown_until = CASE
+         WHEN $6::integer IS NOT NULL THEN now() + make_interval(mins => $6)
+         WHEN $2 = '' THEN NULL
+         ELSE cooldown_until
+       END,
+       last_error_code = NULLIF($7, ''),
+       last_http_status = $8,
        last_duration_ms = $3,
        last_detected_latency_seconds = COALESCE($4, last_detected_latency_seconds),
        updated_at = now()
      WHERE id = $1`,
-    [sourceId, errorMessage.slice(0, 500), durationMs, detectedLatencySeconds],
+    [
+      source.id,
+      errorMessage.slice(0, 500),
+      durationMs,
+      detectedLatencySeconds,
+      successPollMinutes,
+      cooldownMinutes,
+      errorCode,
+      httpStatus,
+    ],
   );
+  return { durationMs, errorCode, httpStatus, cooldownMinutes };
 };
 
 const claimAutomaticNewsSources = async (options: {
@@ -2140,29 +2283,80 @@ const claimAutomaticNewsSources = async (options: {
 }) => {
   const leaseOwner = options.leaseOwner || `auto-news-${crypto.randomUUID()}`;
   const result = await dbQuery<AutomaticNewsSourceRow>(
-    `WITH due AS (
-       SELECT id
-       FROM public.automatic_news_sources
-       WHERE is_active = true
-         AND COALESCE(health_state, 'active') <> 'disabled'
-         AND ($1::uuid IS NULL OR id = $1::uuid)
-         AND ($2::boolean OR next_poll_at IS NULL OR next_poll_at <= now())
-         AND (lease_expires_at IS NULL OR lease_expires_at <= now())
+    `WITH ranked_candidates AS (
+       SELECT
+         source.id,
+         source.source_type,
+         COALESCE(source.priority, 100) AS priority_order,
+         source.next_poll_at,
+         source.last_checked_at,
+         source.sort_order,
+         source.created_at,
+         row_number() OVER (
+           PARTITION BY source.source_type
+           ORDER BY
+             COALESCE(source.priority, 100) ASC,
+             source.next_poll_at NULLS FIRST,
+             source.last_checked_at NULLS FIRST,
+             source.sort_order ASC,
+             source.created_at ASC
+         ) AS source_type_rank
+       FROM public.automatic_news_sources AS source
+       WHERE source.is_active = true
+         AND COALESCE(source.health_state, 'active') <> 'disabled'
+         AND ($1::uuid IS NULL OR source.id = $1::uuid)
+         AND (
+           $1::uuid IS NOT NULL
+           OR (
+             source.source_type <> 'instagram'
+             AND ($2::boolean OR source.next_poll_at IS NULL OR source.next_poll_at <= now())
+           )
+           OR (
+             source.source_type = 'instagram'
+             AND (source.next_poll_at IS NULL OR source.next_poll_at <= now())
+           )
+         )
+         AND ($1::uuid IS NOT NULL OR source.cooldown_until IS NULL OR source.cooldown_until <= now())
+         AND (source.lease_expires_at IS NULL OR source.lease_expires_at <= now())
+     ),
+     limited_candidates AS (
+       SELECT *
+       FROM ranked_candidates
+       WHERE source_type <> 'instagram'
+          OR $1::uuid IS NOT NULL
+          OR source_type_rank <= $6
        ORDER BY
-         COALESCE(priority, 100) ASC,
+         priority_order ASC,
          next_poll_at NULLS FIRST,
          last_checked_at NULLS FIRST,
          sort_order ASC,
          created_at ASC
        LIMIT $3
-       FOR UPDATE SKIP LOCKED
+     ),
+     due AS (
+       SELECT source.id
+       FROM public.automatic_news_sources AS source
+       JOIN limited_candidates AS candidate ON candidate.id = source.id
+       ORDER BY
+         candidate.priority_order ASC,
+         candidate.next_poll_at NULLS FIRST,
+         candidate.last_checked_at NULLS FIRST,
+         candidate.sort_order ASC,
+         candidate.created_at ASC
+       FOR UPDATE OF source SKIP LOCKED
      )
      UPDATE public.automatic_news_sources AS source
      SET
        lease_owner = $4,
        lease_expires_at = now() + make_interval(secs => $5),
        last_started_at = now(),
-       next_poll_at = now() + make_interval(mins => poll_interval_minutes),
+       next_poll_at = CASE
+         WHEN source.source_type = 'instagram' AND source.sla_tier = 'urgent'
+           THEN now() + make_interval(mins => $7)
+         WHEN source.source_type = 'instagram'
+           THEN now() + make_interval(mins => $8)
+         ELSE now() + make_interval(mins => source.poll_interval_minutes)
+       END,
        updated_at = now()
      FROM due
      WHERE source.id = due.id
@@ -2173,6 +2367,9 @@ const claimAutomaticNewsSources = async (options: {
       Math.min(Math.max(Number(options.limit || MAX_SOURCES_PER_RUN), 1), 120),
       leaseOwner,
       SOURCE_LEASE_SECONDS,
+      INSTAGRAM_FAST_SOURCE_LIMIT,
+      INSTAGRAM_FAST_POLL_MINUTES,
+      INSTAGRAM_STANDARD_POLL_MINUTES,
     ],
   );
   return result.rows;
@@ -2195,7 +2392,20 @@ const processSource = async (
         skippedDuplicateCount += 1;
       }
     }
-    await markSourceChecked(source.id, startedAt, '', latestDetectionLatency(items));
+    const detectedLatencySeconds = latestDetectionLatency(items);
+    const sourceState = await markSourceChecked(source, startedAt, '', detectedLatencySeconds);
+    await recordAutomaticNewsSourceCheck(source, {
+      runId: options.runId,
+      status: 'success',
+      candidatesFound: collectedItems.length,
+      insertedCount,
+      skippedDuplicateCount: skippedDuplicateCount + (collectedItems.length - items.length),
+      errorMessage: '',
+      errorCode: '',
+      httpStatus: null,
+      durationMs: sourceState.durationMs,
+      detectedLatencySeconds,
+    });
     return {
       sourceId: source.id,
       sourceName: source.display_name,
@@ -2207,7 +2417,19 @@ const processSource = async (
     };
   } catch (error: any) {
     const message = normalizeText(error?.message || 'kaynak taranamadı');
-    await markSourceChecked(source.id, startedAt, message);
+    const sourceState = await markSourceChecked(source, startedAt, message);
+    await recordAutomaticNewsSourceCheck(source, {
+      runId: options.runId,
+      status: 'error',
+      candidatesFound: 0,
+      insertedCount: 0,
+      skippedDuplicateCount: 0,
+      errorMessage: message,
+      errorCode: sourceState.errorCode,
+      httpStatus: sourceState.httpStatus,
+      durationMs: sourceState.durationMs,
+      detectedLatencySeconds: null,
+    });
     return {
       sourceId: source.id,
       sourceName: source.display_name,
@@ -2216,6 +2438,8 @@ const processSource = async (
       insertedCount: 0,
       skippedDuplicateCount: 0,
       errorMessage: message,
+      errorCode: sourceState.errorCode,
+      shouldRetry: shouldRetrySourceError(source, sourceState.errorCode),
     };
   }
 };
@@ -2238,7 +2462,10 @@ const processQueueSourceMessage = async (body: AutomaticNewsQueueMessage) => {
   );
   const source = claimed.rows[0];
   if (!source) return null;
-  return processSource(source, { enabledAt: settings.enabledAt || body.enabledAt || null });
+  return processSource(source, {
+    enabledAt: settings.enabledAt || body.enabledAt || null,
+    runId: body.runId || null,
+  });
 };
 
 const restoreQueueLeaseForRetry = async (body: AutomaticNewsQueueMessage) => {
@@ -2384,7 +2611,7 @@ export async function runAutomaticNewsRefresh(options: RefreshOptions = {}) {
     });
 
     const sourceResults = await processSourcesWithInstagramThrottle(sources, (source) =>
-      processSource(source, { enabledAt: automationSettings.enabledAt })
+      processSource(source, { enabledAt: automationSettings.enabledAt, runId })
     );
     const totals = sourceResults.reduce(
       (sum, item) => ({
@@ -2541,7 +2768,7 @@ export async function dispatchAutomaticNewsDueSources(options: {
     }
 
     const sourceResults = await processSourcesWithInstagramThrottle(sources, (source) =>
-      processSource(source, { enabledAt: automationSettings.enabledAt })
+      processSource(source, { enabledAt: automationSettings.enabledAt, runId })
     );
     const totals = sourceResults.reduce(
       (sum, item) => ({
@@ -2619,6 +2846,10 @@ export async function processAutomaticNewsQueueBatch(batch: MessageBatch<Automat
     try {
       const result = await processQueueSourceMessage(message.body);
       if (result?.errorMessage) {
+        if (result.shouldRetry === false) {
+          message.ack();
+          continue;
+        }
         await restoreQueueLeaseForRetry(message.body);
         message.retry({ delaySeconds: 60 });
         continue;
@@ -2704,24 +2935,67 @@ export async function upsertAutomaticNewsSourcesFromUrls(urls: string[]) {
   const saved = [];
   for (const url of normalized) {
     const sourceType = sourceTypeFromUrl(url);
-    const pollIntervalMinutes = sourceType === 'instagram' ? 2 : 1;
+    const pollIntervalMinutes = sourceType === 'instagram' ? INSTAGRAM_STANDARD_POLL_MINUTES : 1;
     const priority = sourceType === 'instagram' ? 200 : sourceType === 'rss' ? 20 : 50;
     const result = await dbQuery<AutomaticNewsSourceRow>(
       `INSERT INTO public.automatic_news_sources
-         (url, display_name, source_type, is_active, poll_interval_minutes, next_poll_at, priority, updated_at)
-       VALUES ($1, $2, $3, true, $4, now(), $5, now())
+         (url, display_name, source_type, is_active, poll_interval_minutes, next_poll_at, priority, sla_tier, updated_at)
+       VALUES ($1, $2, $3, true, $4, now(), $5, $6, now())
        ON CONFLICT (url) DO UPDATE
        SET
          display_name = EXCLUDED.display_name,
          source_type = EXCLUDED.source_type,
          is_active = true,
-         poll_interval_minutes = EXCLUDED.poll_interval_minutes,
-         next_poll_at = LEAST(COALESCE(public.automatic_news_sources.next_poll_at, now()), now()),
-         priority = EXCLUDED.priority,
-         last_error = NULL,
+         poll_interval_minutes = CASE
+           WHEN public.automatic_news_sources.source_type = 'instagram' AND EXCLUDED.source_type = 'instagram'
+             THEN public.automatic_news_sources.poll_interval_minutes
+           ELSE EXCLUDED.poll_interval_minutes
+         END,
+         next_poll_at = CASE
+           WHEN public.automatic_news_sources.source_type = 'instagram' AND EXCLUDED.source_type = 'instagram'
+             THEN public.automatic_news_sources.next_poll_at
+           ELSE LEAST(COALESCE(public.automatic_news_sources.next_poll_at, now()), now())
+         END,
+         priority = CASE
+           WHEN public.automatic_news_sources.source_type = 'instagram' AND EXCLUDED.source_type = 'instagram'
+             THEN public.automatic_news_sources.priority
+           ELSE EXCLUDED.priority
+         END,
+         sla_tier = CASE
+           WHEN public.automatic_news_sources.source_type = 'instagram' AND EXCLUDED.source_type = 'instagram'
+             THEN public.automatic_news_sources.sla_tier
+           ELSE EXCLUDED.sla_tier
+         END,
+         last_error = CASE
+           WHEN public.automatic_news_sources.source_type = EXCLUDED.source_type
+             THEN public.automatic_news_sources.last_error
+           ELSE NULL
+         END,
+         last_error_code = CASE
+           WHEN public.automatic_news_sources.source_type = EXCLUDED.source_type
+             THEN public.automatic_news_sources.last_error_code
+           ELSE NULL
+         END,
+         last_http_status = CASE
+           WHEN public.automatic_news_sources.source_type = EXCLUDED.source_type
+             THEN public.automatic_news_sources.last_http_status
+           ELSE NULL
+         END,
+         cooldown_until = CASE
+           WHEN public.automatic_news_sources.source_type = 'instagram' AND EXCLUDED.source_type = 'instagram'
+             THEN public.automatic_news_sources.cooldown_until
+           ELSE NULL
+         END,
          updated_at = now()
        RETURNING *`,
-      [url, displayNameFromUrl(url), sourceType, pollIntervalMinutes, priority],
+      [
+        url,
+        displayNameFromUrl(url),
+        sourceType,
+        pollIntervalMinutes,
+        priority,
+        sourceType === 'instagram' ? 'standard' : sourceType === 'rss' ? 'urgent' : 'standard',
+      ],
     );
     if (result.rows[0]) saved.push(rowToSource(result.rows[0]));
   }
@@ -2881,6 +3155,9 @@ const rowToSource = (row: AutomaticNewsSourceRow) => ({
   lastCheckedAt: row.last_checked_at,
   lastSuccessAt: row.last_success_at,
   lastError: row.last_error || '',
+  lastErrorCode: row.last_error_code || '',
+  lastHttpStatus: row.last_http_status == null ? null : Number(row.last_http_status),
+  cooldownUntil: row.cooldown_until || null,
   nextPollAt: row.next_poll_at || null,
   lastStartedAt: row.last_started_at || null,
   lastFinishedAt: row.last_finished_at || null,
