@@ -10,7 +10,7 @@ const MAX_CANDIDATES_PER_SOURCE = 8;
 const MAX_FEED_URLS_PER_SOURCE = 5;
 const MAX_NIGDE_ANADOLU_CANDIDATES = 24;
 const MAX_FETCH_BYTES = 2_500_000;
-const SOURCE_LEASE_SECONDS = 150;
+const SOURCE_LEASE_SECONDS = 300;
 const DISPATCH_BATCH_SIZE = 25;
 const DEFAULT_SOURCE_CONCURRENCY = 8;
 const INSTAGRAM_WEB_APP_ID = '936619743392459';
@@ -18,13 +18,16 @@ const INSTAGRAM_BROWSER_USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_
 const INSTAGRAM_RETRY_DELAY_MS = 1200;
 const INSTAGRAM_TEST_CONCURRENCY = 1;
 const INSTAGRAM_TEST_START_DELAY_MS = 1400;
-const INSTAGRAM_FAST_SOURCE_LIMIT = 8;
-const INSTAGRAM_FAST_POLL_MINUTES = 5;
+const INSTAGRAM_FAST_SOURCE_LIMIT = 1;
+const INSTAGRAM_FAST_POLL_MINUTES = 8;
 const INSTAGRAM_STANDARD_POLL_MINUTES = 30;
 const INSTAGRAM_TRANSIENT_COOLDOWN_MINUTES = 15;
-const INSTAGRAM_AUTH_COOLDOWN_MINUTES = 30;
-const INSTAGRAM_EXTENDED_COOLDOWN_MINUTES = 90;
-const INSTAGRAM_MAX_COOLDOWN_MINUTES = 180;
+const INSTAGRAM_SUCCESS_JITTER_MINUTES = 3;
+const INSTAGRAM_AUTH_COOLDOWN_MINUTES = 45;
+const INSTAGRAM_AUTH_COOLDOWN_JITTER_MINUTES = 15;
+const INSTAGRAM_EXTENDED_COOLDOWN_MINUTES = 120;
+const INSTAGRAM_EXTENDED_COOLDOWN_JITTER_MINUTES = 30;
+const INSTAGRAM_MAX_COOLDOWN_MINUTES = 360;
 const USER_AGENT = 'Pateez-AutomaticNews/1.0 (+https://www.pateez.com)';
 const RECENT_CONTENT_TIME_ZONE = 'Europe/Istanbul';
 const AUTOMATIC_NEWS_SETTINGS_KEY = 'automatic_news.automation';
@@ -655,6 +658,19 @@ const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number, label: str
 };
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const randomInteger = (min: number, max: number) => {
+  const lower = Math.ceil(min);
+  const upper = Math.floor(max);
+  if (upper <= lower) return lower;
+  const range = upper - lower + 1;
+  const values = new Uint32Array(1);
+  crypto.getRandomValues(values);
+  return lower + (values[0] % range);
+};
+
+const jitteredMinutes = (baseMinutes: number, jitterMinutes: number) =>
+  baseMinutes + randomInteger(0, Math.max(0, jitterMinutes));
 
 const looksXml = (contentType: string, text: string) =>
   /xml|rss|atom/i.test(contentType) || (/^\s*</.test(text) && /<(rss|feed)\b/i.test(text));
@@ -2152,23 +2168,33 @@ const shouldRetrySourceError = (source: AutomaticNewsSourceRow, errorCode: strin
 const instagramSuccessPollMinutes = (source: AutomaticNewsSourceRow) => {
   const tier = normalizeText(source.sla_tier || 'standard');
   const priority = Number(source.priority || 100);
-  if (tier === 'urgent' || priority <= 20) return INSTAGRAM_FAST_POLL_MINUTES;
-  return INSTAGRAM_STANDARD_POLL_MINUTES;
+  if (tier === 'urgent' || priority <= 20) {
+    return jitteredMinutes(INSTAGRAM_FAST_POLL_MINUTES, INSTAGRAM_SUCCESS_JITTER_MINUTES);
+  }
+  return jitteredMinutes(INSTAGRAM_STANDARD_POLL_MINUTES, INSTAGRAM_SUCCESS_JITTER_MINUTES);
 };
 
 const instagramCooldownMinutes = (source: AutomaticNewsSourceRow, errorCode: string) => {
   if (source.source_type !== 'instagram' || !errorCode) return null;
   const failures = Math.max(0, Number(source.consecutive_failures || 0)) + 1;
   if (errorCode === 'instagram_auth_required' || errorCode === 'instagram_rate_limited') {
-    if (failures >= 12) return INSTAGRAM_MAX_COOLDOWN_MINUTES;
-    if (failures >= 6) return INSTAGRAM_EXTENDED_COOLDOWN_MINUTES;
-    if (failures >= 3) return 45;
-    return INSTAGRAM_AUTH_COOLDOWN_MINUTES;
+    if (failures >= 12) {
+      return jitteredMinutes(INSTAGRAM_MAX_COOLDOWN_MINUTES, INSTAGRAM_EXTENDED_COOLDOWN_JITTER_MINUTES);
+    }
+    if (failures >= 6) {
+      return jitteredMinutes(INSTAGRAM_EXTENDED_COOLDOWN_MINUTES, INSTAGRAM_EXTENDED_COOLDOWN_JITTER_MINUTES);
+    }
+    if (failures >= 3) {
+      return jitteredMinutes(90, INSTAGRAM_EXTENDED_COOLDOWN_JITTER_MINUTES);
+    }
+    return jitteredMinutes(INSTAGRAM_AUTH_COOLDOWN_MINUTES, INSTAGRAM_AUTH_COOLDOWN_JITTER_MINUTES);
   }
   if (errorCode === 'instagram_server_error' || errorCode === 'instagram_transient') {
-    return failures >= 3 ? INSTAGRAM_AUTH_COOLDOWN_MINUTES : INSTAGRAM_TRANSIENT_COOLDOWN_MINUTES;
+    return failures >= 3
+      ? jitteredMinutes(INSTAGRAM_AUTH_COOLDOWN_MINUTES, INSTAGRAM_AUTH_COOLDOWN_JITTER_MINUTES)
+      : jitteredMinutes(INSTAGRAM_TRANSIENT_COOLDOWN_MINUTES, INSTAGRAM_SUCCESS_JITTER_MINUTES);
   }
-  return INSTAGRAM_AUTH_COOLDOWN_MINUTES;
+  return jitteredMinutes(INSTAGRAM_AUTH_COOLDOWN_MINUTES, INSTAGRAM_AUTH_COOLDOWN_JITTER_MINUTES);
 };
 
 const numericRunId = (runId?: string | null) =>
@@ -2865,12 +2891,28 @@ export async function processAutomaticNewsQueueBatch(batch: MessageBatch<Automat
 
 export async function testAutomaticNewsSources() {
   const sources = await dbQuery<AutomaticNewsSourceRow>(
-    `SELECT *
-     FROM public.automatic_news_sources
-     WHERE is_active = true
+    `WITH ranked_sources AS (
+       SELECT
+         source.*,
+         row_number() OVER (
+           PARTITION BY source.source_type
+           ORDER BY
+             COALESCE(source.priority, 100) ASC,
+             source.next_poll_at NULLS FIRST,
+             source.last_checked_at NULLS FIRST,
+             source.sort_order ASC,
+             source.created_at ASC
+         ) AS source_type_rank
+       FROM public.automatic_news_sources AS source
+       WHERE source.is_active = true
+     )
+     SELECT *
+     FROM ranked_sources
+     WHERE source_type <> 'instagram'
+        OR source_type_rank <= $2
      ORDER BY source_type, sort_order, display_name
      LIMIT $1`,
-    [MAX_SOURCES_PER_RUN],
+    [MAX_SOURCES_PER_RUN, INSTAGRAM_FAST_SOURCE_LIMIT],
   );
 
   const sourceResults = await processSourcesWithInstagramThrottle(sources.rows, processSourceFastTest);
@@ -2924,7 +2966,7 @@ export async function listAutomaticNewsSources({ includeInactive = true } = {}) 
     `SELECT *
      FROM public.automatic_news_sources
      WHERE $1::boolean OR is_active = true
-     ORDER BY sort_order, display_name`,
+     ORDER BY is_active DESC, sort_order, display_name`,
     [includeInactive],
   );
   return result.rows.map(rowToSource);

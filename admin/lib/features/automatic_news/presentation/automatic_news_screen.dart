@@ -5350,11 +5350,12 @@ class _AutomaticNewsSourceDialogState
   var _error = '';
   AutomaticNewsRefreshResult? _testResult;
   var _latestBySourceId = const <String, AutomaticNewsSourcePreview>{};
+  var _testErrorBySourceId = const <String, AutomaticNewsRefreshError>{};
 
   @override
   void initState() {
     super.initState();
-    _sources = [...widget.initialSources];
+    _sources = _sortedSources(widget.initialSources);
     _addressController.text = _sourceAddressText(_sources);
   }
 
@@ -5383,11 +5384,11 @@ class _AutomaticNewsSourceDialogState
       final saved = await widget.onSaveSources(addresses);
       if (!mounted) return;
       setState(() {
-        _sources = saved.toList()
-          ..sort((a, b) => a.displayName.compareTo(b.displayName));
+        _sources = _sortedSources(saved);
         _addressController.text = _sourceAddressText(_sources);
         _testResult = null;
         _latestBySourceId = const {};
+        _testErrorBySourceId = const {};
       });
     } catch (error) {
       if (!mounted) return;
@@ -5407,13 +5408,15 @@ class _AutomaticNewsSourceDialogState
       final payload = await widget.onTestSources();
       if (!mounted) return;
       setState(() {
-        _sources = payload.sources.toList()
-          ..sort((a, b) => a.displayName.compareTo(b.displayName));
+        _sources = _sortedSources(payload.sources);
         _addressController.text = _sourceAddressText(_sources);
         _testResult = payload.result;
         _latestBySourceId = {
           for (final preview in payload.result.previews)
             preview.sourceId: preview,
+        };
+        _testErrorBySourceId = {
+          for (final error in payload.result.errors) error.sourceId: error,
         };
       });
     } catch (error) {
@@ -5434,13 +5437,15 @@ class _AutomaticNewsSourceDialogState
       final payload = await widget.onScanSources();
       if (!mounted) return;
       setState(() {
-        _sources = payload.sources.toList()
-          ..sort((a, b) => a.displayName.compareTo(b.displayName));
+        _sources = _sortedSources(payload.sources);
         _addressController.text = _sourceAddressText(_sources);
         _testResult = payload.result;
         _latestBySourceId = {
           for (final preview in payload.result.previews)
             preview.sourceId: preview,
+        };
+        _testErrorBySourceId = {
+          for (final error in payload.result.errors) error.sourceId: error,
         };
       });
     } catch (error) {
@@ -5461,9 +5466,9 @@ class _AutomaticNewsSourceDialogState
       final updated = await widget.onToggleSource(source, value);
       if (!mounted || updated == null) return;
       setState(() {
-        _sources = [
+        _sources = _sortedSources([
           for (final item in _sources) item.id == updated.id ? updated : item,
-        ];
+        ]);
       });
     } catch (error) {
       if (!mounted) return;
@@ -5523,6 +5528,7 @@ class _AutomaticNewsSourceDialogState
                       sources: _sources,
                       busySourceId: _busySourceId,
                       latestBySourceId: _latestBySourceId,
+                      testErrorBySourceId: _testErrorBySourceId,
                       onToggle: _toggle,
                     );
                     if (compact) {
@@ -5616,6 +5622,17 @@ String _sourceAddressText(List<AutomaticNewsSource> sources) {
       .where((source) => source.isActive)
       .map((source) => source.url)
       .join('\n');
+}
+
+int _compareSourcesForAdmin(AutomaticNewsSource a, AutomaticNewsSource b) {
+  if (a.isActive != b.isActive) return a.isActive ? -1 : 1;
+  final type = a.sourceType.compareTo(b.sourceType);
+  if (type != 0) return type;
+  return a.displayName.compareTo(b.displayName);
+}
+
+List<AutomaticNewsSource> _sortedSources(List<AutomaticNewsSource> sources) {
+  return sources.toList()..sort(_compareSourcesForAdmin);
 }
 
 class _SourceDialogHeader extends StatelessWidget {
@@ -5834,7 +5851,7 @@ class _SourceTestResultStrip extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              '${result.checkedSources} kaynak kontrol edildi · ${result.candidatesFound} son içerik · ${result.errorCount} hata',
+              'Bu testte ${result.checkedSources} aktif kaynak denendi · ${result.candidatesFound} son içerik · ${result.errorCount} hata',
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
@@ -5856,12 +5873,14 @@ class _SourceListPanel extends StatelessWidget {
     required this.sources,
     required this.busySourceId,
     required this.latestBySourceId,
+    required this.testErrorBySourceId,
     required this.onToggle,
   });
 
   final List<AutomaticNewsSource> sources;
   final String busySourceId;
   final Map<String, AutomaticNewsSourcePreview> latestBySourceId;
+  final Map<String, AutomaticNewsRefreshError> testErrorBySourceId;
   final Future<void> Function(AutomaticNewsSource source, bool value) onToggle;
 
   @override
@@ -5921,6 +5940,7 @@ class _SourceListPanel extends StatelessWidget {
                       return _SourceListRow(
                         source: source,
                         latest: latestBySourceId[source.id],
+                        testError: testErrorBySourceId[source.id],
                         busy: busySourceId == source.id,
                         onToggle: (value) => onToggle(source, value),
                       );
@@ -5937,12 +5957,14 @@ class _SourceListRow extends StatelessWidget {
   const _SourceListRow({
     required this.source,
     required this.latest,
+    required this.testError,
     required this.busy,
     required this.onToggle,
   });
 
   final AutomaticNewsSource source;
   final AutomaticNewsSourcePreview? latest;
+  final AutomaticNewsRefreshError? testError;
   final bool busy;
   final ValueChanged<bool> onToggle;
 
@@ -5953,14 +5975,16 @@ class _SourceListRow extends StatelessWidget {
       'rss' => 'RSS',
       _ => 'Web',
     };
-    final status = source.lastError.isNotEmpty
+    final status = testError != null
+        ? testError!.message
+        : source.lastError.isNotEmpty
         ? source.lastError
         : latest != null
         ? 'Son içerik · ${latest!.title}'
         : source.lastSuccessAt == null
         ? 'Hazır'
         : '${_formatDate(source.lastSuccessAt!)} ${_formatTime(source.lastSuccessAt!)}';
-    final statusColor = source.lastError.isNotEmpty
+    final statusColor = testError != null || source.lastError.isNotEmpty
         ? AppColors.actionRed
         : AppColors.inkSoft;
 
