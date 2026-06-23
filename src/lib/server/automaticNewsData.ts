@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import * as parse5 from 'parse5';
+import { readRuntimeEnv } from './runtimeEnv';
 import { dbQuery } from './supabaseDb';
 
 const SOURCE_FETCH_TIMEOUT_MS = 4500;
@@ -14,6 +15,9 @@ const DISPATCH_BATCH_SIZE = 25;
 const DEFAULT_SOURCE_CONCURRENCY = 8;
 const INSTAGRAM_WEB_APP_ID = '936619743392459';
 const INSTAGRAM_BROWSER_USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36';
+const INSTAGRAM_RETRY_DELAY_MS = 1200;
+const INSTAGRAM_TEST_CONCURRENCY = 1;
+const INSTAGRAM_TEST_START_DELAY_MS = 1400;
 const USER_AGENT = 'Pateez-AutomaticNews/1.0 (+https://www.pateez.com)';
 const RECENT_CONTENT_TIME_ZONE = 'Europe/Istanbul';
 const AUTOMATIC_NEWS_SETTINGS_KEY = 'automatic_news.automation';
@@ -113,6 +117,16 @@ interface WebsiteCandidate {
   mediaUrls: string[];
   score: number;
   originLabel: string;
+}
+
+interface StructuredArticleData {
+  title: string;
+  description: string;
+  articleBody: string;
+  publishedAt: string | null;
+  modifiedAt: string | null;
+  imageUrl: string;
+  videoUrl: string;
 }
 
 export interface AutomaticNewsQueueMessage {
@@ -384,6 +398,95 @@ const metaContent = (document: any, key: string) => {
   return normalizeText(getAttr(node, 'content'));
 };
 
+const scriptText = (node: any) =>
+  (node?.childNodes || [])
+    .filter((child: any) => child?.nodeName === '#text')
+    .map((child: any) => child.value || '')
+    .join('');
+
+const normalizeDateValue = (value: unknown) => {
+  const text = normalizeText(Array.isArray(value) ? value[0] : value);
+  if (!text) return null;
+  const timestamp = Date.parse(text);
+  if (Number.isFinite(timestamp)) return new Date(timestamp).toISOString();
+  const localMatch = text.match(/(\d{1,2})[./-](\d{1,2})[./-](\d{4})(?:\s*[-–]?\s*(\d{1,2})[:.](\d{2}))?/);
+  if (localMatch) {
+    const [, day, month, year, hour = '00', minute = '00'] = localMatch;
+    const iso = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T${hour.padStart(2, '0')}:${minute.padStart(2, '0')}:00+03:00`;
+    const localTimestamp = Date.parse(iso);
+    if (Number.isFinite(localTimestamp)) return new Date(localTimestamp).toISOString();
+  }
+  return null;
+};
+
+const jsonLdNodes = (value: unknown): any[] => {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.flatMap(jsonLdNodes);
+  if (typeof value !== 'object') return [];
+  const node = value as Record<string, unknown>;
+  return [
+    node,
+    ...jsonLdNodes(node['@graph']),
+    ...jsonLdNodes(node.mainEntity),
+    ...jsonLdNodes(node.itemListElement),
+  ];
+};
+
+const firstStructuredUrl = (baseUrl: string, value: unknown): string => {
+  if (!value) return '';
+  if (typeof value === 'string') return toAbsoluteUrl(baseUrl, value);
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const url = firstStructuredUrl(baseUrl, item);
+      if (url) return url;
+    }
+    return '';
+  }
+  if (typeof value === 'object') {
+    const item = value as Record<string, unknown>;
+    return firstStructuredUrl(baseUrl, item.url || item.contentUrl || item.embedUrl || item.thumbnailUrl);
+  }
+  return '';
+};
+
+const structuredArticleData = (document: any, baseUrl: string): StructuredArticleData => {
+  const empty: StructuredArticleData = {
+    title: '',
+    description: '',
+    articleBody: '',
+    publishedAt: null,
+    modifiedAt: null,
+    imageUrl: '',
+    videoUrl: '',
+  };
+  const scripts = findAll(document, (node) =>
+    node?.tagName === 'script' && /ld\+json/i.test(getAttr(node, 'type'))
+  );
+  const nodes: any[] = [];
+  for (const script of scripts) {
+    try {
+      nodes.push(...jsonLdNodes(JSON.parse(scriptText(script))));
+    } catch {
+      // Invalid JSON-LD should not break normal HTML/RSS parsing.
+    }
+  }
+  const article = nodes.find((node) => {
+    const type = node?.['@type'];
+    const types = Array.isArray(type) ? type : [type];
+    return types.some((item) => /^(newsarticle|article|blogposting)$/i.test(String(item || '')));
+  });
+  if (!article) return empty;
+  return {
+    title: normalizeText(article.headline || article.name),
+    description: normalizeText(article.description),
+    articleBody: normalizeText(article.articleBody),
+    publishedAt: normalizeDateValue(article.datePublished),
+    modifiedAt: normalizeDateValue(article.dateModified || article.dateCreated),
+    imageUrl: firstStructuredUrl(baseUrl, article.image),
+    videoUrl: firstStructuredUrl(baseUrl, article.video),
+  };
+};
+
 const linkHref = (document: any, rel: string, baseUrl: string) => {
   const wanted = trLower(rel);
   const node = findAll(document, (child) => child?.tagName === 'link').find((link) =>
@@ -525,6 +628,8 @@ const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number, label: str
     if (timeout) clearTimeout(timeout);
   }
 };
+
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const looksXml = (contentType: string, text: string) =>
   /xml|rss|atom/i.test(contentType) || (/^\s*</.test(text) && /<(rss|feed)\b/i.test(text));
@@ -719,13 +824,26 @@ const articleText = (document: any) => {
 };
 
 const extractDate = (document: any, fallback: string | null) => {
-  const keys = ['article:published_time', 'datePublished', 'publishdate', 'pubdate', 'dc.date', 'og:updated_time'];
+  const keys = [
+    'article:published_time',
+    'og:article:published_time',
+    'datePublished',
+    'dateModified',
+    'publishdate',
+    'pubdate',
+    'dc.date',
+    'og:updated_time',
+    'og:article:modified_time',
+  ];
   for (const key of keys) {
-    const value = metaContent(document, key);
-    if (value && !Number.isNaN(Date.parse(value))) return new Date(value).toISOString();
+    const parsed = normalizeDateValue(metaContent(document, key));
+    if (parsed) return parsed;
   }
-  if (fallback && !Number.isNaN(Date.parse(fallback))) return new Date(fallback).toISOString();
-  return null;
+  const timeValue = findAll(document, (node) => node?.tagName === 'time')
+    .map((node) => getAttr(node, 'datetime') || textContent(node))
+    .map(normalizeDateValue)
+    .find(Boolean);
+  return timeValue || normalizeDateValue(fallback);
 };
 
 const imageFromDocument = (document: any, baseUrl: string, fallback: string) =>
@@ -822,7 +940,8 @@ const isAfterAutomationWindow = (item: AutomaticNewsItemInput, enabledAt: string
   if (!enabledAt) return true;
   const enabledTimestamp = Date.parse(enabledAt);
   if (!Number.isFinite(enabledTimestamp)) return true;
-  const itemTimestamp = item.publishedAt ? Date.parse(item.publishedAt) : Date.parse(item.discoveredAt);
+  if (!item.publishedAt) return false;
+  const itemTimestamp = Date.parse(item.publishedAt);
   return Number.isFinite(itemTimestamp) && itemTimestamp >= enabledTimestamp;
 };
 
@@ -842,13 +961,18 @@ const parseWebsiteArticle = async (
 ): Promise<AutomaticNewsItemInput | null> => {
   const response = await fetchText(candidate.url, DETAIL_FETCH_TIMEOUT_MS);
   const document = parse5.parse(response.text);
-  const rawTitle = metaContent(document, 'og:title') || pageTitle(document) || candidate.title;
-  const title = normalizeText(rawTitle.replace(/\s*[|-]\s*[^|-]{2,45}$/u, ''));
+  const structured = structuredArticleData(document, response.url);
+  const rawTitle = metaContent(document, 'og:title') || structured.title || pageTitle(document) || candidate.title;
+  const title = normalizeText(rawTitle.replace(/\s+[|-]\s+[^|-]{2,45}$/u, ''));
   if (!isGoodNewsTitle(title)) return null;
 
-  const body = articleText(document);
+  const body = cleanArticleBodyText(structured.articleBody) || articleText(document);
   const summary = summaryFor(
-    metaContent(document, 'og:description') || metaContent(document, 'description') || candidate.summary || firstParagraph(document),
+    metaContent(document, 'og:description') ||
+      metaContent(document, 'description') ||
+      structured.description ||
+      candidate.summary ||
+      firstParagraph(document),
     body,
     title,
   );
@@ -856,10 +980,10 @@ const parseWebsiteArticle = async (
   if (isJunkText(`${title} ${summary}`)) return null;
 
   const canonicalUrl = linkHref(document, 'canonical', response.url) || response.url;
-  const publishedAt = extractDate(document, candidate.publishedAt);
+  const publishedAt = extractDate(document, structured.publishedAt || candidate.publishedAt || structured.modifiedAt);
   const qualityScore = qualityForText(title, summary, body, source.source_type);
-  const imageUrl = imageFromDocument(document, response.url, candidate.imageUrl);
-  const videoUrl = videoFromDocument(document, response.url, candidate.videoUrl);
+  const imageUrl = imageFromDocument(document, response.url, structured.imageUrl || candidate.imageUrl);
+  const videoUrl = videoFromDocument(document, response.url, structured.videoUrl || candidate.videoUrl);
   const mediaUrls = mediaUrlsFor(imageUrl, videoUrl, candidate.mediaUrls);
 
   return {
@@ -1285,6 +1409,12 @@ const collectInstagramMediaImages = (node: any) => {
 const instagramProfileInfoUrl = (username: string) =>
   `https://www.instagram.com/api/v1/users/web_profile_info/?username=${encodeURIComponent(username)}`;
 
+const instagramConfiguredCookie = () =>
+  normalizeText(
+    readRuntimeEnv('INSTAGRAM_SESSION_COOKIE') ||
+      readRuntimeEnv('PATEEZ_INSTAGRAM_SESSION_COOKIE'),
+  );
+
 const instagramRequestHeaders = (username: string, cookie = '') => {
   const headers: Record<string, string> = {
     Accept: 'application/json',
@@ -1336,11 +1466,23 @@ const fetchInstagramProfileInfo = async (username: string) => {
   const url = instagramProfileInfoUrl(username);
   let response = await fetch(url, {
     signal: AbortSignal.timeout(SOURCE_FETCH_TIMEOUT_MS),
-    headers: instagramRequestHeaders(username),
+    headers: instagramRequestHeaders(username, instagramConfiguredCookie()),
   });
 
   if (response.status === 401 || response.status === 403) {
     await response.body?.cancel().catch(() => undefined);
+    const cookie = instagramConfiguredCookie() || await instagramSessionCookie(username);
+    if (cookie) {
+      response = await fetch(url, {
+        signal: AbortSignal.timeout(SOURCE_FETCH_TIMEOUT_MS),
+        headers: instagramRequestHeaders(username, cookie),
+      });
+    }
+  }
+
+  if (response.status === 401 || response.status === 403) {
+    await response.body?.cancel().catch(() => undefined);
+    await delay(INSTAGRAM_RETRY_DELAY_MS);
     const cookie = await instagramSessionCookie(username);
     if (cookie) {
       response = await fetch(url, {
@@ -1981,7 +2123,6 @@ const processSourceFastTest = async (source: AutomaticNewsSourceRow): Promise<Pr
   try {
     const item = await withTimeout(collectSourceLatestItem(source), 8500, source.display_name);
     if (!item) {
-      const message = 'Son içerik bulunamadı';
       return {
         sourceId: source.id,
         sourceName: source.display_name,
@@ -1989,7 +2130,7 @@ const processSourceFastTest = async (source: AutomaticNewsSourceRow): Promise<Pr
         candidatesFound: 0,
         insertedCount: 0,
         skippedDuplicateCount: 0,
-        errorMessage: message,
+        errorMessage: '',
       };
     }
 
@@ -2033,6 +2174,49 @@ const mapLimited = async <T, R>(items: T[], limit: number, worker: (item: T) => 
   return results;
 };
 
+const mapLimitedThrottled = async <T, R>(
+  items: T[],
+  limit: number,
+  startDelayMs: number,
+  worker: (item: T) => Promise<R>,
+) => {
+  const results = new Array<R>(items.length);
+  let index = 0;
+  let nextStartAt = Date.now();
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, async () => {
+      while (index < items.length) {
+        const currentIndex = index;
+        index += 1;
+        const now = Date.now();
+        const waitMs = Math.max(0, nextStartAt - now);
+        nextStartAt = Math.max(nextStartAt, now) + startDelayMs;
+        if (waitMs > 0) await delay(waitMs);
+        results[currentIndex] = await worker(items[currentIndex]);
+      }
+    }),
+  );
+  return results;
+};
+
+const processSourcesWithInstagramThrottle = async <R>(
+  sources: AutomaticNewsSourceRow[],
+  worker: (source: AutomaticNewsSourceRow) => Promise<R>,
+) => {
+  const instagramSources = sources.filter((source) => source.source_type === 'instagram');
+  const otherSources = sources.filter((source) => source.source_type !== 'instagram');
+  const [otherResults, instagramResults] = await Promise.all([
+    mapLimited(otherSources, DEFAULT_SOURCE_CONCURRENCY, worker),
+    mapLimitedThrottled(
+      instagramSources,
+      INSTAGRAM_TEST_CONCURRENCY,
+      INSTAGRAM_TEST_START_DELAY_MS,
+      worker,
+    ),
+  ]);
+  return [...otherResults, ...instagramResults];
+};
+
 export async function runAutomaticNewsRefresh(options: RefreshOptions = {}) {
   const automationSettings = await getAutomaticNewsAutomationSettings();
   if (!automationSettings.enabled) {
@@ -2064,7 +2248,7 @@ export async function runAutomaticNewsRefresh(options: RefreshOptions = {}) {
       leaseOwner: `manual-${runId || crypto.randomUUID()}`,
     });
 
-    const sourceResults = await mapLimited(sources, DEFAULT_SOURCE_CONCURRENCY, (source) =>
+    const sourceResults = await processSourcesWithInstagramThrottle(sources, (source) =>
       processSource(source, { enabledAt: automationSettings.enabledAt })
     );
     const totals = sourceResults.reduce(
@@ -2221,7 +2405,7 @@ export async function dispatchAutomaticNewsDueSources(options: {
       };
     }
 
-    const sourceResults = await mapLimited(sources, DEFAULT_SOURCE_CONCURRENCY, (source) =>
+    const sourceResults = await processSourcesWithInstagramThrottle(sources, (source) =>
       processSource(source, { enabledAt: automationSettings.enabledAt })
     );
     const totals = sourceResults.reduce(
@@ -2296,23 +2480,21 @@ export async function dispatchAutomaticNewsDueSources(options: {
 }
 
 export async function processAutomaticNewsQueueBatch(batch: MessageBatch<AutomaticNewsQueueMessage>) {
-  await Promise.all(
-    batch.messages.map(async (message) => {
-      try {
-        const result = await processQueueSourceMessage(message.body);
-        if (result?.errorMessage) {
-          await restoreQueueLeaseForRetry(message.body);
-          message.retry({ delaySeconds: 60 });
-          return;
-        }
-        message.ack();
-      } catch (error) {
-        console.error('automatic news queue message failed', error);
-        await restoreQueueLeaseForRetry(message.body).catch(() => undefined);
+  for (const message of batch.messages) {
+    try {
+      const result = await processQueueSourceMessage(message.body);
+      if (result?.errorMessage) {
+        await restoreQueueLeaseForRetry(message.body);
         message.retry({ delaySeconds: 60 });
+        continue;
       }
-    }),
-  );
+      message.ack();
+    } catch (error) {
+      console.error('automatic news queue message failed', error);
+      await restoreQueueLeaseForRetry(message.body).catch(() => undefined);
+      message.retry({ delaySeconds: 60 });
+    }
+  }
 }
 
 export async function testAutomaticNewsSources() {
@@ -2325,7 +2507,7 @@ export async function testAutomaticNewsSources() {
     [MAX_SOURCES_PER_RUN],
   );
 
-  const sourceResults = await mapLimited(sources.rows, 12, processSourceFastTest);
+  const sourceResults = await processSourcesWithInstagramThrottle(sources.rows, processSourceFastTest);
   const totals = sourceResults.reduce(
     (sum, item) => ({
       checkedSources: sum.checkedSources + 1,
