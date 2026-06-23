@@ -36,6 +36,93 @@ String _formatMegabytes(int bytes) {
   return mb.toStringAsFixed(1);
 }
 
+String _seoCheckText(String value) {
+  var text = value
+      .replaceAll('ğ', 'g')
+      .replaceAll('Ğ', 'g')
+      .replaceAll('ü', 'u')
+      .replaceAll('Ü', 'u')
+      .replaceAll('ş', 's')
+      .replaceAll('Ş', 's')
+      .replaceAll('ı', 'i')
+      .replaceAll('İ', 'i')
+      .replaceAll('ö', 'o')
+      .replaceAll('Ö', 'o')
+      .replaceAll('ç', 'c')
+      .replaceAll('Ç', 'c')
+      .toLowerCase();
+  text = text
+      .replaceAll(RegExp(r'\.[a-z0-9]{2,5}\b'), ' ')
+      .replaceAll(RegExp(r'[^a-z0-9]+'), ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+  return text;
+}
+
+String _seoCheckStem(String value) {
+  return _seoCheckText(
+    value,
+  ).replaceAll(RegExp(r'^\d{10,}\s+'), '').replaceAll(' ', '-');
+}
+
+bool _randomLookingSeoToken(String word) {
+  if (word.length < 12) return false;
+  final hasLetter = RegExp('[a-z]').hasMatch(word);
+  final hasDigit = RegExp('[0-9]').hasMatch(word);
+  if (!hasLetter || !hasDigit) return false;
+  if (RegExp(r'^[a-f0-9]+$').hasMatch(word)) return true;
+  final digitCount = RegExp('[0-9]').allMatches(word).length;
+  return digitCount / word.length >= 0.3;
+}
+
+bool _mediaNameNeedsSeoRename(String value) {
+  final text = _seoCheckText(value);
+  if (text.isEmpty) return true;
+  if (RegExp(r'\b\d{10,}\b').hasMatch(text)) return true;
+  const screenshotPhrases = [
+    'ekran resmi',
+    'ekran goruntusu',
+    'ekran goruntu',
+    'ekrani goruntusu',
+    'screen shot',
+  ];
+  if (screenshotPhrases.any(text.contains)) return true;
+  final words = text.split(' ').where((word) => word.isNotEmpty).toList();
+  if (words.any(_randomLookingSeoToken)) return true;
+  const technicalWords = {
+    'chatgpt',
+    'image',
+    'img',
+    'foto',
+    'photo',
+    'picture',
+    'screenshot',
+    'screen',
+    'whatsapp',
+    'edited',
+    'copy',
+    'upload',
+    'file',
+    'haz',
+    'ocak',
+    'subat',
+    'mart',
+    'nisan',
+    'mayis',
+    'haziran',
+    'temmuz',
+    'agustos',
+    'eylul',
+    'ekim',
+    'kasim',
+    'aralik',
+  };
+  final technicalCount = words
+      .where((word) => technicalWords.contains(word))
+      .length;
+  return (technicalCount > 0 && words.length <= 8) || technicalCount >= 2;
+}
+
 Future<String?> showMediaLibraryDialog(
   BuildContext context, {
   String type = 'image',
@@ -249,6 +336,7 @@ class _MediaLibraryDialogState extends State<_MediaLibraryDialog> {
       _uploadBatchTotal = files.length;
     });
     final uploaded = <MediaItem>[];
+    final knownUploadIds = _files.map((file) => file.id).toSet();
     var failedUploads = 0;
     try {
       for (var index = 0; index < files.length; index += 1) {
@@ -262,23 +350,29 @@ class _MediaLibraryDialogState extends State<_MediaLibraryDialog> {
         });
 
         final bytes = await file.readAsBytes();
-        final result = await widget.mediaService.uploadFile(
-          fileName: file.name,
-          bytes: bytes,
-          type: widget.type,
-          onTransferProgress: (progress) {
-            if (!mounted) return;
-            final fileProgress = progress.progress;
-            final aggregateProgress = fileProgress == null
-                ? null
-                : ((index + fileProgress) / files.length).clamp(0.0, 1.0);
-            setState(() {
-              _uploadProgress = aggregateProgress;
-              _uploadProcessing = progress.phase == 'processing';
-              _uploadRemaining = progress.remaining;
-            });
-          },
-        );
+        MediaItem? result;
+        try {
+          result = await widget.mediaService.uploadFile(
+            fileName: file.name,
+            bytes: bytes,
+            type: widget.type,
+            onTransferProgress: (progress) {
+              if (!mounted) return;
+              final fileProgress = progress.progress;
+              final aggregateProgress = fileProgress == null
+                  ? null
+                  : ((index + fileProgress) / files.length).clamp(0.0, 1.0);
+              setState(() {
+                _uploadProgress = aggregateProgress;
+                _uploadProcessing = progress.phase == 'processing';
+                _uploadRemaining = progress.remaining;
+              });
+            },
+          );
+        } on MediaUploadException {
+          result = await _recoverUploadedFile(file, knownUploadIds);
+          if (result == null) rethrow;
+        }
         if (result == null) {
           failedUploads += 1;
           continue;
@@ -289,6 +383,7 @@ class _MediaLibraryDialogState extends State<_MediaLibraryDialog> {
             ? widget.mediaService.resolveImageUrl(raw, width: 260, quality: 86)
             : widget.mediaService.resolveUrl(raw);
         uploaded.add(result);
+        knownUploadIds.add(result.id);
         _lastSelectedSrc = result.src;
       }
       if (uploaded.isNotEmpty && mounted) {
@@ -326,6 +421,41 @@ class _MediaLibraryDialogState extends State<_MediaLibraryDialog> {
     }
 
     if (mounted) await _enforceSeoRename(uploaded);
+  }
+
+  Future<MediaItem?> _recoverUploadedFile(
+    XFile file,
+    Set<String> knownUploadIds,
+  ) async {
+    try {
+      final latest = await widget.mediaService.listFiles(type: widget.type);
+      final sourceStem = _seoCheckStem(file.name);
+      final candidates =
+          latest.where((item) => !knownUploadIds.contains(item.id)).toList()
+            ..sort(compareNewestMedia);
+      if (candidates.isEmpty) return null;
+
+      MediaItem? recovered;
+      if (sourceStem.isNotEmpty) {
+        for (final candidate in candidates) {
+          final candidateStem = _seoCheckStem(candidate.value);
+          if (candidateStem.contains(sourceStem) ||
+              sourceStem.contains(candidateStem)) {
+            recovered = candidate;
+            break;
+          }
+        }
+      }
+      recovered ??= candidates.first;
+      return recovered.copyWith(
+        needsSeoRename:
+            recovered.needsSeoRename ||
+            _mediaNameNeedsSeoRename(file.name) ||
+            _mediaNameNeedsSeoRename(recovered.value),
+      );
+    } catch (_) {
+      return null;
+    }
   }
 
   // After upload, files whose name is machine-generated/meaningless can be

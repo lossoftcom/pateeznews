@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/localization/admin_language_controller.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
+import '../../../shared/branding/admin_branding.dart';
 import '../../../shared/widgets/admin_cached_image.dart';
 import '../../../shared/widgets/symbol_icon.dart';
 import '../../auth/data/admin_auth_models.dart';
@@ -166,6 +167,7 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
         _visibleContactEmailPasswordFields.clear();
         _saving = false;
       });
+      unawaited(_updateAdminBranding(saved));
       _showMessage('settings.save_success');
     } catch (error) {
       if (!mounted) return;
@@ -206,6 +208,7 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
         _applySettings(saved);
         _uploadingField = null;
       });
+      unawaited(_updateAdminBranding(saved));
       _showMessage('settings.upload_success');
     } catch (error) {
       if (!mounted) return;
@@ -237,6 +240,17 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
         ogImageUrl: value,
       ),
     };
+  }
+
+  Future<void> _updateAdminBranding(GeneralSettingsData settings) {
+    return AdminBrandingStore.update(
+      AdminBrandingData(
+        siteName: settings.siteName,
+        logoUrl: widget.repository.publicUrl(settings.logoUrl),
+        emailLogoUrl: widget.repository.publicUrl(settings.emailLogoUrl),
+        faviconUrl: widget.repository.publicUrl(settings.faviconUrl),
+      ),
+    );
   }
 
   String get _roleName {

@@ -19,9 +19,20 @@ export async function uploadLocalStorageFile(formData: FormData) {
     body: formData,
   });
   const text = await response.text();
-  const data = text ? JSON.parse(text) : null;
+  let data: Record<string, any> | null = null;
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      const preview = text.length > 180 ? `${text.slice(0, 177)}...` : text;
+      throw new Error(`Local storage upload returned invalid response: ${preview}`);
+    }
+  }
   if (!response.ok) {
     throw new Error(data?.error || text || 'Local storage upload failed');
+  }
+  if (!data) {
+    throw new Error('Local storage upload returned empty response');
   }
   return data;
 }

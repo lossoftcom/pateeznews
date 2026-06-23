@@ -7,6 +7,7 @@ import 'app/pateeznews_admin_app.dart';
 import 'firebase_options.dart';
 import 'frontend/app/pateeznews_app.dart';
 import 'shared/branding/desktop_window_title.dart';
+import 'shared/branding/web_favicon.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,6 +24,7 @@ Future<void> main() async {
 
   // Masaüstü pencere başlığını genel ayarlardaki site adına bağla (macOS).
   DesktopWindowTitle.start();
+  WebFavicon.start();
   runApp(const PateeznewsAdminApp());
 }
 

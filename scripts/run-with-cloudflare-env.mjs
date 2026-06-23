@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process';
 import { delimiter, resolve } from 'node:path';
+import net from 'node:net';
 import { mergedCloudflareEnv } from './env-utils.mjs';
 
 const [command, ...args] = process.argv.slice(2);
@@ -13,8 +14,12 @@ if (!command) {
 const cwd = process.cwd();
 const env = withLocalBinPath(mergedCloudflareEnv(cwd), cwd);
 env.PATEEZNEWS_PROJECT_ROOT = cwd;
+const needsLocalStorageServer = shouldStartLocalStorageServer(command, args);
+if (needsLocalStorageServer) {
+  await configureLocalStorageOrigin(env);
+}
 let shuttingDown = false;
-const localStorageServer = shouldStartLocalStorageServer(command, args)
+const localStorageServer = needsLocalStorageServer
   ? spawn(process.execPath, ['./scripts/local-storage-server.mjs'], {
     cwd,
     env,
@@ -96,4 +101,49 @@ child.on('error', (error) => {
 
 function shouldStartLocalStorageServer(command, args) {
   return command === 'astro' && args[0] === 'dev';
+}
+
+async function configureLocalStorageOrigin(env) {
+  if (env.PATEEZ_LOCAL_STORAGE_ORIGIN) {
+    if (!env.PATEEZ_LOCAL_STORAGE_PORT) {
+      const port = portFromOrigin(env.PATEEZ_LOCAL_STORAGE_ORIGIN);
+      if (port) env.PATEEZ_LOCAL_STORAGE_PORT = String(port);
+    }
+    return;
+  }
+
+  const requestedPort = Number(env.PATEEZ_LOCAL_STORAGE_PORT || 0);
+  const port = requestedPort > 0
+    ? requestedPort
+    : await firstAvailablePort(4322, 30);
+  env.PATEEZ_LOCAL_STORAGE_PORT = String(port);
+  env.PATEEZ_LOCAL_STORAGE_ORIGIN = `http://127.0.0.1:${port}`;
+}
+
+function portFromOrigin(origin) {
+  try {
+    const parsed = new URL(origin);
+    return Number(parsed.port || (parsed.protocol === 'https:' ? 443 : 80));
+  } catch {
+    return 0;
+  }
+}
+
+async function firstAvailablePort(startPort, attempts) {
+  for (let offset = 0; offset < attempts; offset += 1) {
+    const port = startPort + offset;
+    if (await isPortAvailable(port)) return port;
+  }
+  throw new Error(`No free local storage port found from ${startPort} to ${startPort + attempts - 1}.`);
+}
+
+function isPortAvailable(port) {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+    server.unref();
+    server.once('error', () => resolve(false));
+    server.listen({ host: '127.0.0.1', port }, () => {
+      server.close(() => resolve(true));
+    });
+  });
 }

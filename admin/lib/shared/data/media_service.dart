@@ -502,7 +502,12 @@ class MediaService {
       throw MediaUploadException(_responseError(response));
     }
 
-    final decoded = jsonDecode(response.body);
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(response.body);
+    } on FormatException {
+      throw const MediaUploadException('Invalid upload response');
+    }
     if (decoded is! Map<String, dynamic>) {
       throw const MediaUploadException('Invalid upload response');
     }
