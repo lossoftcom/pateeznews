@@ -3466,16 +3466,6 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
       );
       return null;
     }
-    if (!_isSquareImageSize(size)) {
-      _showEditorMessage(
-        context
-            .t('newsAdd.mansetImageSquareError')
-            .replaceAll('{width}', size.width.round().toString())
-            .replaceAll('{height}', size.height.round().toString()),
-        isError: true,
-      );
-      return null;
-    }
     return size;
   }
 
@@ -3520,10 +3510,6 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
         return null;
       },
     );
-  }
-
-  bool _isSquareImageSize(Size size) {
-    return (size.width - size.height).abs() <= 1;
   }
 
   void _handleAddFaq() {
@@ -9368,9 +9354,7 @@ class _MansetImageSizeBadge extends StatelessWidget {
       child: Row(
         children: [
           Icon(
-            hasImage
-                ? Symbols.check_circle_outline
-                : Symbols.crop_square_outlined,
+            hasImage ? Symbols.check_circle_outline : Symbols.image_outlined,
             size: 15,
             color: hasImage ? const Color(0xFF047857) : AppColors.inkSoft,
           ),
@@ -9418,7 +9402,7 @@ class _MansetImageRules extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           _MansetImageRuleRow(
-            icon: Symbols.crop_square_outlined,
+            icon: Symbols.photo_size_select_actual_outlined,
             textKey: 'newsAdd.mansetImageRuleSquare',
           ),
           const SizedBox(height: 10),

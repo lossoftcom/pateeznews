@@ -414,14 +414,14 @@ export const POST: APIRoute = async ({ request }) => {
                 } catch (error) {
                     if (!shouldUseDirectRemoteUploadFallback(error)) throw error;
                     console.warn(
-                        'Local upload processor unavailable; uploading original file to remote storage fallback:',
+                        'Local upload processor unavailable; using direct remote upload fallback:',
                         error instanceof Error ? error.message : error,
                     );
                     const result = await uploadOriginalFileDirectlyToRemoteStorage({
                         storageSettings,
                         file,
                         type,
-                        formData,
+                        formData: uploadFormData,
                     });
                     setStorageUploadProgress(uploadId, {
                         phase: 'done',
