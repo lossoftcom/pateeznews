@@ -28,13 +28,17 @@ class AutomaticNewsAiDraftSeed {
     required this.topic,
     required this.sourceUrl,
     required this.imageUrl,
+    required this.imageDisplayUrl,
     required this.imageAlt,
+    this.imageRequestHeaders = const <String, String>{},
   });
 
   final String topic;
   final String sourceUrl;
   final String imageUrl;
+  final String imageDisplayUrl;
   final String imageAlt;
+  final Map<String, String> imageRequestHeaders;
 }
 
 class AutomaticNewsScreen extends StatefulWidget {
@@ -365,7 +369,21 @@ class _AutomaticNewsScreenState extends State<AutomaticNewsScreen> {
   }
 
   void _editDraft(_AutomaticNewsDraft draft) {
-    widget.onEditDraft?.call(draft.toAiDraftSeed());
+    final imageHeaders =
+        _automaticNewsPreviewImageUsesProxy(draft, _imageRequestHeaders)
+        ? _automaticNewsImageHttpHeaders(_imageRequestHeaders) ??
+              const <String, String>{}
+        : const <String, String>{};
+    widget.onEditDraft?.call(
+      draft.toAiDraftSeed(
+        imageDisplayUrl: _automaticNewsImageDisplayUrl(
+          draft,
+          width: 960,
+          imageRequestHeaders: _imageRequestHeaders,
+        ),
+        imageRequestHeaders: imageHeaders,
+      ),
+    );
   }
 
   Future<void> _downloadDraftImage(_AutomaticNewsDraft draft) async {
@@ -6335,8 +6353,13 @@ class _AutomaticNewsDraft {
 
   String get mediaUrl => allMediaUrls.isEmpty ? '' : allMediaUrls.first;
 
-  AutomaticNewsAiDraftSeed toAiDraftSeed() {
+  AutomaticNewsAiDraftSeed toAiDraftSeed({
+    String imageDisplayUrl = '',
+    Map<String, String> imageRequestHeaders = const <String, String>{},
+  }) {
     final source = sourceUrl.trim();
+    final rawImageUrl = imageUrl.trim();
+    final displayImageUrl = imageDisplayUrl.trim();
     final body = contentText.trim().isNotEmpty ? contentText : summary;
     final keywords = _automaticNewsSeedKeywords(this);
     final lines = <String>[
@@ -6351,18 +6374,26 @@ class _AutomaticNewsDraft {
       _seedField('Blok tipi', 'text'),
       _seedField('Blok metni', _plainTextToHtml(body)),
       if (source.isNotEmpty) _seedField('Blok kaynağı', source),
-      if (imageUrl.trim().isNotEmpty) ...[
+      if (rawImageUrl.isNotEmpty) ...[
         '---',
         _seedField('Blok tipi', 'image'),
-        _seedField('Medya URL', imageUrl.trim()),
+        _seedField('Medya URL', rawImageUrl),
         _seedField('Alt metin', title),
       ],
     ].where((line) => line.trim().isNotEmpty).toList(growable: false);
     return AutomaticNewsAiDraftSeed(
       topic: lines.join('\n'),
       sourceUrl: source,
-      imageUrl: imageUrl.trim(),
+      imageUrl: rawImageUrl,
+      imageDisplayUrl: rawImageUrl.isEmpty
+          ? ''
+          : displayImageUrl.isNotEmpty
+          ? displayImageUrl
+          : rawImageUrl,
       imageAlt: title,
+      imageRequestHeaders: rawImageUrl.isEmpty
+          ? const <String, String>{}
+          : Map.unmodifiable(imageRequestHeaders),
     );
   }
 }

@@ -47,10 +47,17 @@ class AdminNewsSourceArticle {
 }
 
 class AdminNewsSourceImage {
-  const AdminNewsSourceImage({required this.url, required this.alt});
+  const AdminNewsSourceImage({
+    required this.url,
+    required this.alt,
+    this.displayUrl = '',
+    this.displayHeaders = const <String, String>{},
+  });
 
   final String url;
   final String alt;
+  final String displayUrl;
+  final Map<String, String> displayHeaders;
 }
 
 class AdminNewsSourceReadException implements Exception {

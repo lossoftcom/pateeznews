@@ -500,7 +500,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         topic: seed.topic,
         sourceUrl: seed.sourceUrl,
         imageUrl: seed.imageUrl,
+        imageDisplayUrl: seed.imageDisplayUrl,
         imageAlt: seed.imageAlt,
+        imageRequestHeaders: seed.imageRequestHeaders,
         addImageItem: seed.imageUrl.trim().isNotEmpty,
       );
       _selectedPage = _DashboardPage.newsAdd;

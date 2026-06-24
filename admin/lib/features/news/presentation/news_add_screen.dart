@@ -222,14 +222,18 @@ class NewsAddInitialAiContent {
     required this.topic,
     required this.sourceUrl,
     required this.imageUrl,
+    this.imageDisplayUrl = '',
     required this.imageAlt,
+    this.imageRequestHeaders = const <String, String>{},
     required this.addImageItem,
   });
 
   final String topic;
   final String sourceUrl;
   final String imageUrl;
+  final String imageDisplayUrl;
   final String imageAlt;
+  final Map<String, String> imageRequestHeaders;
   final bool addImageItem;
 }
 
@@ -5002,6 +5006,8 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
                   AdminNewsSourceImage(
                     url: seed!.imageUrl.trim(),
                     alt: seed.imageAlt,
+                    displayUrl: seed.imageDisplayUrl,
+                    displayHeaders: seed.imageRequestHeaders,
                   ),
                 ]
               : const <AdminNewsSourceImage>[],
@@ -11729,6 +11735,8 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
     });
     try {
       final sourceArticle = await _readSourceUrlIfNeeded(fillFields: false);
+      final sourceImage = await _ensureInitialSourceImageSelected();
+      if (!mounted) return;
       final draft = await widget.onGenerate(
         AdminNewsAiDraftRequest(
           languageCode: widget.languageCode,
@@ -11759,7 +11767,7 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
       Navigator.of(context).pop(
         _AiContentGeneratorResult(
           draft: draft,
-          sourceImage: _selectedSourceImage,
+          sourceImage: sourceImage ?? _selectedSourceImage,
           eventImages: _selectedEventImages.toList(growable: false),
         ),
       );
@@ -11770,6 +11778,17 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
         _generationError = error.toString();
       });
     }
+  }
+
+  Future<_AiSelectedSourceImage?> _ensureInitialSourceImageSelected() async {
+    if (_selectedSourceImage != null || widget.initialImageItemCount <= 0) {
+      return _selectedSourceImage;
+    }
+    final images = _currentSourceImages;
+    if (_manualSourceImages.isEmpty || images.length != 1) {
+      return _selectedSourceImage;
+    }
+    return _uploadSelectedSourceImage(images.first);
   }
 
   Future<void> _handleReadSourceUrl() async {
@@ -11897,8 +11916,10 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
     });
   }
 
-  Future<void> _uploadSelectedSourceImage(AdminNewsSourceImage image) async {
-    if (_sourceImageUploading) return;
+  Future<_AiSelectedSourceImage?> _uploadSelectedSourceImage(
+    AdminNewsSourceImage image,
+  ) async {
+    if (_sourceImageUploading) return null;
     setState(() {
       _sourceImageUploading = true;
       _sourceImageUploadProgress = 0;
@@ -11915,30 +11936,33 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
           });
         },
       );
-      if (!mounted) return;
+      if (!mounted) return null;
       if (result == null) {
         setState(() {
           _sourceImageStatus = context.t('newsAdd.aiModal.sourceImageError');
           _sourceImageStatusIsError = true;
         });
-        return;
+        return null;
       }
+      final selected = _AiSelectedSourceImage(
+        mediaSrc: result.src,
+        originalUrl: image.url,
+        altText: image.alt,
+      );
       setState(() {
-        _selectedSourceImage = _AiSelectedSourceImage(
-          mediaSrc: result.src,
-          originalUrl: image.url,
-          altText: image.alt,
-        );
+        _selectedSourceImage = selected;
         _sourceImageStatus = context.t('newsAdd.aiModal.sourceImageReady');
         _sourceImageStatusIsError = false;
       });
+      return selected;
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted) return null;
       setState(() {
         _sourceImageStatus =
             '${context.t('newsAdd.aiModal.sourceImageError')} $error';
         _sourceImageStatusIsError = true;
       });
+      return null;
     } finally {
       if (mounted) {
         setState(() {
@@ -12718,12 +12742,22 @@ class _SourceImagePreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final previewUrl = selectedImage?.originalUrl ?? images.first.url;
+    final selected = selectedImage;
+    final previewUrl = selected == null
+        ? _sourceImageDisplayUrl(images.first)
+        : MediaService().resolveImageUrl(
+            selected.mediaSrc,
+            width: 360,
+            quality: 86,
+          );
+    final previewHeaders = selected == null
+        ? _sourceImageDisplayHeaders(images.first)
+        : null;
     final statusText = status?.trim() ?? '';
     final enabled = onTap != null;
     final child = sidePanel
-        ? _buildSidePanel(context, previewUrl, statusText)
-        : _buildInlinePanel(context, previewUrl, statusText);
+        ? _buildSidePanel(context, previewUrl, previewHeaders, statusText)
+        : _buildInlinePanel(context, previewUrl, previewHeaders, statusText);
     return MouseRegion(
       cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
       child: GestureDetector(
@@ -12745,6 +12779,7 @@ class _SourceImagePreview extends StatelessWidget {
   Widget _buildInlinePanel(
     BuildContext context,
     String previewUrl,
+    Map<String, String>? previewHeaders,
     String statusText,
   ) {
     return Row(
@@ -12756,6 +12791,7 @@ class _SourceImagePreview extends StatelessWidget {
             height: 62,
             child: AdminCachedImage(
               url: previewUrl,
+              httpHeaders: previewHeaders,
               fit: BoxFit.cover,
               memCacheWidth: 360,
               errorWidget: const _SourceImageFallback(),
@@ -12784,6 +12820,7 @@ class _SourceImagePreview extends StatelessWidget {
   Widget _buildSidePanel(
     BuildContext context,
     String previewUrl,
+    Map<String, String>? previewHeaders,
     String statusText,
   ) {
     return Column(
@@ -12796,6 +12833,7 @@ class _SourceImagePreview extends StatelessWidget {
             height: 58,
             child: AdminCachedImage(
               url: previewUrl,
+              httpHeaders: previewHeaders,
               fit: BoxFit.cover,
               memCacheWidth: 360,
               errorWidget: const _SourceImageFallback(),
@@ -12906,6 +12944,15 @@ class _SourceImagePreviewText extends StatelessWidget {
       ],
     );
   }
+}
+
+String _sourceImageDisplayUrl(AdminNewsSourceImage image) {
+  final displayUrl = image.displayUrl.trim();
+  return displayUrl.isNotEmpty ? displayUrl : image.url;
+}
+
+Map<String, String>? _sourceImageDisplayHeaders(AdminNewsSourceImage image) {
+  return image.displayHeaders.isEmpty ? null : image.displayHeaders;
 }
 
 class _SourceImagePreviewAction extends StatelessWidget {
@@ -13528,7 +13575,8 @@ class _SourceImageTile extends StatelessWidget {
                   fit: StackFit.expand,
                   children: [
                     AdminCachedImage(
-                      url: image.url,
+                      url: _sourceImageDisplayUrl(image),
+                      httpHeaders: _sourceImageDisplayHeaders(image),
                       fit: BoxFit.cover,
                       memCacheWidth: 360,
                       errorWidget: const _SourceImageFallback(),
