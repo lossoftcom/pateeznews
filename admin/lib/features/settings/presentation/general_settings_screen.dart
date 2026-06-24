@@ -464,6 +464,7 @@ class _GeneralSettingsForm {
   final contactEmailNews = TextEditingController();
   final contactEmailAds = TextEditingController();
   final contactEmailSocial = TextEditingController();
+  final contactEmailGmail = TextEditingController();
   final twitterUsername = TextEditingController();
   final fbAppId = TextEditingController();
   final socialWhatsappUrl = TextEditingController();
@@ -536,6 +537,7 @@ class _GeneralSettingsForm {
     contactEmailNews.text = settings.contactEmailNews;
     contactEmailAds.text = settings.contactEmailAds;
     contactEmailSocial.text = settings.contactEmailSocial;
+    contactEmailGmail.text = settings.contactEmailGmail;
     twitterUsername.text = settings.twitterUsername;
     fbAppId.text = settings.fbAppId;
     socialWhatsappUrl.text = settings.socialWhatsappUrl;
@@ -638,6 +640,7 @@ class _GeneralSettingsForm {
       contactEmailNews: contactEmailNews.text,
       contactEmailAds: contactEmailAds.text,
       contactEmailSocial: contactEmailSocial.text,
+      contactEmailGmail: contactEmailGmail.text,
       twitterUsername: twitterUsername.text,
       fbAppId: fbAppId.text,
       socialWhatsappUrl: socialWhatsappUrl.text,
@@ -712,6 +715,7 @@ class _GeneralSettingsForm {
     contactEmailNews.dispose();
     contactEmailAds.dispose();
     contactEmailSocial.dispose();
+    contactEmailGmail.dispose();
     twitterUsername.dispose();
     fbAppId.dispose();
     socialWhatsappUrl.dispose();
@@ -2332,7 +2336,26 @@ class _ContactSettings extends StatelessWidget {
                   ContactEmailPasswordField.social,
               onTogglePassword: onRevealContactEmailPassword,
             ),
-            const SizedBox(), // Empty space for alignment
+            _ContactEmailCredentialInput(
+              label: 'Gmail',
+              emailController: form.contactEmailGmail,
+              hintText: 'ornek@gmail.com',
+              passwordController: form.contactEmailPasswordController(
+                ContactEmailPasswordField.gmail,
+              ),
+              passwordField: ContactEmailPasswordField.gmail,
+              showPasswordInput: canManageContactEmailPasswords,
+              hasPassword: contactEmailPasswordStatus.has(
+                ContactEmailPasswordField.gmail,
+              ),
+              passwordVisible: visibleContactEmailPasswordFields.contains(
+                ContactEmailPasswordField.gmail,
+              ),
+              revealing:
+                  revealingContactEmailPasswordField ==
+                  ContactEmailPasswordField.gmail,
+              onTogglePassword: onRevealContactEmailPassword,
+            ),
           ],
         ),
         const _FormDivider(),

@@ -78,7 +78,8 @@ enum ContactEmailPasswordField {
   support('support'),
   news('news'),
   ads('ads'),
-  social('social');
+  social('social'),
+  gmail('gmail');
 
   const ContactEmailPasswordField(this.key);
 
@@ -146,6 +147,7 @@ class GeneralSettingsData {
     required this.contactEmailNews,
     required this.contactEmailAds,
     required this.contactEmailSocial,
+    required this.contactEmailGmail,
     required this.twitterUsername,
     required this.fbAppId,
     required this.socialWhatsappUrl,
@@ -217,6 +219,7 @@ class GeneralSettingsData {
       contactEmailNews: '',
       contactEmailAds: '',
       contactEmailSocial: '',
+      contactEmailGmail: '',
       twitterUsername: '',
       fbAppId: '',
       socialWhatsappUrl: '',
@@ -294,6 +297,7 @@ class GeneralSettingsData {
       contactEmailNews: _string(json['contact_email_news']),
       contactEmailAds: _string(json['contact_email_ads']),
       contactEmailSocial: _string(json['contact_email_social']),
+      contactEmailGmail: _string(json['contact_email_gmail']),
       twitterUsername: _string(json['twitter_username']),
       fbAppId: _string(json['fb_app_id']),
       socialWhatsappUrl: _string(json['social_whatsapp_url']),
@@ -408,6 +412,7 @@ class GeneralSettingsData {
   final String contactEmailNews;
   final String contactEmailAds;
   final String contactEmailSocial;
+  final String contactEmailGmail;
   final String twitterUsername;
   final String fbAppId;
   final String socialWhatsappUrl;
@@ -478,6 +483,7 @@ class GeneralSettingsData {
       'contact_email_news': contactEmailNews,
       'contact_email_ads': contactEmailAds,
       'contact_email_social': contactEmailSocial,
+      'contact_email_gmail': contactEmailGmail,
       'twitter_username': twitterUsername,
       'fb_app_id': fbAppId,
       'social_whatsapp_url': socialWhatsappUrl,
@@ -571,6 +577,7 @@ class GeneralSettingsData {
     String? contactEmailNews,
     String? contactEmailAds,
     String? contactEmailSocial,
+    String? contactEmailGmail,
     String? twitterUsername,
     String? fbAppId,
     String? socialWhatsappUrl,
@@ -642,6 +649,7 @@ class GeneralSettingsData {
       contactEmailNews: contactEmailNews ?? this.contactEmailNews,
       contactEmailAds: contactEmailAds ?? this.contactEmailAds,
       contactEmailSocial: contactEmailSocial ?? this.contactEmailSocial,
+      contactEmailGmail: contactEmailGmail ?? this.contactEmailGmail,
       twitterUsername: twitterUsername ?? this.twitterUsername,
       fbAppId: fbAppId ?? this.fbAppId,
       socialWhatsappUrl: socialWhatsappUrl ?? this.socialWhatsappUrl,
@@ -1082,7 +1090,8 @@ const _settingsSelect =
     'organization_address,contact_phone,contact_city,contact_address,'
     'contact_location_url,contact_whatsapp_url,contact_telegram_url,'
     'contact_email_info,contact_email_support,contact_email_news,'
-    'contact_email_ads,contact_email_social,twitter_username,fb_app_id,google_analytics_id,'
+    'contact_email_ads,contact_email_social,contact_email_gmail,'
+    'twitter_username,fb_app_id,google_analytics_id,'
     'social_whatsapp_url,social_telegram_url,social_instagram_url,'
     'social_facebook_url,social_x_url,social_youtube_url,'
     'social_tiktok_url,social_linkedin_url,social_pinterest_url,'

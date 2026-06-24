@@ -43,6 +43,10 @@ class NewsHeadlineGeneratorDialog extends StatefulWidget {
     this.promptRepository = const SupabaseAdminAiSettingsRepository(),
     this.headlineRepository = const HttpAdminNewsHeadlineRepository(),
     this.mediaService,
+    this.initialAssignToManset = true,
+    this.initialAssignToArticleImageBlock = true,
+    this.initialAssignToCover = false,
+    this.initialTarget = 'headline_square',
   });
 
   final String languageCode;
@@ -52,6 +56,10 @@ class NewsHeadlineGeneratorDialog extends StatefulWidget {
   final AdminAiSettingsRepository promptRepository;
   final AdminNewsHeadlineRepository headlineRepository;
   final MediaService? mediaService;
+  final bool initialAssignToManset;
+  final bool initialAssignToArticleImageBlock;
+  final bool initialAssignToCover;
+  final String initialTarget;
 
   @override
   State<NewsHeadlineGeneratorDialog> createState() =>
@@ -103,6 +111,12 @@ class _NewsHeadlineGeneratorDialogState
   @override
   void initState() {
     super.initState();
+    _target = _headlineTargets.containsKey(widget.initialTarget)
+        ? widget.initialTarget
+        : 'headline_square';
+    _assignToManset = widget.initialAssignToManset;
+    _assignToArticleImageBlock = widget.initialAssignToArticleImageBlock;
+    _assignToCover = widget.initialAssignToCover;
     _kickerController = TextEditingController();
     _topController = TextEditingController();
     _mainController = TextEditingController(text: widget.contextData.title);
@@ -314,14 +328,14 @@ class _NewsHeadlineGeneratorDialogState
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
-    final narrow = size.width < 860;
+    final narrow = size.width < 980;
     final width = narrow
         ? size.width - 32
-        : (size.width * 0.66).clamp(760.0, 1080.0).toDouble();
-    final height = (size.height * 0.82).clamp(560.0, size.height - 48);
+        : (size.width * 0.72).clamp(940.0, 1240.0).toDouble();
+    final height = (size.height - 52).clamp(620.0, 860.0);
 
     return Dialog(
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
       backgroundColor: Colors.transparent,
       elevation: 0,
       child: Container(
@@ -344,18 +358,18 @@ class _NewsHeadlineGeneratorDialogState
           children: [
             _Header(onClose: () => Navigator.of(context).maybePop()),
             Expanded(
-              child: SingleChildScrollView(
+              child: Padding(
                 padding: const EdgeInsets.all(20),
                 child: narrow
                     ? Column(
                         children: [
-                          _sourceAndPreview(),
-                          const SizedBox(height: 18),
-                          _controls(),
+                          Expanded(flex: 5, child: _sourceAndPreview()),
+                          const SizedBox(height: 14),
+                          Expanded(flex: 6, child: _controls()),
                         ],
                       )
                     : Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           Expanded(flex: 5, child: _sourceAndPreview()),
                           const SizedBox(width: 18),
@@ -383,154 +397,196 @@ class _NewsHeadlineGeneratorDialogState
   }
 
   Widget _sourceAndPreview() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _SectionTitle('newsAdd.headlineGenerator.source'),
-        const SizedBox(height: 10),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(AppRadius.value),
-          child: AspectRatio(
-            aspectRatio: 4 / 3,
-            child: _HeadlineSourceImage(
-              url: widget.displayImageUrl,
-              fit: BoxFit.contain,
-              errorWidget: const _ImageFallback(),
+    return _PanelFrame(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _SectionTitle('newsAdd.headlineGenerator.source'),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 220,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(AppRadius.value),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  border: Border.all(color: AppColors.softLine),
+                  borderRadius: BorderRadius.circular(AppRadius.value),
+                ),
+                child: _HeadlineSourceImage(
+                  url: widget.displayImageUrl,
+                  fit: BoxFit.contain,
+                  errorWidget: const _ImageFallback(),
+                ),
+              ),
             ),
           ),
-        ),
-        const SizedBox(height: 12),
-        _InfoLine(
-          label: 'newsAdd.headlineGenerator.sourceUrl',
-          value: widget.source.originalUrl,
-        ),
-        _InfoLine(
-          label: 'newsAdd.headlineGenerator.sourceAlt',
-          value: widget.source.altText,
-        ),
-        const SizedBox(height: 18),
-        _SectionTitle('newsAdd.headlineGenerator.preview'),
-        const SizedBox(height: 10),
-        Container(
-          height: 260,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(AppRadius.value),
-            border: Border.all(color: AppColors.softLine),
+          const SizedBox(height: 10),
+          _InfoLine(
+            label: 'newsAdd.headlineGenerator.sourceUrl',
+            value: widget.source.originalUrl,
+            maxLines: 2,
           ),
-          child: _preview == null
-              ? Text(
-                  context.t('newsAdd.headlineGenerator.previewEmpty'),
-                  style: const TextStyle(
-                    color: AppColors.inkSoft,
-                    fontWeight: FontWeight.w700,
-                  ),
-                )
-              : _preview!.contentType.toLowerCase().startsWith('image/svg')
-              ? SvgPicture.memory(_preview!.bytes, fit: BoxFit.contain)
-              : Image.memory(_preview!.bytes, fit: BoxFit.contain),
-        ),
-      ],
+          _InfoLine(
+            label: 'newsAdd.headlineGenerator.sourceAlt',
+            value: widget.source.altText,
+            maxLines: 1,
+          ),
+          const SizedBox(height: 10),
+          _SectionTitle('newsAdd.headlineGenerator.preview'),
+          const SizedBox(height: 10),
+          Expanded(
+            child: Container(
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(AppRadius.value),
+                border: Border.all(color: AppColors.softLine),
+              ),
+              child: _preview == null
+                  ? Text(
+                      context.t('newsAdd.headlineGenerator.previewEmpty'),
+                      style: const TextStyle(
+                        color: AppColors.inkSoft,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    )
+                  : Padding(
+                      padding: const EdgeInsets.all(8),
+                      child:
+                          _preview!.contentType.toLowerCase().startsWith(
+                            'image/svg',
+                          )
+                          ? SvgPicture.memory(
+                              _preview!.bytes,
+                              fit: BoxFit.contain,
+                            )
+                          : Image.memory(_preview!.bytes, fit: BoxFit.contain),
+                    ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
   Widget _controls() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _SectionTitle('newsAdd.headlineGenerator.newsInfo'),
-        const SizedBox(height: 10),
-        _InfoLine(
-          label: 'newsAdd.headlineGenerator.newsTitle',
-          value: widget.contextData.title,
-        ),
-        _InfoLine(
-          label: 'newsAdd.headlineGenerator.newsSummary',
-          value: widget.contextData.summary,
-        ),
-        const SizedBox(height: 16),
-        _PromptDropdown(
-          loading: _loadingPrompts,
-          prompts: _prompts,
-          value: _promptId,
-          onChanged: (value) => setState(() => _promptId = value),
-        ),
-        const SizedBox(height: 14),
-        _TargetDropdown(
-          value: _target,
-          onChanged: (value) {
-            setState(() {
-              _target = value ?? 'headline_square';
-              _assignToManset = _target == 'headline_square';
-              _preview = null;
-            });
-          },
-        ),
-        const SizedBox(height: 18),
-        _SectionTitle('newsAdd.headlineGenerator.manualEdit'),
-        const SizedBox(height: 10),
-        _TextFieldLine(
-          label: 'newsAdd.headlineGenerator.kicker',
-          controller: _kickerController,
-        ),
-        _TextFieldLine(
-          label: 'newsAdd.headlineGenerator.top',
-          controller: _topController,
-        ),
-        _TextFieldLine(
-          label: 'newsAdd.headlineGenerator.main',
-          controller: _mainController,
-        ),
-        _TextFieldLine(
-          label: 'newsAdd.headlineGenerator.bottom',
-          controller: _bottomController,
-        ),
-        _TextFieldLine(
-          label: 'newsAdd.headlineGenerator.support',
-          controller: _supportController,
-        ),
-        _TextFieldLine(
-          label: 'newsAdd.headlineGenerator.tagline',
-          controller: _taglineController,
-        ),
-        _TextFieldLine(
-          label: 'newsAdd.headlineGenerator.altText',
-          controller: _altTextController,
-        ),
-        const SizedBox(height: 10),
-        _SectionTitle('newsAdd.headlineGenerator.assignments'),
-        _CheckLine(
-          label: 'newsAdd.headlineGenerator.assignManset',
-          value: _assignToManset,
-          enabled: _target == 'headline_square',
-          onChanged: (value) => setState(() => _assignToManset = value),
-        ),
-        _CheckLine(
-          label: 'newsAdd.headlineGenerator.assignBlock',
-          value: _assignToArticleImageBlock,
-          onChanged: (value) {
-            setState(() => _assignToArticleImageBlock = value);
-          },
-        ),
-        _CheckLine(
-          label: 'newsAdd.headlineGenerator.assignCover',
-          value: _assignToCover,
-          onChanged: (value) => setState(() => _assignToCover = value),
-        ),
-        if (_error != null) ...[
-          const SizedBox(height: 12),
-          Text(
-            _error!,
-            style: const TextStyle(
-              color: AppColors.actionRed,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              height: 1.35,
-            ),
+    return _PanelFrame(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _SectionTitle('newsAdd.headlineGenerator.newsInfo'),
+          const SizedBox(height: 8),
+          _InfoLine(
+            label: 'newsAdd.headlineGenerator.newsTitle',
+            value: widget.contextData.title,
+            maxLines: 1,
           ),
+          _InfoLine(
+            label: 'newsAdd.headlineGenerator.newsSummary',
+            value: widget.contextData.summary,
+            maxLines: 2,
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _PromptDropdown(
+                  loading: _loadingPrompts,
+                  prompts: _prompts,
+                  value: _promptId,
+                  onChanged: (value) => setState(() => _promptId = value),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _TargetDropdown(
+                  value: _target,
+                  onChanged: (value) {
+                    setState(() {
+                      _target = value ?? 'headline_square';
+                      _assignToManset = _target == 'headline_square';
+                      _preview = null;
+                    });
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _SectionTitle('newsAdd.headlineGenerator.manualEdit'),
+          const SizedBox(height: 8),
+          _ManualFieldsGrid(
+            children: [
+              _TextFieldLine(
+                label: 'newsAdd.headlineGenerator.kicker',
+                controller: _kickerController,
+              ),
+              _TextFieldLine(
+                label: 'newsAdd.headlineGenerator.top',
+                controller: _topController,
+              ),
+              _TextFieldLine(
+                label: 'newsAdd.headlineGenerator.main',
+                controller: _mainController,
+              ),
+              _TextFieldLine(
+                label: 'newsAdd.headlineGenerator.bottom',
+                controller: _bottomController,
+              ),
+              _TextFieldLine(
+                label: 'newsAdd.headlineGenerator.support',
+                controller: _supportController,
+              ),
+              _TextFieldLine(
+                label: 'newsAdd.headlineGenerator.tagline',
+                controller: _taglineController,
+              ),
+              _TextFieldLine(
+                label: 'newsAdd.headlineGenerator.altText',
+                controller: _altTextController,
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          _SectionTitle('newsAdd.headlineGenerator.assignments'),
+          const SizedBox(height: 8),
+          _CheckLine(
+            label: 'newsAdd.headlineGenerator.assignManset',
+            value: _assignToManset,
+            enabled: _target == 'headline_square',
+            onChanged: (value) => setState(() => _assignToManset = value),
+          ),
+          const SizedBox(height: 6),
+          _CheckLine(
+            label: 'newsAdd.headlineGenerator.assignBlock',
+            value: _assignToArticleImageBlock,
+            onChanged: (value) {
+              setState(() => _assignToArticleImageBlock = value);
+            },
+          ),
+          const SizedBox(height: 6),
+          _CheckLine(
+            label: 'newsAdd.headlineGenerator.assignCover',
+            value: _assignToCover,
+            onChanged: (value) => setState(() => _assignToCover = value),
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: 10),
+            Text(
+              _error!,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppColors.actionRed,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                height: 1.25,
+              ),
+            ),
+          ],
         ],
-      ],
+      ),
     );
   }
 }
@@ -694,6 +750,25 @@ class _ActionButton extends StatelessWidget {
   }
 }
 
+class _PanelFrame extends StatelessWidget {
+  const _PanelFrame({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: const Color(0xFFE3EBEF)),
+      ),
+      child: child,
+    );
+  }
+}
+
 class _PromptDropdown extends StatelessWidget {
   const _PromptDropdown({
     required this.loading,
@@ -774,6 +849,41 @@ class _DropdownBox extends StatelessWidget {
   }
 }
 
+class _ManualFieldsGrid extends StatelessWidget {
+  const _ManualFieldsGrid({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 520) {
+          return Column(children: children);
+        }
+        final rows = <Widget>[];
+        for (var index = 0; index < children.length; index += 2) {
+          rows.add(
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: children[index]),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: index + 1 < children.length
+                      ? children[index + 1]
+                      : const SizedBox.shrink(),
+                ),
+              ],
+            ),
+          );
+        }
+        return Column(children: rows);
+      },
+    );
+  }
+}
+
 class _TextFieldLine extends StatelessWidget {
   const _TextFieldLine({required this.label, required this.controller});
 
@@ -783,16 +893,16 @@ class _TextFieldLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _FieldLabel(label),
-          const SizedBox(height: 7),
+          const SizedBox(height: 6),
           TextField(
             controller: controller,
             minLines: 1,
-            maxLines: 2,
+            maxLines: 1,
             decoration: _inputDecoration(context),
             style: const TextStyle(
               color: AppColors.deepOcean,
@@ -822,19 +932,52 @@ class _CheckLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CheckboxListTile(
-      dense: true,
-      contentPadding: EdgeInsets.zero,
-      value: enabled && value,
-      onChanged: enabled ? (checked) => onChanged(checked == true) : null,
-      activeColor: AppColors.actionRed,
-      title: Text(
-        context.t(label),
-        style: const TextStyle(
-          color: AppColors.deepOcean,
-          fontSize: 13,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0,
+    final active = enabled && value;
+    return Opacity(
+      opacity: enabled ? 1 : 0.48,
+      child: InkWell(
+        onTap: enabled ? () => onChanged(!value) : null,
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        child: Container(
+          height: 36,
+          padding: const EdgeInsets.only(left: 12, right: 4),
+          decoration: BoxDecoration(
+            color: active
+                ? AppColors.actionRed.withValues(alpha: 0.07)
+                : AppColors.surface,
+            borderRadius: BorderRadius.circular(AppRadius.value),
+            border: Border.all(
+              color: active
+                  ? AppColors.actionRed.withValues(alpha: 0.25)
+                  : AppColors.softLine,
+            ),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  context.t(label),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.deepOcean,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ),
+              Checkbox(
+                value: active,
+                onChanged: enabled
+                    ? (checked) => onChanged(checked == true)
+                    : null,
+                activeColor: AppColors.actionRed,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -880,10 +1023,15 @@ class _FieldLabel extends StatelessWidget {
 }
 
 class _InfoLine extends StatelessWidget {
-  const _InfoLine({required this.label, required this.value});
+  const _InfoLine({
+    required this.label,
+    required this.value,
+    this.maxLines = 2,
+  });
 
   final String label;
   final String value;
+  final int maxLines;
 
   @override
   Widget build(BuildContext context) {
@@ -901,6 +1049,8 @@ class _InfoLine extends StatelessWidget {
             TextSpan(text: text),
           ],
         ),
+        maxLines: maxLines,
+        overflow: TextOverflow.ellipsis,
         style: const TextStyle(
           color: AppColors.inkSoft,
           fontSize: 12.5,
@@ -975,7 +1125,7 @@ class _HeadlineSourceImageState extends State<_HeadlineSourceImage> {
 
 bool _needsAdminImageHeaders(String url) {
   final uri = Uri.tryParse(url);
-  return uri != null && uri.path == '/api/admin/news/source-image';
+  return uri != null && uri.path.startsWith('/api/admin/');
 }
 
 class _ImageFallback extends StatelessWidget {
@@ -1001,7 +1151,7 @@ InputDecoration _inputDecoration(BuildContext context) {
     isDense: true,
     filled: true,
     fillColor: Colors.white,
-    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
     border: OutlineInputBorder(
       borderRadius: BorderRadius.circular(AppRadius.value),
       borderSide: const BorderSide(color: Color(0xFFDDE5E8)),

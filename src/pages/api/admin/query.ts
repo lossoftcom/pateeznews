@@ -145,7 +145,7 @@ const TABLE_COLUMNS: Record<string, Set<string>> = Object.fromEntries(
       'contact_phone', 'contact_city', 'contact_address',
       'contact_location_url', 'contact_whatsapp_url', 'contact_telegram_url',
       'contact_email_info', 'contact_email_support', 'contact_email_news',
-      'contact_email_ads', 'contact_email_social',
+      'contact_email_ads', 'contact_email_social', 'contact_email_gmail',
       'robots_txt', 'header_custom_codes', 'footer_custom_codes',
       'site_primary_font', 'site_title_font', 'site_content_font',
       'site_font_sizes',

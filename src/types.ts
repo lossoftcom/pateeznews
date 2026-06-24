@@ -278,6 +278,7 @@ export interface SiteSettings {
   contact_email_support?: string;
   contact_email_news?: string;
   contact_email_ads?: string;
+  contact_email_gmail?: string;
   twitter_username?: string;
   fb_app_id?: string;
   social_whatsapp_url?: string;

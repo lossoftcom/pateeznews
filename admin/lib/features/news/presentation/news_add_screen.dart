@@ -8026,11 +8026,53 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     );
   }
 
+  Future<void> _openHeadlineGeneratorFromCover() async {
+    final coverSource = _coverImageUrl?.trim() ?? '';
+    if (coverSource.isEmpty) return;
+    final result = await showDialog<NewsHeadlineGeneratorResult>(
+      context: context,
+      barrierColor: AppColors.deepOcean.withValues(alpha: 0.58),
+      builder: (_) => NewsHeadlineGeneratorDialog(
+        languageCode: _languageCode,
+        contextData: AdminNewsHeadlineContext(
+          title: _titleController.text.trim(),
+          summary: _summaryController.text.trim(),
+          categoryPath: _selectedCategory,
+          publishedAt: _publishAtController.text.trim(),
+          slug: _slugController.text.trim(),
+          editorNotes: _metaDescriptionController.text.trim(),
+        ),
+        source: AdminNewsHeadlineSource(
+          mediaSrc: coverSource,
+          originalUrl: coverSource,
+          altText: _coverAltController.text.trim(),
+        ),
+        displayImageUrl: _coverHeadlineDisplayUrl(coverSource),
+        mediaService: _mediaService,
+        initialAssignToManset: true,
+        initialAssignToArticleImageBlock: false,
+        initialAssignToCover: true,
+      ),
+    );
+    if (result == null || !mounted) return;
+    await _applyHeadlineGeneratorResult(result);
+  }
+
+  String _coverHeadlineDisplayUrl(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return '';
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      return trimmed;
+    }
+    return _mediaService.resolveImageUrl(trimmed, width: 960, quality: 90);
+  }
+
   Widget _buildCoverCard() {
     return _CoverCard(
       imageUrl: _coverImageUrl,
       altController: _coverAltController,
       onImageChanged: _handleCoverImageChanged,
+      onHeadlineGenerate: _openHeadlineGeneratorFromCover,
     );
   }
 
@@ -12071,7 +12113,23 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
       _sourceImageStatusIsError = false;
     });
     try {
-      final result = await _mediaService.uploadRemoteImage(
+      final storedMediaSrc = _storedSourceImageMediaSrc(image.url);
+      if (storedMediaSrc != null) {
+        final selected = _AiSelectedSourceImage(
+          mediaSrc: storedMediaSrc,
+          originalUrl: image.url,
+          altText: image.alt,
+        );
+        if (!mounted) return null;
+        setState(() {
+          _selectedSourceImage = selected;
+          _sourceImageStatus = context.t('newsAdd.aiModal.sourceImageReady');
+          _sourceImageStatusIsError = false;
+        });
+        return selected;
+      }
+
+      var result = await _mediaService.uploadRemoteImage(
         imageUrl: image.url,
         onTransferProgress: (progress) {
           if (!mounted) return;
@@ -12080,6 +12138,7 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
           });
         },
       );
+      result ??= await _uploadSourceImageViaProxy(image);
       if (!mounted) return null;
       if (result == null) {
         setState(() {
@@ -12115,6 +12174,26 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
         });
       }
     }
+  }
+
+  Future<MediaItem?> _uploadSourceImageViaProxy(
+    AdminNewsSourceImage image,
+  ) async {
+    final proxyUrl = _sourceImageProxyDisplayUrl(image.url);
+    if (proxyUrl.trim() == image.url.trim()) return null;
+    final proxyUri = Uri.tryParse(proxyUrl);
+    if (proxyUri == null) return null;
+    final response = await adminHttpClient
+        .get(proxyUri, headers: await adminAuthHeaders())
+        .timeout(const Duration(seconds: 30));
+    if (response.statusCode < 200 || response.statusCode >= 300) return null;
+    final contentType = response.headers['content-type'] ?? '';
+    if (!contentType.toLowerCase().startsWith('image/')) return null;
+    return _mediaService.uploadFile(
+      fileName: _sourceImageUploadFileName(image.url, contentType),
+      bytes: response.bodyBytes,
+      type: 'image',
+    );
   }
 
   String _topicForGenerate(AdminNewsSourceArticle? article) {
@@ -13092,21 +13171,64 @@ String _sourceImageProxyDisplayUrl(String rawUrl) {
   if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) {
     return url;
   }
-  if (_isInternalMediaImageUri(uri)) return url;
+  if (_isInternalSourceImageUri(uri)) return url;
   return MediaService().resolveUrl(
     '/api/admin/news/source-image?url=${Uri.encodeQueryComponent(url)}',
   );
 }
 
-bool _isInternalMediaImageUri(Uri uri) {
+String? _storedSourceImageMediaSrc(String rawUrl) {
+  final value = rawUrl.trim();
+  if (value.isEmpty) return null;
+  final uri = Uri.tryParse(value);
+  final path = uri?.path ?? value;
+  if (path.startsWith('/api/storage/file/image/') ||
+      path.startsWith('/local-upload/image/')) {
+    return path;
+  }
+  return null;
+}
+
+String _sourceImageUploadFileName(String rawUrl, String contentType) {
+  final uri = Uri.tryParse(rawUrl.trim());
+  final lastSegment = uri?.pathSegments.isNotEmpty == true
+      ? uri!.pathSegments.last
+      : '';
+  final cleaned = lastSegment
+      .replaceAll(RegExp(r'[^A-Za-z0-9._-]+'), '-')
+      .replaceAll(RegExp(r'-+'), '-')
+      .trim();
+  final hasImageExtension = RegExp(
+    r'\.(avif|webp|jpe?g|png|gif|svg)$',
+    caseSensitive: false,
+  ).hasMatch(cleaned);
+  if (cleaned.isNotEmpty && hasImageExtension) return cleaned;
+  final extension = _sourceImageExtensionFromContentType(contentType);
+  return 'source-image-${DateTime.now().millisecondsSinceEpoch}$extension';
+}
+
+String _sourceImageExtensionFromContentType(String contentType) {
+  final normalized = contentType.toLowerCase().split(';').first.trim();
+  return switch (normalized) {
+    'image/avif' => '.avif',
+    'image/webp' => '.webp',
+    'image/png' => '.png',
+    'image/gif' => '.gif',
+    'image/svg+xml' => '.svg',
+    _ => '.jpg',
+  };
+}
+
+bool _isInternalSourceImageUri(Uri uri) {
   final path = uri.path;
   return path.startsWith('/api/storage/file/image/') ||
+      path.startsWith('/api/admin/') ||
       path.startsWith('/local-upload/image/');
 }
 
 bool _needsAdminImageHeaders(String url) {
   final uri = Uri.tryParse(url);
-  return uri != null && uri.path == '/api/admin/news/source-image';
+  return uri != null && uri.path.startsWith('/api/admin/');
 }
 
 class _SourceImageNetworkPreview extends StatefulWidget {
@@ -15892,11 +16014,13 @@ class _CoverCard extends StatefulWidget {
     required this.imageUrl,
     required this.altController,
     required this.onImageChanged,
+    required this.onHeadlineGenerate,
   });
 
   final String? imageUrl;
   final TextEditingController altController;
   final ValueChanged<String?> onImageChanged;
+  final VoidCallback onHeadlineGenerate;
 
   @override
   State<_CoverCard> createState() => _CoverCardState();
@@ -16156,6 +16280,15 @@ class _CoverCardState extends State<_CoverCard> {
                                   ],
                                 ),
                               ),
+                            if (_coverHover)
+                              Positioned(
+                                left: 18,
+                                right: 18,
+                                bottom: 18,
+                                child: _CoverHeadlineGenerateButton(
+                                  onTap: widget.onHeadlineGenerate,
+                                ),
+                              ),
                           ],
                         )
                       : SizedBox(
@@ -16189,6 +16322,55 @@ class _CoverAltTextPanel extends StatelessWidget {
       controller: controller,
       hintTextKey: 'newsAdd.coverAltTextHint',
       fontSize: 12.5,
+    );
+  }
+}
+
+class _CoverHeadlineGenerateButton extends StatelessWidget {
+  const _CoverHeadlineGenerateButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        height: 38,
+        decoration: BoxDecoration(
+          color: AppColors.deepOcean.withValues(alpha: 0.94),
+          borderRadius: BorderRadius.circular(AppRadius.value),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.deepOcean.withValues(alpha: 0.18),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        alignment: Alignment.center,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SymbolIcon(
+              Symbols.auto_awesome,
+              color: AppColors.actionRed,
+              size: 17,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              context.t('newsAdd.headlineGenerator.open'),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
