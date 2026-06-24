@@ -10,6 +10,12 @@ const TARGETS = new Set([
   'landscape_16x9',
   'social_9x16',
 ]);
+const TARGET_SIZES: Record<string, { width: number; height: number }> = {
+  headline_square: { width: 1200, height: 1200 },
+  article_4x3: { width: 1200, height: 900 },
+  landscape_16x9: { width: 1280, height: 720 },
+  social_9x16: { width: 1080, height: 1920 },
+};
 const ZONES = new Set(['top', 'bottom', 'left', 'right', 'center-left', 'center-right']);
 const ALIGNMENTS = new Set(['left', 'center']);
 const OVERLAY_STRENGTHS = new Set(['low', 'medium', 'high']);
@@ -87,7 +93,7 @@ export async function fetchHeadlineSourceImage(input: {
   }
 
   if (url.origin !== requestUrl.origin) {
-    throw Object.assign(new Error('Only existing internal media can be used'), { status: 400 });
+    return fetchRemoteHeadlineSourceImage(src);
   }
   if (
     !url.pathname.startsWith('/api/storage/file/image/') &&
@@ -124,6 +130,50 @@ export async function fetchHeadlineSourceImage(input: {
   return { bytes, contentType };
 }
 
+export async function fetchRemoteHeadlineSourceImage(src: string) {
+  let url: URL;
+  try {
+    url = new URL(String(src || '').trim());
+  } catch {
+    throw Object.assign(new Error('Invalid source image'), { status: 400 });
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw Object.assign(new Error('Invalid source image'), { status: 400 });
+  }
+  if (isBlockedRemoteImageHost(url.hostname)) {
+    throw Object.assign(new Error('Blocked source image host'), { status: 400 });
+  }
+
+  const response = await fetch(url, {
+    headers: {
+      Accept: 'image/avif,image/webp,image/png,image/jpeg,image/svg+xml,image/*,*/*;q=0.8',
+      'User-Agent': 'PateezAdmin/1.0 (+https://pateeznews.com) AppleWebKit/605.1.15',
+      Referer: `${url.origin}/`,
+    },
+    redirect: 'follow',
+    signal: AbortSignal.timeout(18_000),
+  });
+  if (!response.ok) {
+    throw Object.assign(new Error('Source image could not be read'), { status: response.status });
+  }
+  const contentType = sourceImageContentType(response, url);
+  if (!contentType.startsWith('image/')) {
+    throw Object.assign(new Error('Unsupported source image MIME'), { status: 415 });
+  }
+  const contentLength = Number(response.headers.get('content-length') || 0);
+  if (contentLength > MAX_SOURCE_BYTES) {
+    throw Object.assign(new Error('Source image is too large'), { status: 413 });
+  }
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (!bytes.byteLength) {
+    throw Object.assign(new Error('Source image is empty'), { status: 400 });
+  }
+  if (bytes.byteLength > MAX_SOURCE_BYTES) {
+    throw Object.assign(new Error('Source image is too large'), { status: 413 });
+  }
+  return { bytes, contentType };
+}
+
 export async function headlineOutputSettings(languageCode: string) {
   const settings = await loadContentUploadSettings(languageCode || 'tr');
   const format = settings.imageOutputFormat;
@@ -136,6 +186,7 @@ export async function headlineOutputSettings(languageCode: string) {
     extension,
     contentType: outputContentType(format),
     maxBytes: settings.maxImageBytes,
+    svgAllowed: settings.allowedExtensions.has('svg'),
   };
 }
 
@@ -215,6 +266,208 @@ export function normalizeHeadlinePlan(input: unknown, target: string): HeadlineP
     warnings: stringList(source.warnings, 8, 140),
   };
   return plan;
+}
+
+export function renderHeadlineSvgFallback(input: {
+  sourceBase64: string;
+  sourceMimeType: string;
+  plan: HeadlinePlan;
+  target: string;
+  fileName: string;
+  maxBytes: number;
+}) {
+  const target = normalizeHeadlineTarget(input.target);
+  const size = TARGET_SIZES[target] || TARGET_SIZES.headline_square;
+  const plan = normalizeHeadlinePlan(input.plan, target);
+  const sourceMimeType = String(input.sourceMimeType || 'image/jpeg')
+    .split(';')[0]
+    .trim()
+    .toLowerCase();
+  const sourceBase64 = String(input.sourceBase64 || '').trim();
+  if (!sourceBase64) {
+    throw Object.assign(new Error('Source image is empty'), { status: 400 });
+  }
+
+  const svg = buildHeadlineSvg({
+    sourceDataUri: `data:${sourceMimeType};base64,${sourceBase64}`,
+    plan,
+    size,
+  });
+  const bytes = Buffer.from(svg, 'utf8');
+  if (input.maxBytes > 0 && bytes.length > input.maxBytes) {
+    throw Object.assign(new Error('Rendered headline image exceeds upload limit'), { status: 413 });
+  }
+  return {
+    base64: bytes.toString('base64'),
+    contentType: 'image/svg+xml',
+    fileName: input.fileName.replace(/\.[a-z0-9]+$/i, '.svg') || 'manset.svg',
+    width: size.width,
+    height: size.height,
+  };
+}
+
+function sourceImageContentType(response: Response, url: URL) {
+  const headerType = (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+  if (headerType.startsWith('image/')) return headerType;
+  const extension = extensionFromPath(url.pathname);
+  const map: Record<string, string> = {
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    webp: 'image/webp',
+    gif: 'image/gif',
+    avif: 'image/avif',
+    svg: 'image/svg+xml',
+  };
+  return map[extension] || headerType;
+}
+
+function extensionFromPath(pathname: string) {
+  const clean = pathname.split(/[?#]/)[0] || '';
+  const match = clean.match(/\.([a-z0-9]+)$/i);
+  return match?.[1]?.toLowerCase() || '';
+}
+
+function isBlockedRemoteImageHost(hostname: string) {
+  const host = hostname.trim().toLowerCase().replace(/^\[|\]$/g, '');
+  if (!host) return true;
+  if (host === 'localhost' || host.endsWith('.localhost')) return true;
+  if (host === 'metadata.google.internal') return true;
+  if (host === '::1' || host === '0:0:0:0:0:0:0:1') return true;
+  const ipv4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (!ipv4) return false;
+  const octets = ipv4.slice(1).map((part) => Number(part));
+  if (octets.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) return true;
+  const [a, b] = octets;
+  return (
+    a === 0 ||
+    a === 10 ||
+    a === 127 ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168)
+  );
+}
+
+function buildHeadlineSvg(input: {
+  sourceDataUri: string;
+  plan: HeadlinePlan;
+  size: { width: number; height: number };
+}) {
+  const { sourceDataUri, plan, size } = input;
+  const margin = Math.round(Math.min(size.width, size.height) * 0.07);
+  const maxTextWidth = Math.round(size.width - margin * 2);
+  const align = plan.layout?.alignment === 'center' ? 'middle' : 'start';
+  const x = align === 'middle' ? Math.round(size.width / 2) : margin;
+  const lines = headlineSvgLines(plan, maxTextWidth, size);
+  const textHeight = lines.reduce((sum, line) => sum + line.size * line.height, 0);
+  const yStart = Math.max(
+    margin,
+    Math.min(size.height - margin - textHeight, headlineTextBoxY(plan.layout?.preferredTextZone, size, margin)),
+  );
+  const overlayOpacity = plan.layout?.overlayStrength === 'low'
+    ? 0.44
+    : plan.layout?.overlayStrength === 'high'
+      ? 0.72
+      : 0.6;
+  const bandHeight = Math.round(textHeight + margin * 1.3);
+  const bandY = Math.max(0, Math.min(size.height - bandHeight, yStart - margin * 0.55));
+  const brushY = Math.round(bandY + bandHeight - Math.min(size.height * 0.08, 78));
+  let y = yStart;
+  const textParts = lines.map((line) => {
+    y += line.size;
+    const node = `<text x="${x}" y="${Math.round(y)}" text-anchor="${align}" font-family="Poppins, Arial, sans-serif" font-size="${line.size}" font-weight="${line.bold ? 800 : 650}" fill="${line.color}" stroke="${line.stroke || 'none'}" stroke-width="${line.strokeWidth || 0}" paint-order="stroke" letter-spacing="0">${escapeXml(line.text)}</text>`;
+    y += line.size * (line.height - 1);
+    return node;
+  });
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${size.width}" height="${size.height}" viewBox="0 0 ${size.width} ${size.height}">
+  <defs>
+    <linearGradient id="headlineFade" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#0f2434" stop-opacity="0"/>
+      <stop offset="0.48" stop-color="#0f2434" stop-opacity="${overlayOpacity}"/>
+      <stop offset="1" stop-color="#0f2434" stop-opacity="${Math.min(0.88, overlayOpacity + 0.16)}"/>
+    </linearGradient>
+  </defs>
+  <image href="${escapeXml(sourceDataUri)}" x="0" y="0" width="${size.width}" height="${size.height}" preserveAspectRatio="xMidYMid slice"/>
+  <rect width="100%" height="100%" fill="url(#headlineFade)"/>
+  <path d="M ${Math.round(margin * 0.4)} ${brushY} C ${Math.round(size.width * 0.28)} ${brushY - 34}, ${Math.round(size.width * 0.52)} ${brushY + 34}, ${Math.round(size.width - margin * 0.2)} ${brushY - 10} L ${Math.round(size.width - margin * 0.15)} ${brushY + 78} C ${Math.round(size.width * 0.56)} ${brushY + 115}, ${Math.round(size.width * 0.28)} ${brushY + 64}, ${Math.round(margin * 0.2)} ${brushY + 96} Z" fill="#ef3b2d" opacity="0.92"/>
+  <rect x="${margin}" y="${Math.max(margin, bandY - 16)}" width="${Math.min(size.width * 0.38, 420)}" height="12" rx="3" fill="#ffd233" opacity="0.98"/>
+  <rect x="${margin}" y="${Math.max(margin, bandY + bandHeight - 28)}" width="${Math.min(size.width * 0.28, 320)}" height="10" rx="3" fill="#16456a" opacity="0.96"/>
+  ${textParts.join('\n  ')}
+</svg>`;
+}
+
+function headlineSvgLines(plan: HeadlinePlan, maxWidth: number, size: { width: number; height: number }) {
+  const headline = plan.headline || {};
+  const minSide = Math.min(size.width, size.height);
+  const scale = minSide / 1200;
+  const rows = [
+    { text: headline.kicker, size: Math.round(34 * scale), color: '#ffd233', bold: true, upper: true, maxLines: 1 },
+    { text: headline.top, size: Math.round(54 * scale), color: '#ffffff', bold: true, maxLines: 2, stroke: '#0f2434', strokeWidth: 2 },
+    { text: headline.main, size: Math.round(82 * scale), color: '#ffd233', bold: true, maxLines: 2, stroke: '#0f2434', strokeWidth: 3 },
+    { text: headline.bottom, size: Math.round(62 * scale), color: '#ffffff', bold: true, maxLines: 2, stroke: '#0f2434', strokeWidth: 2 },
+    { text: headline.support, size: Math.round(34 * scale), color: '#ffffff', bold: false, maxLines: 2, stroke: '#0f2434', strokeWidth: 1 },
+    { text: headline.tagline, size: Math.round(30 * scale), color: '#ffd233', bold: true, upper: true, maxLines: 1 },
+  ];
+  const output: Array<Record<string, any>> = [];
+  for (const row of rows) {
+    const value = String(row.text || '').replace(/\s+/g, ' ').trim();
+    if (!value) continue;
+    const text = row.upper ? value.toLocaleUpperCase('tr-TR') : value;
+    for (const wrapped of wrapHeadlineSvgText(text, maxWidth, row.size, row.maxLines)) {
+      output.push({ ...row, text: wrapped, height: row.size >= 70 * scale ? 1.04 : 1.12 });
+    }
+  }
+  return output.length ? output : [{ text: 'PATEEZ', size: Math.round(72 * scale), color: '#ffd233', bold: true, height: 1.05 }];
+}
+
+function wrapHeadlineSvgText(text: string, maxWidth: number, fontSize: number, maxLines: number) {
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let current = '';
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (estimatedHeadlineTextWidth(candidate, fontSize) <= maxWidth || !current) {
+      current = candidate;
+      continue;
+    }
+    lines.push(current);
+    current = word;
+    if (lines.length >= maxLines) break;
+  }
+  if (current && lines.length < maxLines) lines.push(current);
+  return lines;
+}
+
+function estimatedHeadlineTextWidth(text: string, fontSize: number) {
+  let units = 0;
+  for (const char of text) {
+    if (char === ' ') units += 0.33;
+    else if ('Iıijlft'.includes(char)) units += 0.36;
+    else if ('mwMW@#'.includes(char)) units += 0.95;
+    else units += 0.64;
+  }
+  return units * fontSize;
+}
+
+function headlineTextBoxY(zone: unknown, size: { width: number; height: number }, margin: number) {
+  const value = String(zone || 'bottom');
+  if (value === 'top') return margin * 1.5;
+  if (value === 'left' || value === 'right' || value === 'center-left' || value === 'center-right') {
+    return Math.round(size.height * 0.48);
+  }
+  return Math.round(size.height * 0.58);
+}
+
+function escapeXml(value: unknown) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
 }
 
 function normalizeAvoidZones(value: unknown) {

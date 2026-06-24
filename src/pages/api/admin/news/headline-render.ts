@@ -6,6 +6,7 @@ import {
   headlineOutputSettings,
   normalizeHeadlinePlan,
   normalizeHeadlineTarget,
+  renderHeadlineSvgFallback,
   safeHeadlineFilename,
 } from '@/lib/server/headlineImage';
 
@@ -26,15 +27,34 @@ export const POST: APIRoute = async ({ request }) => {
       extension: output.extension,
     });
 
-    const rendered = await renderLocalStorageHeadlineImage({
-      sourceBase64: Buffer.from(sourceImage.bytes).toString('base64'),
-      sourceMimeType: sourceImage.contentType,
-      plan,
-      target,
-      outputFormat: output.format,
-      maxBytes: output.maxBytes,
-      fileName,
-    });
+    const sourceBase64 = Buffer.from(sourceImage.bytes).toString('base64');
+    let rendered: Record<string, any>;
+    try {
+      rendered = await renderLocalStorageHeadlineImage({
+        sourceBase64,
+        sourceMimeType: sourceImage.contentType,
+        plan,
+        target,
+        outputFormat: output.format,
+        maxBytes: output.maxBytes,
+        fileName,
+      });
+    } catch (error) {
+      if (!output.svgAllowed) throw error;
+      rendered = renderHeadlineSvgFallback({
+        sourceBase64,
+        sourceMimeType: sourceImage.contentType,
+        plan,
+        target,
+        maxBytes: output.maxBytes,
+        fileName: safeHeadlineFilename({
+          stem: plan.media?.filenameStem || '',
+          slug: body?.context?.slug || body?.context?.title || '',
+          target,
+          extension: 'svg',
+        }),
+      });
+    }
 
     const base64 = String(rendered?.base64 || '');
     if (!base64) throw Object.assign(new Error('Headline render returned empty output'), { status: 502 });

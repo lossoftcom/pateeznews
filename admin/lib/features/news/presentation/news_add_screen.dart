@@ -8,6 +8,7 @@ import 'package:pateeznews_admin/shared/widgets/admin_toast.dart';
 import 'package:pro_image_editor/pro_image_editor.dart';
 
 import '../../../core/localization/admin_language_controller.dart';
+import '../../../core/network/admin_api_headers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../auth/data/admin_auth_models.dart';
@@ -11971,8 +11972,12 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
     if (_sourceImageUploading || _generating || _readingSource) return;
     final selected = _selectedSourceImage?.originalUrl == image.url
         ? _selectedSourceImage
-        : await _uploadSelectedSourceImage(image);
-    if (!mounted || selected == null) return;
+        : null;
+    setState(() {
+      _sourceImageStatus = null;
+      _sourceImageStatusIsError = false;
+      _sourceImageUploadProgress = null;
+    });
     final result = await showDialog<NewsHeadlineGeneratorResult>(
       context: context,
       barrierColor: AppColors.deepOcean.withValues(alpha: 0.58),
@@ -11987,9 +11992,9 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
           editorNotes: _notesController.text.trim(),
         ),
         source: AdminNewsHeadlineSource(
-          mediaSrc: selected.mediaSrc,
-          originalUrl: selected.originalUrl,
-          altText: selected.altText,
+          mediaSrc: selected?.mediaSrc ?? image.url,
+          originalUrl: selected?.originalUrl ?? image.url,
+          altText: selected?.altText ?? image.alt,
         ),
         displayImageUrl: _sourceImageDisplayUrl(image),
         mediaService: _mediaService,
@@ -12531,8 +12536,7 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
                 uploadProgress: _sourceImageUploadProgress,
                 status: _sourceImageStatus,
                 statusIsError: _sourceImageStatusIsError,
-                directAdd:
-                    _manualSourceImages.isNotEmpty && sourceImages.length == 1,
+                directAdd: false,
                 sidePanel: canUseSidePanel,
                 onTap: _sourceImageUploading
                     ? null
@@ -12882,21 +12886,28 @@ class _SourceImagePreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final selected = selectedImage;
-    final previewUrl = selected == null
-        ? _sourceImageDisplayUrl(images.first)
-        : MediaService().resolveImageUrl(
-            selected.mediaSrc,
-            width: 360,
-            quality: 86,
+    final previewImage = selected == null
+        ? _SourceImageNetworkPreview(
+            image: images.first,
+            fit: BoxFit.contain,
+            memCacheWidth: 360,
+            errorWidget: const _SourceImageFallback(),
+          )
+        : AdminCachedImage(
+            url: MediaService().resolveImageUrl(
+              selected.mediaSrc,
+              width: 360,
+              quality: 86,
+            ),
+            fit: BoxFit.contain,
+            memCacheWidth: 360,
+            errorWidget: const _SourceImageFallback(),
           );
-    final previewHeaders = selected == null
-        ? _sourceImageDisplayHeaders(images.first)
-        : null;
     final statusText = status?.trim() ?? '';
     final enabled = onTap != null;
     final child = sidePanel
-        ? _buildSidePanel(context, previewUrl, previewHeaders, statusText)
-        : _buildInlinePanel(context, previewUrl, previewHeaders, statusText);
+        ? _buildSidePanel(context, previewImage, statusText)
+        : _buildInlinePanel(context, previewImage, statusText);
     return MouseRegion(
       cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
       child: GestureDetector(
@@ -12917,25 +12928,14 @@ class _SourceImagePreview extends StatelessWidget {
 
   Widget _buildInlinePanel(
     BuildContext context,
-    String previewUrl,
-    Map<String, String>? previewHeaders,
+    Widget previewImage,
     String statusText,
   ) {
     return Row(
       children: [
         ClipRRect(
           borderRadius: BorderRadius.circular(AppRadius.value),
-          child: SizedBox(
-            width: 96,
-            height: 62,
-            child: AdminCachedImage(
-              url: previewUrl,
-              httpHeaders: previewHeaders,
-              fit: BoxFit.contain,
-              memCacheWidth: 360,
-              errorWidget: const _SourceImageFallback(),
-            ),
-          ),
+          child: SizedBox(width: 96, height: 62, child: previewImage),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -12958,8 +12958,7 @@ class _SourceImagePreview extends StatelessWidget {
 
   Widget _buildSidePanel(
     BuildContext context,
-    String previewUrl,
-    Map<String, String>? previewHeaders,
+    Widget previewImage,
     String statusText,
   ) {
     return Column(
@@ -12968,16 +12967,7 @@ class _SourceImagePreview extends StatelessWidget {
       children: [
         ClipRRect(
           borderRadius: BorderRadius.circular(AppRadius.value),
-          child: SizedBox(
-            height: 58,
-            child: AdminCachedImage(
-              url: previewUrl,
-              httpHeaders: previewHeaders,
-              fit: BoxFit.contain,
-              memCacheWidth: 360,
-              errorWidget: const _SourceImageFallback(),
-            ),
-          ),
+          child: SizedBox(height: 58, child: previewImage),
         ),
         const SizedBox(height: 8),
         _SourceImagePreviewText(
@@ -13087,11 +13077,110 @@ class _SourceImagePreviewText extends StatelessWidget {
 
 String _sourceImageDisplayUrl(AdminNewsSourceImage image) {
   final displayUrl = image.displayUrl.trim();
-  return displayUrl.isNotEmpty ? displayUrl : image.url;
+  return _sourceImageProxyDisplayUrl(
+    displayUrl.isNotEmpty ? displayUrl : image.url,
+  );
 }
 
 Map<String, String>? _sourceImageDisplayHeaders(AdminNewsSourceImage image) {
   return image.displayHeaders.isEmpty ? null : image.displayHeaders;
+}
+
+String _sourceImageProxyDisplayUrl(String rawUrl) {
+  final url = rawUrl.trim();
+  final uri = Uri.tryParse(url);
+  if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) {
+    return url;
+  }
+  if (_isInternalMediaImageUri(uri)) return url;
+  return MediaService().resolveUrl(
+    '/api/admin/news/source-image?url=${Uri.encodeQueryComponent(url)}',
+  );
+}
+
+bool _isInternalMediaImageUri(Uri uri) {
+  final path = uri.path;
+  return path.startsWith('/api/storage/file/image/') ||
+      path.startsWith('/local-upload/image/');
+}
+
+bool _needsAdminImageHeaders(String url) {
+  final uri = Uri.tryParse(url);
+  return uri != null && uri.path == '/api/admin/news/source-image';
+}
+
+class _SourceImageNetworkPreview extends StatefulWidget {
+  const _SourceImageNetworkPreview({
+    required this.image,
+    required this.fit,
+    required this.memCacheWidth,
+    required this.errorWidget,
+  });
+
+  final AdminNewsSourceImage image;
+  final BoxFit fit;
+  final int memCacheWidth;
+  final Widget errorWidget;
+
+  @override
+  State<_SourceImageNetworkPreview> createState() =>
+      _SourceImageNetworkPreviewState();
+}
+
+class _SourceImageNetworkPreviewState
+    extends State<_SourceImageNetworkPreview> {
+  late String _url;
+  Future<Map<String, String>>? _headersFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _configure();
+  }
+
+  @override
+  void didUpdateWidget(covariant _SourceImageNetworkPreview oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.image.url != widget.image.url ||
+        oldWidget.image.displayUrl != widget.image.displayUrl) {
+      _configure();
+    }
+  }
+
+  void _configure() {
+    _url = _sourceImageDisplayUrl(widget.image);
+    final directHeaders = _sourceImageDisplayHeaders(widget.image);
+    _headersFuture = directHeaders == null && _needsAdminImageHeaders(_url)
+        ? adminAuthHeaders()
+        : null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final directHeaders = _sourceImageDisplayHeaders(widget.image);
+    if (_headersFuture == null) {
+      return _buildImage(directHeaders);
+    }
+    return FutureBuilder<Map<String, String>>(
+      future: _headersFuture,
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return Container(color: AppColors.surface);
+        }
+        return _buildImage(snapshot.data);
+      },
+    );
+  }
+
+  Widget _buildImage(Map<String, String>? headers) {
+    return AdminCachedImage(
+      url: _url,
+      httpHeaders: headers,
+      fit: widget.fit,
+      memCacheWidth: widget.memCacheWidth,
+      errorWidget: widget.errorWidget,
+    );
+  }
 }
 
 class _SourceImagePreviewAction extends StatelessWidget {
@@ -13760,9 +13849,8 @@ class _SourceImageTile extends StatelessWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    AdminCachedImage(
-                      url: _sourceImageDisplayUrl(image),
-                      httpHeaders: _sourceImageDisplayHeaders(image),
+                    _SourceImageNetworkPreview(
+                      image: image,
                       fit: BoxFit.contain,
                       memCacheWidth: 360,
                       errorWidget: const _SourceImageFallback(),

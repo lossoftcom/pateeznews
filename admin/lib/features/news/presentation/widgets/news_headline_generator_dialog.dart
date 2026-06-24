@@ -1,8 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../../core/localization/admin_language_controller.dart';
+import '../../../../core/network/admin_api_headers.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../shared/data/media_service.dart';
@@ -390,7 +392,7 @@ class _NewsHeadlineGeneratorDialogState
           borderRadius: BorderRadius.circular(AppRadius.value),
           child: AspectRatio(
             aspectRatio: 4 / 3,
-            child: AdminCachedImage(
+            child: _HeadlineSourceImage(
               url: widget.displayImageUrl,
               fit: BoxFit.contain,
               errorWidget: const _ImageFallback(),
@@ -425,6 +427,8 @@ class _NewsHeadlineGeneratorDialogState
                     fontWeight: FontWeight.w700,
                   ),
                 )
+              : _preview!.contentType.toLowerCase().startsWith('image/svg')
+              ? SvgPicture.memory(_preview!.bytes, fit: BoxFit.contain)
               : Image.memory(_preview!.bytes, fit: BoxFit.contain),
         ),
       ],
@@ -907,6 +911,71 @@ class _InfoLine extends StatelessWidget {
       ),
     );
   }
+}
+
+class _HeadlineSourceImage extends StatefulWidget {
+  const _HeadlineSourceImage({
+    required this.url,
+    required this.fit,
+    required this.errorWidget,
+  });
+
+  final String url;
+  final BoxFit fit;
+  final Widget errorWidget;
+
+  @override
+  State<_HeadlineSourceImage> createState() => _HeadlineSourceImageState();
+}
+
+class _HeadlineSourceImageState extends State<_HeadlineSourceImage> {
+  Future<Map<String, String>>? _headersFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _configure();
+  }
+
+  @override
+  void didUpdateWidget(covariant _HeadlineSourceImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.url != widget.url) _configure();
+  }
+
+  void _configure() {
+    _headersFuture = _needsAdminImageHeaders(widget.url)
+        ? adminAuthHeaders()
+        : null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_headersFuture == null) return _buildImage(null);
+    return FutureBuilder<Map<String, String>>(
+      future: _headersFuture,
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const ColoredBox(color: AppColors.surface);
+        }
+        return _buildImage(snapshot.data);
+      },
+    );
+  }
+
+  Widget _buildImage(Map<String, String>? headers) {
+    return AdminCachedImage(
+      url: widget.url,
+      fit: widget.fit,
+      httpHeaders: headers,
+      errorWidget: widget.errorWidget,
+    );
+  }
+}
+
+bool _needsAdminImageHeaders(String url) {
+  final uri = Uri.tryParse(url);
+  return uri != null && uri.path == '/api/admin/news/source-image';
 }
 
 class _ImageFallback extends StatelessWidget {
