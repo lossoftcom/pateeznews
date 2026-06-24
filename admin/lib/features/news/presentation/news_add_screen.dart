@@ -2155,6 +2155,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
           ? manset
           : (images.isNotEmpty ? images.first : ''),
       imageUrls: images,
+      category: _selectedCategory.trim(),
     );
   }
 
@@ -16429,19 +16430,33 @@ class _CoverTemplateLauncher extends StatelessWidget {
   Future<void> _openTemplates(BuildContext context) async {
     editor.removeKeyEventListener();
     try {
-      await showModalBottomSheet<void>(
+      await showGeneralDialog<void>(
         context: context,
-        backgroundColor: Colors.transparent,
+        barrierDismissible: true,
+        barrierLabel: 'Hazır şablonlar',
         barrierColor: Colors.black.withValues(alpha: 0.58),
-        isScrollControlled: true,
-        useSafeArea: true,
-        builder: (sheetContext) {
+        transitionDuration: const Duration(milliseconds: 180),
+        pageBuilder: (_, _, _) {
           return GestureInterceptor(
             behavior: HitTestBehavior.opaque,
             child: _CoverTemplateSheet(
               editor: editor,
               headlineText: headlineText(),
               summaryText: summaryText(),
+            ),
+          );
+        },
+        transitionBuilder: (context, animation, _, child) {
+          final curved = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+            reverseCurve: Curves.easeInCubic,
+          );
+          return FadeTransition(
+            opacity: curved,
+            child: ScaleTransition(
+              scale: Tween<double>(begin: 0.98, end: 1).animate(curved),
+              child: child,
             ),
           );
         },
@@ -16579,21 +16594,43 @@ class _CoverTemplateSheetState extends State<_CoverTemplateSheet> {
     return Size(window.width, window.height * 0.58);
   }
 
-  Offset _point(Size size, double x, double y) {
-    return Offset(
-      size.width * x - size.width / 2,
-      size.height * y - size.height / 2,
+  Rect _imageRect(Size bodySize) {
+    final imageSize = widget.editor.sizesManager.decodedImageSize;
+    if (bodySize.width <= 0 || bodySize.height <= 0) {
+      return Rect.zero;
+    }
+    if (imageSize.width <= 0 || imageSize.height <= 0) {
+      return Offset.zero & bodySize;
+    }
+
+    final width = imageSize.width.clamp(1.0, bodySize.width).toDouble();
+    final height = imageSize.height.clamp(1.0, bodySize.height).toDouble();
+    return Rect.fromLTWH(
+      (bodySize.width - width) / 2,
+      (bodySize.height - height) / 2,
+      width,
+      height,
     );
   }
 
-  double _scale(Size size, double factor) {
-    final shortest = math.max(260.0, math.min(size.width, size.height));
-    return ((shortest / 300) * factor).clamp(0.62, 3.05).toDouble();
+  Offset _point(Size bodySize, double x, double y) {
+    final rect = _imageRect(bodySize);
+    return Offset(
+      rect.left + rect.width * x - bodySize.width / 2,
+      rect.top + rect.height * y - bodySize.height / 2,
+    );
   }
 
-  double _textWidth(Size size, double factor) {
-    final maxWidth = math.max(180.0, size.width - 32);
-    return (size.width * factor).clamp(160.0, maxWidth).toDouble();
+  double _scale(Size bodySize, double factor) {
+    final rect = _imageRect(bodySize);
+    final shortest = math.max(240.0, math.min(rect.width, rect.height));
+    return ((shortest / 360) * factor).clamp(0.5, 2.15).toDouble();
+  }
+
+  double _textWidth(Size bodySize, double factor) {
+    final rect = _imageRect(bodySize);
+    final maxWidth = math.max(160.0, rect.width - 32);
+    return (rect.width * factor).clamp(142.0, maxWidth).toDouble();
   }
 
   TextLayer _textLayer({
@@ -16697,9 +16734,9 @@ class _CoverTemplateSheetState extends State<_CoverTemplateSheet> {
     switch (_selectedPreset.id) {
       case _CoverTemplatePresetId.editorialRight:
         addHeadline(
-          offset: _point(bodySize, 0.68, 0.28),
-          scale: 1.28,
-          width: 0.54,
+          offset: _point(bodySize, 0.72, 0.24),
+          scale: 0.95,
+          width: 0.46,
           color: Colors.white,
           background: Colors.transparent,
           align: TextAlign.center,
@@ -16708,9 +16745,9 @@ class _CoverTemplateSheetState extends State<_CoverTemplateSheet> {
           shadows: textShadow,
         );
         addSubhead(
-          offset: _point(bodySize, 0.68, 0.48),
-          scale: 0.56,
-          width: 0.48,
+          offset: _point(bodySize, 0.72, 0.40),
+          scale: 0.42,
+          width: 0.42,
           color: AppColors.deepOcean,
           background: const Color(0xFFFFD21A),
           align: TextAlign.center,
@@ -16719,9 +16756,9 @@ class _CoverTemplateSheetState extends State<_CoverTemplateSheet> {
         );
       case _CoverTemplatePresetId.lowerThird:
         addHeadline(
-          offset: _point(bodySize, 0.5, 0.78),
-          scale: 0.96,
-          width: 0.84,
+          offset: _point(bodySize, 0.5, 0.82),
+          scale: 0.72,
+          width: 0.72,
           color: Colors.white,
           background: AppColors.deepOcean.withValues(alpha: 0.92),
           align: TextAlign.center,
@@ -16729,9 +16766,9 @@ class _CoverTemplateSheetState extends State<_CoverTemplateSheet> {
           colorMode: LayerBackgroundMode.backgroundAndColor,
         );
         addSubhead(
-          offset: _point(bodySize, 0.5, 0.62),
-          scale: 0.46,
-          width: 0.72,
+          offset: _point(bodySize, 0.5, 0.69),
+          scale: 0.34,
+          width: 0.62,
           color: AppColors.deepOcean,
           background: const Color(0xFFFFD21A),
           align: TextAlign.center,
@@ -16740,9 +16777,9 @@ class _CoverTemplateSheetState extends State<_CoverTemplateSheet> {
         );
       case _CoverTemplatePresetId.leftLead:
         addSubhead(
-          offset: _point(bodySize, 0.28, 0.24),
-          scale: 0.44,
-          width: 0.36,
+          offset: _point(bodySize, 0.22, 0.18),
+          scale: 0.34,
+          width: 0.34,
           color: Colors.white,
           background: AppColors.actionRed,
           align: TextAlign.left,
@@ -16750,9 +16787,9 @@ class _CoverTemplateSheetState extends State<_CoverTemplateSheet> {
           colorMode: LayerBackgroundMode.backgroundAndColor,
         );
         addHeadline(
-          offset: _point(bodySize, 0.30, 0.39),
-          scale: 1.06,
-          width: 0.42,
+          offset: _point(bodySize, 0.24, 0.31),
+          scale: 0.78,
+          width: 0.38,
           color: Colors.white,
           background: Colors.transparent,
           align: TextAlign.left,
@@ -16762,9 +16799,9 @@ class _CoverTemplateSheetState extends State<_CoverTemplateSheet> {
         );
       case _CoverTemplatePresetId.glassCard:
         addHeadline(
-          offset: _point(bodySize, 0.5, 0.68),
-          scale: 0.88,
-          width: 0.68,
+          offset: _point(bodySize, 0.5, 0.74),
+          scale: 0.66,
+          width: 0.58,
           color: AppColors.deepOcean,
           background: Colors.white.withValues(alpha: 0.88),
           align: TextAlign.center,
@@ -16772,9 +16809,9 @@ class _CoverTemplateSheetState extends State<_CoverTemplateSheet> {
           colorMode: LayerBackgroundMode.backgroundAndColor,
         );
         addSubhead(
-          offset: _point(bodySize, 0.5, 0.82),
-          scale: 0.42,
-          width: 0.62,
+          offset: _point(bodySize, 0.5, 0.87),
+          scale: 0.32,
+          width: 0.52,
           color: Colors.white,
           background: AppColors.deepOcean.withValues(alpha: 0.86),
           align: TextAlign.center,
@@ -16783,9 +16820,9 @@ class _CoverTemplateSheetState extends State<_CoverTemplateSheet> {
         );
       case _CoverTemplatePresetId.breakingBand:
         addSubhead(
-          offset: _point(bodySize, 0.26, 0.16),
-          scale: 0.46,
-          width: 0.38,
+          offset: _point(bodySize, 0.24, 0.14),
+          scale: 0.34,
+          width: 0.34,
           color: Colors.white,
           background: AppColors.actionRed,
           align: TextAlign.center,
@@ -16793,9 +16830,9 @@ class _CoverTemplateSheetState extends State<_CoverTemplateSheet> {
           colorMode: LayerBackgroundMode.backgroundAndColor,
         );
         addHeadline(
-          offset: _point(bodySize, 0.56, 0.30),
-          scale: 1.10,
-          width: 0.72,
+          offset: _point(bodySize, 0.56, 0.28),
+          scale: 0.82,
+          width: 0.60,
           color: Colors.white,
           background: Colors.transparent,
           align: TextAlign.center,
@@ -16805,9 +16842,9 @@ class _CoverTemplateSheetState extends State<_CoverTemplateSheet> {
         );
       case _CoverTemplatePresetId.cleanLabel:
         addHeadline(
-          offset: _point(bodySize, 0.5, 0.25),
-          scale: 0.86,
-          width: 0.62,
+          offset: _point(bodySize, 0.5, 0.24),
+          scale: 0.64,
+          width: 0.52,
           color: AppColors.deepOcean,
           background: Colors.white,
           align: TextAlign.center,
@@ -16815,9 +16852,9 @@ class _CoverTemplateSheetState extends State<_CoverTemplateSheet> {
           colorMode: LayerBackgroundMode.backgroundAndColor,
         );
         addSubhead(
-          offset: _point(bodySize, 0.5, 0.39),
-          scale: 0.42,
-          width: 0.56,
+          offset: _point(bodySize, 0.5, 0.36),
+          scale: 0.32,
+          width: 0.48,
           color: Colors.white,
           background: AppColors.deepOcean,
           align: TextAlign.center,
@@ -16826,9 +16863,9 @@ class _CoverTemplateSheetState extends State<_CoverTemplateSheet> {
         );
       case _CoverTemplatePresetId.yellowTag:
         addHeadline(
-          offset: _point(bodySize, 0.62, 0.62),
-          scale: 0.94,
-          width: 0.56,
+          offset: _point(bodySize, 0.66, 0.68),
+          scale: 0.70,
+          width: 0.46,
           color: AppColors.deepOcean,
           background: const Color(0xFFFFD21A),
           align: TextAlign.center,
@@ -16836,9 +16873,9 @@ class _CoverTemplateSheetState extends State<_CoverTemplateSheet> {
           colorMode: LayerBackgroundMode.backgroundAndColor,
         );
         addSubhead(
-          offset: _point(bodySize, 0.62, 0.76),
-          scale: 0.44,
-          width: 0.50,
+          offset: _point(bodySize, 0.66, 0.80),
+          scale: 0.33,
+          width: 0.42,
           color: Colors.white,
           background: AppColors.deepOcean.withValues(alpha: 0.92),
           align: TextAlign.center,
@@ -16847,9 +16884,9 @@ class _CoverTemplateSheetState extends State<_CoverTemplateSheet> {
         );
       case _CoverTemplatePresetId.centerPoster:
         addHeadline(
-          offset: _point(bodySize, 0.5, 0.43),
-          scale: 1.18,
-          width: 0.74,
+          offset: _point(bodySize, 0.5, 0.42),
+          scale: 0.86,
+          width: 0.60,
           color: Colors.white,
           background: Colors.transparent,
           align: TextAlign.center,
@@ -16858,9 +16895,9 @@ class _CoverTemplateSheetState extends State<_CoverTemplateSheet> {
           shadows: textShadow,
         );
         addSubhead(
-          offset: _point(bodySize, 0.5, 0.58),
-          scale: 0.48,
-          width: 0.54,
+          offset: _point(bodySize, 0.5, 0.56),
+          scale: 0.36,
+          width: 0.46,
           color: AppColors.deepOcean,
           background: const Color(0xFFFFD21A),
           align: TextAlign.center,
@@ -16870,6 +16907,41 @@ class _CoverTemplateSheetState extends State<_CoverTemplateSheet> {
     }
 
     return layers;
+  }
+
+  Widget _buildPresetGrid(bool compact) {
+    final rows = <Widget>[];
+    for (var rowIndex = 0; rowIndex < 4; rowIndex += 1) {
+      rows.add(
+        Expanded(
+          child: Row(
+            children: [
+              for (var columnIndex = 0; columnIndex < 2; columnIndex += 1) ...[
+                if (columnIndex > 0) const SizedBox(width: 8),
+                Expanded(
+                  child: Builder(
+                    builder: (context) {
+                      final index = rowIndex * 2 + columnIndex;
+                      final preset = _coverTemplatePresets[index];
+                      return _CoverTemplatePresetCard(
+                        preset: preset,
+                        selected: preset.id == _selectedPreset.id,
+                        compact: compact,
+                        onTap: () => setState(() => _selectedPreset = preset),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
+      if (rowIndex < 3) {
+        rows.add(const SizedBox(height: 8));
+      }
+    }
+    return Column(children: rows);
   }
 
   void _applyTemplate() {
@@ -16892,53 +16964,93 @@ class _CoverTemplateSheetState extends State<_CoverTemplateSheet> {
   Widget build(BuildContext context) {
     final viewInsets = MediaQuery.viewInsetsOf(context);
     final screen = MediaQuery.sizeOf(context);
-    final heightFactor = screen.height < 720 ? 0.92 : 0.84;
+    final horizontalGap = screen.width < 520 ? 12.0 : 24.0;
+    final verticalGap = screen.height < 720 ? 18.0 : 42.0;
+    final availableHeight = math.max(
+      360.0,
+      screen.height - viewInsets.bottom - verticalGap * 2,
+    );
+    final dialogMaxWidth = math.min(screen.width - horizontalGap * 2, 760.0);
+    final dialogMaxHeight = math.min(
+      availableHeight,
+      screen.width < 520 ? 720.0 : 640.0,
+    );
 
     return Padding(
-      padding: EdgeInsets.only(bottom: viewInsets.bottom),
-      child: FractionallySizedBox(
-        heightFactor: heightFactor,
-        alignment: Alignment.bottomCenter,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 920),
-            child: ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(22),
-              ),
-              child: Material(
-                color: const Color(0xFFF7FAFB),
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final compact = constraints.maxWidth < 620;
-                    return Column(
-                      children: [
-                        _CoverTemplateSheetHeader(
-                          onClose: () => Navigator.of(context).pop(),
-                        ),
-                        Expanded(
-                          child: ListView(
-                            padding: EdgeInsets.fromLTRB(
-                              compact ? 14 : 22,
-                              16,
-                              compact ? 14 : 22,
-                              18,
-                            ),
+      padding: EdgeInsets.fromLTRB(
+        horizontalGap,
+        verticalGap,
+        horizontalGap,
+        verticalGap + viewInsets.bottom,
+      ),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: dialogMaxWidth,
+            maxHeight: dialogMaxHeight,
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(22),
+            child: Material(
+              color: const Color(0xFFF7FAFB),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final compact =
+                      constraints.maxWidth < 560 || constraints.maxHeight < 560;
+                  final contentPadding = EdgeInsets.fromLTRB(
+                    compact ? 12 : 20,
+                    compact ? 12 : 16,
+                    compact ? 12 : 20,
+                    compact ? 12 : 16,
+                  );
+                  return Column(
+                    children: [
+                      _CoverTemplateSheetHeader(
+                        onClose: () => Navigator.of(context).pop(),
+                      ),
+                      Expanded(
+                        child: Padding(
+                          padding: contentPadding,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _CoverTemplateTextField(
-                                controller: _headlineController,
-                                label: 'Manşet',
-                                icon: Symbols.title_outlined,
-                                maxLines: compact ? 3 : 2,
-                              ),
-                              const SizedBox(height: 12),
-                              _CoverTemplateTextField(
-                                controller: _subheadController,
-                                label: 'Alt manşet',
-                                icon: Symbols.text_fields,
-                                maxLines: compact ? 4 : 3,
-                              ),
-                              const SizedBox(height: 14),
+                              if (compact) ...[
+                                _CoverTemplateTextField(
+                                  controller: _headlineController,
+                                  label: 'Manşet',
+                                  icon: Symbols.title_outlined,
+                                  maxLines: 2,
+                                ),
+                                const SizedBox(height: 8),
+                                _CoverTemplateTextField(
+                                  controller: _subheadController,
+                                  label: 'Alt manşet',
+                                  icon: Symbols.text_fields,
+                                  maxLines: 2,
+                                ),
+                              ] else
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _CoverTemplateTextField(
+                                        controller: _headlineController,
+                                        label: 'Manşet',
+                                        icon: Symbols.title_outlined,
+                                        maxLines: 2,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: _CoverTemplateTextField(
+                                        controller: _subheadController,
+                                        label: 'Alt manşet',
+                                        icon: Symbols.text_fields,
+                                        maxLines: 2,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              const SizedBox(height: 10),
                               Wrap(
                                 spacing: 8,
                                 runSpacing: 8,
@@ -16961,61 +17073,42 @@ class _CoverTemplateSheetState extends State<_CoverTemplateSheet> {
                                 ],
                               ),
                               if (_showEmptyWarning) ...[
-                                const SizedBox(height: 10),
+                                const SizedBox(height: 8),
                                 const Text(
                                   'Uygulamak için en az bir metin seçili ve dolu olmalı.',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
                                     color: AppColors.actionRed,
-                                    fontSize: 12.5,
+                                    fontSize: 12,
                                     fontWeight: FontWeight.w700,
                                     letterSpacing: 0,
                                   ),
                                 ),
                               ],
-                              const SizedBox(height: 18),
+                              const SizedBox(height: 12),
                               const Text(
                                 'Hazır şablon seç',
                                 style: TextStyle(
                                   color: AppColors.deepOcean,
-                                  fontSize: 13,
+                                  fontSize: 12.5,
                                   fontWeight: FontWeight.w900,
                                   letterSpacing: 0,
                                 ),
                               ),
-                              const SizedBox(height: 10),
-                              GridView.builder(
-                                shrinkWrap: true,
-                                physics: const NeverScrollableScrollPhysics(),
-                                itemCount: _coverTemplatePresets.length,
-                                gridDelegate:
-                                    SliverGridDelegateWithFixedCrossAxisCount(
-                                      crossAxisCount: compact ? 1 : 2,
-                                      mainAxisSpacing: 10,
-                                      crossAxisSpacing: 10,
-                                      childAspectRatio: compact ? 3.55 : 3.15,
-                                    ),
-                                itemBuilder: (context, index) {
-                                  final preset = _coverTemplatePresets[index];
-                                  return _CoverTemplatePresetCard(
-                                    preset: preset,
-                                    selected: preset.id == _selectedPreset.id,
-                                    onTap: () => setState(
-                                      () => _selectedPreset = preset,
-                                    ),
-                                  );
-                                },
-                              ),
+                              const SizedBox(height: 8),
+                              Expanded(child: _buildPresetGrid(compact)),
                             ],
                           ),
                         ),
-                        _CoverTemplateSheetFooter(
-                          selectedTitle: _selectedPreset.title,
-                          onApply: _applyTemplate,
-                        ),
-                      ],
-                    );
-                  },
-                ),
+                      ),
+                      _CoverTemplateSheetFooter(
+                        selectedTitle: _selectedPreset.title,
+                        onApply: _applyTemplate,
+                      ),
+                    ],
+                  );
+                },
               ),
             ),
           ),
@@ -17033,7 +17126,7 @@ class _CoverTemplateSheetHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(18, 12, 14, 12),
+      padding: const EdgeInsets.fromLTRB(18, 10, 12, 10),
       decoration: const BoxDecoration(
         color: Colors.white,
         border: Border(bottom: BorderSide(color: _newsAddSoftLine)),
@@ -17041,8 +17134,8 @@ class _CoverTemplateSheetHeader extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            width: 36,
-            height: 36,
+            width: 34,
+            height: 34,
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: AppColors.actionRed.withValues(alpha: 0.08),
@@ -17064,7 +17157,7 @@ class _CoverTemplateSheetHeader extends StatelessWidget {
                   'Hazır Şablonlar',
                   style: TextStyle(
                     color: AppColors.deepOcean,
-                    fontSize: 16,
+                    fontSize: 15,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 0,
                   ),
@@ -17212,11 +17305,13 @@ class _CoverTemplatePresetCard extends StatelessWidget {
   const _CoverTemplatePresetCard({
     required this.preset,
     required this.selected,
+    required this.compact,
     required this.onTap,
   });
 
   final _CoverTemplatePreset preset;
   final bool selected;
+  final bool compact;
   final VoidCallback onTap;
 
   @override
@@ -17227,7 +17322,7 @@ class _CoverTemplatePresetCard extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.all(10),
+        padding: EdgeInsets.all(compact ? 7 : 8),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(AppRadius.value),
@@ -17247,8 +17342,12 @@ class _CoverTemplatePresetCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Expanded(child: _CoverTemplateMiniPreview(preset: preset)),
-            const SizedBox(width: 10),
+            SizedBox(
+              width: compact ? 40 : 52,
+              height: compact ? 34 : 40,
+              child: _CoverTemplateMiniPreview(preset: preset),
+            ),
+            SizedBox(width: compact ? 7 : 9),
             Expanded(
               flex: 2,
               child: Column(
@@ -17259,37 +17358,39 @@ class _CoverTemplatePresetCard extends StatelessWidget {
                     preset.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.deepOcean,
-                      fontSize: 13,
+                      fontSize: compact ? 11.5 : 12.5,
                       fontWeight: FontWeight.w900,
                       letterSpacing: 0,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    preset.description,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: _newsAddTabMuted,
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0,
-                      height: 1.18,
+                  if (!compact) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      preset.description,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: _newsAddTabMuted,
+                        fontSize: 10.8,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0,
+                        height: 1.12,
+                      ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: compact ? 4 : 7),
             AnimatedOpacity(
               duration: const Duration(milliseconds: 160),
               opacity: selected ? 1 : 0,
               child: const SymbolIcon(
                 Symbols.check,
                 color: AppColors.actionRed,
-                size: 18,
+                size: 16,
               ),
             ),
           ],
@@ -17306,45 +17407,49 @@ class _CoverTemplateMiniPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AspectRatio(
-      aspectRatio: 4 / 3,
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(7),
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF0E5AA8), Color(0xFF17202A)],
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(7),
+      child: FittedBox(
+        fit: BoxFit.fill,
+        child: Container(
+          width: 104,
+          height: 78,
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF0E5AA8), Color(0xFF17202A)],
+            ),
           ),
-        ),
-        child: Stack(
-          children: [
-            Positioned(
-              left: 8,
-              top: 8,
-              bottom: 8,
-              child: Container(
-                width: 18,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF9B6B3F),
-                  borderRadius: BorderRadius.circular(3),
+          child: Stack(
+            children: [
+              Positioned(
+                left: 8,
+                top: 8,
+                bottom: 8,
+                child: Container(
+                  width: 18,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF9B6B3F),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
                 ),
               ),
-            ),
-            Positioned(
-              right: 8,
-              bottom: 9,
-              child: Container(
-                width: 48,
-                height: 18,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(4),
+              Positioned(
+                right: 8,
+                bottom: 9,
+                child: Container(
+                  width: 48,
+                  height: 18,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
                 ),
               ),
-            ),
-            ..._previewBlocks(),
-          ],
+              ..._previewBlocks(),
+            ],
+          ),
         ),
       ),
     );
@@ -17482,7 +17587,7 @@ class _CoverTemplateSheetFooter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
       decoration: const BoxDecoration(
         color: Colors.white,
         border: Border(top: BorderSide(color: _newsAddSoftLine)),
@@ -17509,7 +17614,7 @@ class _CoverTemplateSheetFooter extends StatelessWidget {
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.deepOcean,
                 foregroundColor: Colors.white,
-                minimumSize: const Size(132, 44),
+                minimumSize: const Size(124, 40),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(AppRadius.value),
                 ),

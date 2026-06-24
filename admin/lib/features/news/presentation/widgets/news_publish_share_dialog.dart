@@ -21,6 +21,7 @@ const _redTint = Color(0xFFFDECEA);
 const _redTintSoft = Color(0xFFFFF7F6);
 const _green = Color(0xFF16A34A);
 const _greenBg = Color(0xFFE9FBEF);
+const _gold = AppColors.warmHorizon;
 
 const _rInput = 12.0;
 const _rCard = 16.0;
@@ -33,6 +34,7 @@ class NewsPublishShareData {
     required this.link,
     required this.mansetImageUrl,
     required this.imageUrls,
+    this.category = '',
   });
 
   final String title;
@@ -40,6 +42,7 @@ class NewsPublishShareData {
   final String link;
   final String mansetImageUrl;
   final List<String> imageUrls;
+  final String category;
 }
 
 Future<void> showNewsPublishShareDialog(
@@ -171,6 +174,13 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
   late final TextEditingController _postText;
   late final TextEditingController _nfTitle;
   late final TextEditingController _nfBody;
+  late final TextEditingController _tagInput;
+  late final TextEditingController _altText;
+  late final TextEditingController _firstComment;
+
+  final List<String> _tags = [];
+  bool _hashtagsInFirstComment = false;
+  bool _utm = true;
 
   SocialPlatform _previewPlatform = SocialPlatform.instagram;
   String _format = 'feed';
@@ -195,6 +205,9 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
     _nfBody = TextEditingController(
       text: d.summary.trim().isEmpty ? d.title : d.summary,
     );
+    _tagInput = TextEditingController();
+    _altText = TextEditingController(text: d.title);
+    _firstComment = TextEditingController();
     unawaited(_loadAccounts());
   }
 
@@ -203,8 +216,51 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
     _postText.dispose();
     _nfTitle.dispose();
     _nfBody.dispose();
+    _tagInput.dispose();
+    _altText.dispose();
+    _firstComment.dispose();
     super.dispose();
   }
+
+  List<String> get _tagSuggestions {
+    final out = <String>[];
+    final seen = <String>{};
+    void add(String raw) {
+      final tag = _normalizeTag(raw);
+      if (tag.isEmpty || tag.length < 3) return;
+      if (_tags.contains(tag) || !seen.add(tag.toLowerCase())) return;
+      out.add(tag);
+    }
+
+    add(widget.data.category);
+    for (final word in widget.data.title.split(RegExp(r'[\s,.:;!?]+'))) {
+      if (out.length >= 6) break;
+      if (word.length > 4) add(word);
+    }
+    return out.take(6).toList();
+  }
+
+  String _normalizeTag(String raw) {
+    final cleaned = raw
+        .trim()
+        .replaceAll('#', '')
+        .replaceAll(RegExp(r'\s+'), '')
+        .replaceAll(RegExp(r'[^0-9A-Za-zğüşöçıİĞÜŞÖÇ_]'), '');
+    return cleaned;
+  }
+
+  void _addTag(String raw) {
+    final tag = _normalizeTag(raw);
+    if (tag.isEmpty) return;
+    setState(() {
+      if (!_tags.any((t) => t.toLowerCase() == tag.toLowerCase())) {
+        _tags.add(tag);
+      }
+      _tagInput.clear();
+    });
+  }
+
+  void _removeTag(String tag) => setState(() => _tags.remove(tag));
 
   Future<void> _loadAccounts() async {
     try {
@@ -248,6 +304,13 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
   }
 
   int get _selectedImageCount => _imgSel.where((e) => e).length;
+
+  String get _previewCaption {
+    final base = _postText.text.replaceAll('\n', ' ').trim();
+    if (_hashtagsInFirstComment || _tags.isEmpty) return base;
+    final tags = _tags.map((t) => '#$t').join(' ');
+    return base.isEmpty ? tags : '$base $tags';
+  }
 
   int get _primaryImageIndex {
     final manset = widget.data.mansetImageUrl.trim();
@@ -566,15 +629,13 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
           const SizedBox(height: 13),
           if (_mobileView == 'edit') compose else preview,
         ] else
-          IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(child: compose),
-                const SizedBox(width: 16),
-                SizedBox(width: 250, child: preview),
-              ],
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: compose),
+              const SizedBox(width: 16),
+              SizedBox(width: 250, child: preview),
+            ],
           ),
       ],
     );
@@ -622,7 +683,204 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
           style: const TextStyle(fontSize: 13, color: _ink, height: 1.4),
           decoration: _fieldDecoration('Her platformda kullanılacak metin...'),
         ),
+        const SizedBox(height: 6),
+        _charLimitHint(),
+        const SizedBox(height: 18),
+        _tagsSection(),
+        const SizedBox(height: 18),
+        _altTextSection(),
+        const SizedBox(height: 18),
+        _firstCommentSection(),
+        const SizedBox(height: 18),
+        _utmSection(),
       ],
+    );
+  }
+
+  Widget _charLimitHint() {
+    final len = _postText.text.length;
+    final overX = len > 280;
+    return Row(
+      children: [
+        SymbolIcon(
+          overX ? Symbols.notifications : Symbols.check,
+          color: overX ? _gold : _muted,
+          size: 13,
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            overX
+                ? 'X için 280 karakter sınırı aşıldı ($len). X paylaşımı kısaltılacak.'
+                : 'Limitler — Instagram 2.200 · X 280 · Facebook 300 önerilir',
+            style: TextStyle(
+              color: overX ? _gold : _muted,
+              fontSize: 11,
+              height: 1.35,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _tagsSection() {
+    final suggestions = _tagSuggestions;
+    final count = _tags.length;
+    final tooMany = count > 5;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _Label(
+          icon: Symbols.public,
+          text: 'Etiketler (Hashtag)',
+          trailing: '$count · 3–5 önerilir',
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: _surface,
+            borderRadius: BorderRadius.circular(_rInput),
+            border: Border.all(color: tooMany ? _gold : _line),
+          ),
+          child: Wrap(
+            spacing: 7,
+            runSpacing: 7,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              for (final tag in _tags) _tagChip('#$tag', onRemove: () => _removeTag(tag)),
+              SizedBox(
+                width: 130,
+                child: TextField(
+                  controller: _tagInput,
+                  onSubmitted: _addTag,
+                  onChanged: (value) {
+                    if (value.endsWith(' ') || value.endsWith(',')) {
+                      _addTag(value);
+                    }
+                  },
+                  style: const TextStyle(fontSize: 12.5, color: _ink),
+                  decoration: const InputDecoration(
+                    isDense: true,
+                    border: InputBorder.none,
+                    hintText: 'Etiket ekle…',
+                    hintStyle: TextStyle(
+                      color: AppColors.placeholder,
+                      fontSize: 12.5,
+                    ),
+                    contentPadding: EdgeInsets.symmetric(vertical: 6),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (suggestions.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 7,
+            runSpacing: 7,
+            children: [
+              for (final s in suggestions)
+                GestureDetector(
+                  onTap: () => _addTag(s),
+                  child: _tagChip('#$s', suggestion: true),
+                ),
+            ],
+          ),
+        ],
+        const SizedBox(height: 10),
+        _SwitchRow(
+          title: 'Hashtag\'leri ilk yoruma ekle',
+          subtitle: 'Açıklamayı temiz tutar (2026 önerisi)',
+          value: _hashtagsInFirstComment,
+          onTap: () => setState(
+            () => _hashtagsInFirstComment = !_hashtagsInFirstComment,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _tagChip(String label, {bool suggestion = false, VoidCallback? onRemove}) {
+    return Container(
+      padding: EdgeInsets.fromLTRB(10, 5, onRemove != null ? 5 : 10, 5),
+      decoration: BoxDecoration(
+        color: suggestion ? Colors.white : _redTint,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: suggestion ? _line : const Color(0xFFFBD9D4)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (suggestion) ...[
+            const SymbolIcon(Symbols.add, color: _soft, size: 12),
+            const SizedBox(width: 4),
+          ],
+          Text(
+            label,
+            style: TextStyle(
+              color: suggestion ? _soft : _red,
+              fontWeight: FontWeight.w600,
+              fontSize: 12,
+            ),
+          ),
+          if (onRemove != null) ...[
+            const SizedBox(width: 3),
+            GestureDetector(
+              onTap: onRemove,
+              child: const SymbolIcon(Symbols.close, color: _red, size: 13),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _altTextSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _Label(
+          icon: Symbols.image_outlined,
+          text: 'Alt metin (erişilebilirlik)',
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _altText,
+          minLines: 2,
+          maxLines: 3,
+          style: const TextStyle(fontSize: 13, color: _ink, height: 1.4),
+          decoration: _fieldDecoration('Görseli tanımla — erişilebilirlik ve keşfedilebilirlik'),
+        ),
+      ],
+    );
+  }
+
+  Widget _firstCommentSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _Label(icon: Symbols.chat_3_line, text: 'İlk yorum (opsiyonel)'),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _firstComment,
+          minLines: 2,
+          maxLines: 3,
+          style: const TextStyle(fontSize: 13, color: _ink, height: 1.4),
+          decoration: _fieldDecoration('Paylaşımdan hemen sonra eklenecek ilk yorum'),
+        ),
+      ],
+    );
+  }
+
+  Widget _utmSection() {
+    return _SwitchRow(
+      title: 'UTM takip parametreleri ekle',
+      subtitle: 'Facebook & X linklerine utm_source / medium / campaign',
+      value: _utm,
+      onTap: () => setState(() => _utm = !_utm),
     );
   }
 
@@ -1136,7 +1394,7 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
                     text: 'pateezcom ',
                     style: TextStyle(fontWeight: FontWeight.w600),
                   ),
-                  TextSpan(text: _postText.text.replaceAll('\n', ' ')),
+                  TextSpan(text: _previewCaption),
                 ],
               ),
             ),
@@ -1162,15 +1420,13 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
           const SizedBox(height: 13),
           if (_mobileView == 'edit') compose else preview,
         ] else
-          IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(child: compose),
-                const SizedBox(width: 16),
-                SizedBox(width: 250, child: preview),
-              ],
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: compose),
+              const SizedBox(width: 16),
+              SizedBox(width: 250, child: preview),
+            ],
           ),
       ],
     );
@@ -1987,10 +2243,14 @@ class _MiniSwitch extends StatelessWidget {
       child: Container(
         width: 20,
         height: 20,
+        alignment: Alignment.center,
         decoration: const BoxDecoration(
           color: Colors.white,
           shape: BoxShape.circle,
         ),
+        child: value
+            ? const SymbolIcon(Symbols.check, color: _red, size: 13)
+            : null,
       ),
     );
   }
