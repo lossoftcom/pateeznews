@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:pateeznews_admin/shared/widgets/admin_table_chrome.dart';
@@ -1249,11 +1248,56 @@ class _SmsOutboxTable extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final tableWidth = math.max(constraints.maxWidth, _minWidth);
+        final tableWidth = AdminTableChrome.desktopTableWidth(
+          constraints: constraints,
+          preferredMinWidth: _minWidth,
+        );
+        final scale = AdminTableChrome.compactScale(
+          tableWidth: tableWidth,
+          preferredMinWidth: _minWidth,
+          minScale: 0.72,
+        );
         final contentWidth = tableWidth - _horizontalPadding;
+        final extraWidth = (contentWidth - _columnsMinWidth)
+            .clamp(0.0, 320.0)
+            .toDouble();
+        final selectWidth = AdminTableChrome.scaledColumn(
+          _selectWidth,
+          scale,
+          minWidth: 38,
+        );
+        final recipientWidth = AdminTableChrome.scaledColumn(
+          _recipientWidth,
+          scale,
+          minWidth: 116,
+        );
         final messageWidth =
-            _messageMinWidth +
-            (contentWidth - _columnsMinWidth).clamp(0.0, 320.0).toDouble();
+            AdminTableChrome.scaledColumn(
+              _messageMinWidth,
+              scale,
+              minWidth: 150,
+            ) +
+            extraWidth;
+        final senderWidth = AdminTableChrome.scaledColumn(
+          _senderWidth,
+          scale,
+          minWidth: 86,
+        );
+        final statusWidth = AdminTableChrome.scaledColumn(
+          _statusWidth,
+          scale,
+          minWidth: 78,
+        );
+        final dateWidth = AdminTableChrome.scaledColumn(
+          _dateWidth,
+          scale,
+          minWidth: 98,
+        );
+        final menuWidth = AdminTableChrome.scaledColumn(
+          _menuWidth,
+          scale,
+          minWidth: 54,
+        );
 
         return Container(
           decoration: BoxDecoration(
@@ -1281,7 +1325,7 @@ class _SmsOutboxTable extends StatelessWidget {
                     child: Row(
                       children: [
                         SizedBox(
-                          width: _selectWidth,
+                          width: selectWidth,
                           child: _SmsOutboxCheckbox(
                             value: allSelected
                                 ? true
@@ -1293,7 +1337,7 @@ class _SmsOutboxTable extends StatelessWidget {
                           ),
                         ),
                         _SmsOutboxHeaderSortable(
-                          width: _recipientWidth,
+                          width: recipientWidth,
                           label: 'sms.outbox.column.recipient',
                           sortKey: 'recipient',
                           sortState: sortState,
@@ -1307,28 +1351,28 @@ class _SmsOutboxTable extends StatelessWidget {
                           onSort: onSort,
                         ),
                         _SmsOutboxHeaderSortable(
-                          width: _senderWidth,
+                          width: senderWidth,
                           label: 'sms.outbox.column.sender',
                           sortKey: 'sender',
                           sortState: sortState,
                           onSort: onSort,
                         ),
                         _SmsOutboxHeaderSortable(
-                          width: _statusWidth,
+                          width: statusWidth,
                           label: 'sms.outbox.column.status',
                           sortKey: 'status',
                           sortState: sortState,
                           onSort: onSort,
                         ),
                         _SmsOutboxHeaderSortable(
-                          width: _dateWidth,
+                          width: dateWidth,
                           label: 'sms.outbox.column.date',
                           sortKey: 'date',
                           sortState: sortState,
                           onSort: onSort,
                         ),
                         SizedBox(
-                          width: _menuWidth,
+                          width: menuWidth,
                           child: const _SmsOutboxHeaderText(
                             'sms.outbox.column.actions',
                             centered: true,
@@ -1346,7 +1390,13 @@ class _SmsOutboxTable extends StatelessWidget {
                               final message = messages[index];
                               return _SmsOutboxRow(
                                 message: message,
+                                selectWidth: selectWidth,
+                                recipientWidth: recipientWidth,
                                 messageWidth: messageWidth,
+                                senderWidth: senderWidth,
+                                statusWidth: statusWidth,
+                                dateWidth: dateWidth,
+                                menuWidth: menuWidth,
                                 selected: selectedIds.contains(message.id),
                                 onToggle: () => onToggleOne(message.id),
                                 onSendAgain: onSendAgain,
@@ -1367,14 +1417,26 @@ class _SmsOutboxTable extends StatelessWidget {
 class _SmsOutboxRow extends StatelessWidget {
   const _SmsOutboxRow({
     required this.message,
+    required this.selectWidth,
+    required this.recipientWidth,
     required this.messageWidth,
+    required this.senderWidth,
+    required this.statusWidth,
+    required this.dateWidth,
+    required this.menuWidth,
     required this.selected,
     required this.onToggle,
     required this.onSendAgain,
   });
 
   final _SmsOutboxMessage message;
+  final double selectWidth;
+  final double recipientWidth;
   final double messageWidth;
+  final double senderWidth;
+  final double statusWidth;
+  final double dateWidth;
+  final double menuWidth;
   final bool selected;
   final VoidCallback onToggle;
   final VoidCallback onSendAgain;
@@ -1393,14 +1455,14 @@ class _SmsOutboxRow extends StatelessWidget {
       child: Row(
         children: [
           SizedBox(
-            width: _SmsOutboxTable._selectWidth,
+            width: selectWidth,
             child: _SmsOutboxCheckbox(
               value: selected,
               onChanged: (_) => onToggle(),
             ),
           ),
           SizedBox(
-            width: _SmsOutboxTable._recipientWidth,
+            width: recipientWidth,
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1447,7 +1509,7 @@ class _SmsOutboxRow extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: _SmsOutboxTable._senderWidth,
+            width: senderWidth,
             child: Text(
               message.senderLine,
               maxLines: 1,
@@ -1461,15 +1523,15 @@ class _SmsOutboxRow extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: _SmsOutboxTable._statusWidth,
+            width: statusWidth,
             child: _SmsOutboxStatusBadge(status: message.status),
           ),
           SizedBox(
-            width: _SmsOutboxTable._dateWidth,
+            width: dateWidth,
             child: _SmsOutboxDateCell(message: message),
           ),
           SizedBox(
-            width: _SmsOutboxTable._menuWidth,
+            width: menuWidth,
             child: Align(
               alignment: Alignment.center,
               child: _SmsOutboxRowMenu(onSendAgain: onSendAgain),

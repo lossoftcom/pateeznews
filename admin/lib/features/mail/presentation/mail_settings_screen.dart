@@ -717,9 +717,12 @@ class _MailSettingsTableCard extends StatelessWidget {
                     clipBehavior: Clip.antiAlias,
                     child: LayoutBuilder(
                       builder: (context, constraints) {
-                        final tableWidth = math.max(
-                          constraints.maxWidth,
-                          _minTableWidth,
+                        final tableWidth = AdminTableChrome.desktopTableWidth(
+                          constraints: constraints,
+                          preferredMinWidth: _minTableWidth,
+                        );
+                        final layout = _MailSettingsTableLayout.forWidth(
+                          tableWidth,
                         );
                         return SingleChildScrollView(
                           scrollDirection: Axis.horizontal,
@@ -731,6 +734,7 @@ class _MailSettingsTableCard extends StatelessWidget {
                             child: Column(
                               children: [
                                 _MailSettingsTableHeader(
+                                  layout: layout,
                                   selected: allSelected,
                                   sortState: sortState,
                                   onToggle: onToggleAllAccounts,
@@ -745,6 +749,7 @@ class _MailSettingsTableCard extends StatelessWidget {
                                             final account = accounts[index];
                                             return _MailSettingsTableRow(
                                               account: account,
+                                              layout: layout,
                                               selected: selectedIds.contains(
                                                 account.id,
                                               ),
@@ -918,8 +923,68 @@ class _MailSettingsToolbar extends StatelessWidget {
   }
 }
 
+class _MailSettingsTableLayout {
+  const _MailSettingsTableLayout({
+    required this.selectWidth,
+    required this.serviceWidth,
+    required this.limitWidth,
+    required this.dnsWidth,
+    required this.statusWidth,
+    required this.actionsWidth,
+  });
+
+  final double selectWidth;
+  final double serviceWidth;
+  final double limitWidth;
+  final double dnsWidth;
+  final double statusWidth;
+  final double actionsWidth;
+
+  factory _MailSettingsTableLayout.forWidth(double tableWidth) {
+    final scale = AdminTableChrome.compactScale(
+      tableWidth: tableWidth,
+      preferredMinWidth: _MailSettingsTableCard._minTableWidth,
+      minScale: 0.76,
+    );
+
+    return _MailSettingsTableLayout(
+      selectWidth: AdminTableChrome.scaledColumn(
+        _MailSettingsTableHeader._selectWidth,
+        scale,
+        minWidth: 38,
+      ),
+      serviceWidth: AdminTableChrome.scaledColumn(
+        _MailSettingsTableHeader._serviceWidth,
+        scale,
+        minWidth: 112,
+      ),
+      limitWidth: AdminTableChrome.scaledColumn(
+        _MailSettingsTableHeader._limitWidth,
+        scale,
+        minWidth: 92,
+      ),
+      dnsWidth: AdminTableChrome.scaledColumn(
+        _MailSettingsTableHeader._dnsWidth,
+        scale,
+        minWidth: 104,
+      ),
+      statusWidth: AdminTableChrome.scaledColumn(
+        _MailSettingsTableHeader._statusWidth,
+        scale,
+        minWidth: 88,
+      ),
+      actionsWidth: AdminTableChrome.scaledColumn(
+        _MailSettingsTableHeader._actionsWidth,
+        scale,
+        minWidth: 54,
+      ),
+    );
+  }
+}
+
 class _MailSettingsTableHeader extends StatelessWidget {
   const _MailSettingsTableHeader({
+    required this.layout,
     required this.selected,
     required this.sortState,
     required this.onToggle,
@@ -937,6 +1002,7 @@ class _MailSettingsTableHeader extends StatelessWidget {
   static const _domainFlex = 3;
   static const _dateFlex = 3;
 
+  final _MailSettingsTableLayout layout;
   final bool selected;
   final TableSortState sortState;
   final VoidCallback onToggle;
@@ -955,7 +1021,7 @@ class _MailSettingsTableHeader extends StatelessWidget {
       child: Row(
         children: [
           SizedBox(
-            width: _selectWidth,
+            width: layout.selectWidth,
             child: Center(
               child: _ListCheckbox(selected: selected, onTap: onToggle),
             ),
@@ -979,7 +1045,7 @@ class _MailSettingsTableHeader extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: _serviceWidth,
+            width: layout.serviceWidth,
             child: _MailSettingsSortableHeader(
               label: 'mail.settings.column.service',
               sortKey: 'service',
@@ -997,7 +1063,7 @@ class _MailSettingsTableHeader extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: _limitWidth,
+            width: layout.limitWidth,
             child: _MailSettingsSortableHeader(
               label: 'mail.settings.column.limit',
               sortKey: 'limit',
@@ -1006,7 +1072,7 @@ class _MailSettingsTableHeader extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: _dnsWidth,
+            width: layout.dnsWidth,
             child: _MailSettingsSortableHeader(
               label: 'mail.settings.column.dns',
               sortKey: 'dns',
@@ -1015,7 +1081,7 @@ class _MailSettingsTableHeader extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: _statusWidth,
+            width: layout.statusWidth,
             child: _MailSettingsSortableHeader(
               label: 'mail.settings.column.status',
               sortKey: 'status',
@@ -1033,7 +1099,7 @@ class _MailSettingsTableHeader extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: _actionsWidth,
+            width: layout.actionsWidth,
             child: Center(
               child: Text(
                 context.t('mail.settings.column.actions'),
@@ -1082,6 +1148,7 @@ class _MailSettingsSortableHeader extends StatelessWidget {
 class _MailSettingsTableRow extends StatelessWidget {
   const _MailSettingsTableRow({
     required this.account,
+    required this.layout,
     required this.selected,
     required this.active,
     required this.onToggle,
@@ -1093,6 +1160,7 @@ class _MailSettingsTableRow extends StatelessWidget {
   });
 
   final AdminMailAccount account;
+  final _MailSettingsTableLayout layout;
   final bool selected;
   final bool active;
   final VoidCallback onToggle;
@@ -1126,7 +1194,7 @@ class _MailSettingsTableRow extends StatelessWidget {
           child: Row(
             children: [
               SizedBox(
-                width: _MailSettingsTableHeader._selectWidth,
+                width: layout.selectWidth,
                 child: Center(
                   child: _ListCheckbox(selected: selected, onTap: onToggle),
                 ),
@@ -1218,7 +1286,7 @@ class _MailSettingsTableRow extends StatelessWidget {
                 ),
               ),
               SizedBox(
-                width: _MailSettingsTableHeader._serviceWidth,
+                width: layout.serviceWidth,
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1274,7 +1342,7 @@ class _MailSettingsTableRow extends StatelessWidget {
                 ),
               ),
               SizedBox(
-                width: _MailSettingsTableHeader._limitWidth,
+                width: layout.limitWidth,
                 child: Text(
                   context.t(
                     'mail.settings.limitDaily',
@@ -1294,7 +1362,7 @@ class _MailSettingsTableRow extends StatelessWidget {
                 ),
               ),
               SizedBox(
-                width: _MailSettingsTableHeader._dnsWidth,
+                width: layout.dnsWidth,
                 child: Wrap(
                   spacing: 5,
                   runSpacing: 5,
@@ -1306,7 +1374,7 @@ class _MailSettingsTableRow extends StatelessWidget {
                 ),
               ),
               SizedBox(
-                width: _MailSettingsTableHeader._statusWidth,
+                width: layout.statusWidth,
                 child: _StatusBadge(
                   label: account.active
                       ? context.t('mail.settings.status.active')
@@ -1346,7 +1414,7 @@ class _MailSettingsTableRow extends StatelessWidget {
                 ),
               ),
               SizedBox(
-                width: _MailSettingsTableHeader._actionsWidth,
+                width: layout.actionsWidth,
                 child: Align(
                   alignment: Alignment.center,
                   child: _MailSettingsRowMenu(

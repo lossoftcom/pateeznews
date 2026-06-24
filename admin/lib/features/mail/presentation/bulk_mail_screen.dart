@@ -1420,21 +1420,56 @@ class _BulkMailTable extends StatelessWidget {
           );
         }
 
-        final tableWidth = constraints.maxWidth < _minWidth
-            ? _minWidth
-            : constraints.maxWidth;
+        final tableWidth = AdminTableChrome.desktopTableWidth(
+          constraints: constraints,
+          preferredMinWidth: _minWidth,
+        );
+        final scale = AdminTableChrome.compactScale(
+          tableWidth: tableWidth,
+          preferredMinWidth: _minWidth,
+          minScale: 0.60,
+        );
         final contentWidth = tableWidth - _horizontalPadding;
         final extraWidth = (contentWidth - _columnsMinWidth)
             .clamp(0.0, double.infinity)
             .toDouble();
-        final campaignWidth = _campaignWidth + extraWidth * 0.36;
-        final recipientWidth = _recipientWidth + extraWidth * 0.06;
-        final metricWidth = _metricWidth + extraWidth * 0.06;
-        final bounceWidth = _bounceWidth + extraWidth * 0.05;
-        final statusWidth = _statusWidth + extraWidth * 0.08;
-        final controlWidth = _controlWidth + extraWidth * 0.08;
-        final dateWidth = _dateWidth + extraWidth * 0.15;
-        final menuWidth = _menuWidth + extraWidth * 0.04;
+        final selectWidth = AdminTableChrome.scaledColumn(
+          _selectWidth,
+          scale,
+          minWidth: 38,
+        );
+        final campaignWidth =
+            AdminTableChrome.scaledColumn(
+              _campaignWidth,
+              scale,
+              minWidth: 132,
+            ) +
+            extraWidth * 0.36;
+        final recipientWidth =
+            AdminTableChrome.scaledColumn(
+              _recipientWidth,
+              scale,
+              minWidth: 52,
+            ) +
+            extraWidth * 0.06;
+        final metricWidth =
+            AdminTableChrome.scaledColumn(_metricWidth, scale, minWidth: 52) +
+            extraWidth * 0.06;
+        final bounceWidth =
+            AdminTableChrome.scaledColumn(_bounceWidth, scale, minWidth: 48) +
+            extraWidth * 0.05;
+        final statusWidth =
+            AdminTableChrome.scaledColumn(_statusWidth, scale, minWidth: 72) +
+            extraWidth * 0.08;
+        final controlWidth =
+            AdminTableChrome.scaledColumn(_controlWidth, scale, minWidth: 72) +
+            extraWidth * 0.08;
+        final dateWidth =
+            AdminTableChrome.scaledColumn(_dateWidth, scale, minWidth: 88) +
+            extraWidth * 0.15;
+        final menuWidth =
+            AdminTableChrome.scaledColumn(_menuWidth, scale, minWidth: 54) +
+            extraWidth * 0.04;
 
         return Container(
           decoration: BoxDecoration(
@@ -1462,7 +1497,7 @@ class _BulkMailTable extends StatelessWidget {
                     child: Row(
                       children: [
                         SizedBox(
-                          width: _selectWidth,
+                          width: selectWidth,
                           child: _BulkMailCheckbox(
                             value: allSelected
                                 ? true
@@ -1555,6 +1590,7 @@ class _BulkMailTable extends StatelessWidget {
                               final campaign = campaigns[index];
                               return _BulkMailRow(
                                 campaign: campaign,
+                                selectWidth: selectWidth,
                                 campaignWidth: campaignWidth,
                                 recipientWidth: recipientWidth,
                                 metricWidth: metricWidth,
@@ -1766,6 +1802,7 @@ class _HeaderText extends StatelessWidget {
 class _BulkMailRow extends StatelessWidget {
   const _BulkMailRow({
     required this.campaign,
+    required this.selectWidth,
     required this.campaignWidth,
     required this.recipientWidth,
     required this.metricWidth,
@@ -1787,6 +1824,7 @@ class _BulkMailRow extends StatelessWidget {
   });
 
   final AdminBulkMailCampaign campaign;
+  final double selectWidth;
   final double campaignWidth;
   final double recipientWidth;
   final double metricWidth;
@@ -1820,7 +1858,7 @@ class _BulkMailRow extends StatelessWidget {
       child: Row(
         children: [
           SizedBox(
-            width: _BulkMailTable._selectWidth,
+            width: selectWidth,
             child: _BulkMailCheckbox(
               value: selected,
               onChanged: (_) => onToggle(),

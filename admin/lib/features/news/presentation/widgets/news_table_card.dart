@@ -1079,12 +1079,13 @@ class _NewsDataTableState extends State<_NewsDataTable> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final fixedWidth =
+        final preferredMinWidth =
             _NewsDataTable._horizontalPadding +
             _NewsDataTable._tableBorderWidth +
             _NewsDataTable._selectWidth +
             _NewsDataTable._expandWidth +
             _NewsDataTable._idWidth +
+            _NewsDataTable._postMinWidth +
             _NewsDataTable._categoryWidth +
             _NewsDataTable._statusWidth +
             _NewsDataTable._languageWidth +
@@ -1093,14 +1094,14 @@ class _NewsDataTableState extends State<_NewsDataTable> {
             _NewsDataTable._commentsWidth +
             _NewsDataTable._createdWidth +
             _NewsDataTable._menuWidth;
-        final requiredMinWidth = fixedWidth + _NewsDataTable._postMinWidth;
-        final tableWidth = constraints.maxWidth < requiredMinWidth
-            ? requiredMinWidth
-            : constraints.maxWidth;
-        final postWidth =
-            (tableWidth - fixedWidth) < _NewsDataTable._postMinWidth
-            ? _NewsDataTable._postMinWidth
-            : tableWidth - fixedWidth;
+        final tableWidth = AdminTableChrome.desktopTableWidth(
+          constraints: constraints,
+          preferredMinWidth: preferredMinWidth,
+        );
+        final layout = _NewsTableColumnLayout.forWidth(
+          tableWidth,
+          preferredMinWidth,
+        );
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: SizedBox(
@@ -1119,7 +1120,7 @@ class _NewsDataTableState extends State<_NewsDataTable> {
                   _NewsHeader(
                     selectedCount: widget.selectedPostIds.length,
                     totalCount: widget.posts.length,
-                    postWidth: postWidth,
+                    layout: layout,
                     sortState: widget.sortState,
                     onToggleAllPosts: widget.onToggleAllPosts,
                     onSort: widget.onSort,
@@ -1137,7 +1138,7 @@ class _NewsDataTableState extends State<_NewsDataTable> {
                                 for (final post in widget.posts)
                                   _NewsRow(
                                     post: post,
-                                    postWidth: postWidth,
+                                    layout: layout,
                                     selected: widget.selectedPostIds.contains(
                                       post.id,
                                     ),
@@ -1168,11 +1169,142 @@ class _NewsDataTableState extends State<_NewsDataTable> {
   }
 }
 
+class _NewsTableColumnLayout {
+  const _NewsTableColumnLayout({
+    required this.selectWidth,
+    required this.expandWidth,
+    required this.idWidth,
+    required this.postWidth,
+    required this.categoryWidth,
+    required this.statusWidth,
+    required this.languageWidth,
+    required this.authorWidth,
+    required this.viewsWidth,
+    required this.commentsWidth,
+    required this.createdWidth,
+    required this.menuWidth,
+  });
+
+  final double selectWidth;
+  final double expandWidth;
+  final double idWidth;
+  final double postWidth;
+  final double categoryWidth;
+  final double statusWidth;
+  final double languageWidth;
+  final double authorWidth;
+  final double viewsWidth;
+  final double commentsWidth;
+  final double createdWidth;
+  final double menuWidth;
+
+  factory _NewsTableColumnLayout.forWidth(
+    double tableWidth,
+    double preferredMinWidth,
+  ) {
+    final scale = AdminTableChrome.compactScale(
+      tableWidth: tableWidth,
+      preferredMinWidth: preferredMinWidth,
+      minScale: 0.62,
+    );
+    final extraWidth = (tableWidth - preferredMinWidth)
+        .clamp(0.0, double.infinity)
+        .toDouble();
+    final selectWidth = AdminTableChrome.scaledColumn(
+      _NewsDataTable._selectWidth,
+      scale,
+      minWidth: 38,
+    );
+    final expandWidth = AdminTableChrome.scaledColumn(
+      _NewsDataTable._expandWidth,
+      scale,
+      minWidth: 30,
+    );
+    final idWidth = AdminTableChrome.scaledColumn(
+      _NewsDataTable._idWidth,
+      scale,
+      minWidth: 48,
+    );
+    final categoryWidth = AdminTableChrome.scaledColumn(
+      _NewsDataTable._categoryWidth,
+      scale,
+      minWidth: 78,
+    );
+    final statusWidth = AdminTableChrome.scaledColumn(
+      _NewsDataTable._statusWidth,
+      scale,
+      minWidth: 78,
+    );
+    final languageWidth = AdminTableChrome.scaledColumn(
+      _NewsDataTable._languageWidth,
+      scale,
+      minWidth: 58,
+    );
+    final authorWidth = AdminTableChrome.scaledColumn(
+      _NewsDataTable._authorWidth,
+      scale,
+      minWidth: 74,
+    );
+    final viewsWidth = AdminTableChrome.scaledColumn(
+      _NewsDataTable._viewsWidth,
+      scale,
+      minWidth: 54,
+    );
+    final commentsWidth = AdminTableChrome.scaledColumn(
+      _NewsDataTable._commentsWidth,
+      scale,
+      minWidth: 54,
+    );
+    final createdWidth = AdminTableChrome.scaledColumn(
+      _NewsDataTable._createdWidth,
+      scale,
+      minWidth: 104,
+    );
+    final menuWidth = AdminTableChrome.scaledColumn(
+      _NewsDataTable._menuWidth,
+      scale,
+      minWidth: 54,
+    );
+    const contentSpacing =
+        _NewsDataTable._horizontalPadding + _NewsDataTable._tableBorderWidth;
+    final fixedWidth =
+        selectWidth +
+        expandWidth +
+        idWidth +
+        categoryWidth +
+        statusWidth +
+        languageWidth +
+        authorWidth +
+        viewsWidth +
+        commentsWidth +
+        createdWidth +
+        menuWidth +
+        contentSpacing;
+
+    return _NewsTableColumnLayout(
+      selectWidth: selectWidth,
+      expandWidth: expandWidth,
+      idWidth: idWidth,
+      postWidth: extraWidth > 0
+          ? _NewsDataTable._postMinWidth + extraWidth
+          : (tableWidth - fixedWidth).clamp(86.0, double.infinity).toDouble(),
+      categoryWidth: categoryWidth,
+      statusWidth: statusWidth,
+      languageWidth: languageWidth,
+      authorWidth: authorWidth,
+      viewsWidth: viewsWidth,
+      commentsWidth: commentsWidth,
+      createdWidth: createdWidth,
+      menuWidth: menuWidth,
+    );
+  }
+}
+
 class _NewsHeader extends StatelessWidget {
   const _NewsHeader({
     required this.selectedCount,
     required this.totalCount,
-    required this.postWidth,
+    required this.layout,
     required this.sortState,
     required this.onToggleAllPosts,
     required this.onSort,
@@ -1180,7 +1312,7 @@ class _NewsHeader extends StatelessWidget {
 
   final int selectedCount;
   final int totalCount;
-  final double postWidth;
+  final _NewsTableColumnLayout layout;
   final TableSortState sortState;
   final VoidCallback onToggleAllPosts;
   final ValueChanged<String> onSort;
@@ -1198,7 +1330,7 @@ class _NewsHeader extends StatelessWidget {
       child: Row(
         children: [
           SizedBox(
-            width: _NewsDataTable._selectWidth,
+            width: layout.selectWidth,
             child: _NewsCheckbox(
               value: selectedCount == 0 || totalCount == 0
                   ? false
@@ -1209,23 +1341,23 @@ class _NewsHeader extends StatelessWidget {
               onChanged: (_) => onToggleAllPosts(),
             ),
           ),
-          const SizedBox(width: _NewsDataTable._expandWidth),
+          SizedBox(width: layout.expandWidth),
           _SortableColumnHeader(
-            width: _NewsDataTable._idWidth,
+            width: layout.idWidth,
             label: 'ID',
             sortKey: 'id',
             sortState: sortState,
             onSort: onSort,
           ),
           _SortableColumnHeader(
-            width: postWidth,
+            width: layout.postWidth,
             label: 'Post',
             sortKey: 'post',
             sortState: sortState,
             onSort: onSort,
           ),
           _SortableColumnHeader(
-            width: _NewsDataTable._categoryWidth,
+            width: layout.categoryWidth,
             label: 'Category',
             sortKey: 'category',
             sortState: sortState,
@@ -1233,7 +1365,7 @@ class _NewsHeader extends StatelessWidget {
             centered: true,
           ),
           _SortableColumnHeader(
-            width: _NewsDataTable._statusWidth,
+            width: layout.statusWidth,
             label: 'Status',
             sortKey: 'status',
             sortState: sortState,
@@ -1241,7 +1373,7 @@ class _NewsHeader extends StatelessWidget {
             centered: true,
           ),
           _SortableColumnHeader(
-            width: _NewsDataTable._languageWidth,
+            width: layout.languageWidth,
             label: 'Language',
             sortKey: 'language',
             sortState: sortState,
@@ -1249,14 +1381,14 @@ class _NewsHeader extends StatelessWidget {
             centered: true,
           ),
           _SortableColumnHeader(
-            width: _NewsDataTable._authorWidth,
+            width: layout.authorWidth,
             label: 'Author',
             sortKey: 'author',
             sortState: sortState,
             onSort: onSort,
           ),
           _SortableColumnHeader(
-            width: _NewsDataTable._viewsWidth,
+            width: layout.viewsWidth,
             label: 'news.column.reads',
             sortKey: 'views',
             sortState: sortState,
@@ -1264,7 +1396,7 @@ class _NewsHeader extends StatelessWidget {
             centered: true,
           ),
           _SortableColumnHeader(
-            width: _NewsDataTable._commentsWidth,
+            width: layout.commentsWidth,
             label: 'Comment',
             sortKey: 'comments',
             sortState: sortState,
@@ -1272,15 +1404,15 @@ class _NewsHeader extends StatelessWidget {
             centered: true,
           ),
           _SortableColumnHeader(
-            width: _NewsDataTable._createdWidth,
+            width: layout.createdWidth,
             label: 'Date',
             sortKey: 'date',
             sortState: sortState,
             onSort: onSort,
           ),
-          const SizedBox(
-            width: _NewsDataTable._menuWidth,
-            child: _HeaderText('Action', centered: true),
+          SizedBox(
+            width: layout.menuWidth,
+            child: const _HeaderText('Action', centered: true),
           ),
         ],
       ),
@@ -1354,7 +1486,7 @@ class _SortableColumnHeader extends StatelessWidget {
 class _NewsRow extends StatelessWidget {
   const _NewsRow({
     required this.post,
-    required this.postWidth,
+    required this.layout,
     required this.selected,
     required this.expanded,
     required this.onToggle,
@@ -1367,7 +1499,7 @@ class _NewsRow extends StatelessWidget {
   });
 
   final AdminNewsPost post;
-  final double postWidth;
+  final _NewsTableColumnLayout layout;
   final bool selected;
   final bool expanded;
   final VoidCallback onToggle;
@@ -1396,14 +1528,14 @@ class _NewsRow extends StatelessWidget {
           child: Row(
             children: [
               SizedBox(
-                width: _NewsDataTable._selectWidth,
+                width: layout.selectWidth,
                 child: _NewsCheckbox(
                   value: selected,
                   onChanged: (_) => onToggle(),
                 ),
               ),
               SizedBox(
-                width: _NewsDataTable._expandWidth,
+                width: layout.expandWidth,
                 child: _RowExpandButton(
                   enabled: post.videos.isNotEmpty,
                   expanded: expanded,
@@ -1411,7 +1543,7 @@ class _NewsRow extends StatelessWidget {
                 ),
               ),
               SizedBox(
-                width: _NewsDataTable._idWidth,
+                width: layout.idWidth,
                 child: _RowSelectTapTarget(
                   onTap: onToggle,
                   child: HighlightedText(
@@ -1426,41 +1558,41 @@ class _NewsRow extends StatelessWidget {
                 ),
               ),
               SizedBox(
-                width: postWidth,
+                width: layout.postWidth,
                 child: _PostIdentity(post: post),
               ),
               SizedBox(
-                width: _NewsDataTable._categoryWidth,
+                width: layout.categoryWidth,
                 child: _CategoryCell(post: post),
               ),
               SizedBox(
-                width: _NewsDataTable._statusWidth,
+                width: layout.statusWidth,
                 child: _NewsStatusBadge(post: post),
               ),
               SizedBox(
-                width: _NewsDataTable._languageWidth,
+                width: layout.languageWidth,
                 child: Center(
                   child: _LanguageBadge(value: post.displayLanguage),
                 ),
               ),
               SizedBox(
-                width: _NewsDataTable._authorWidth,
+                width: layout.authorWidth,
                 child: _AuthorCell(post: post),
               ),
               SizedBox(
-                width: _NewsDataTable._viewsWidth,
+                width: layout.viewsWidth,
                 child: _NumberCell(value: post.viewsCount),
               ),
               SizedBox(
-                width: _NewsDataTable._commentsWidth,
+                width: layout.commentsWidth,
                 child: _NumberCell(value: post.commentsCount),
               ),
               SizedBox(
-                width: _NewsDataTable._createdWidth,
+                width: layout.createdWidth,
                 child: _DateCell(dateTime: post.createdAt),
               ),
               SizedBox(
-                width: _NewsDataTable._menuWidth,
+                width: layout.menuWidth,
                 child: Align(
                   alignment: Alignment.center,
                   child: trashMode

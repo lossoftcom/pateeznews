@@ -519,9 +519,11 @@ class _SocialAccountsTableCard extends StatelessWidget {
                 clipBehavior: Clip.antiAlias,
                 child: LayoutBuilder(
                   builder: (context, constraints) {
-                    final width = constraints.maxWidth < _minTableWidth
-                        ? _minTableWidth
-                        : constraints.maxWidth;
+                    final width = AdminTableChrome.desktopTableWidth(
+                      constraints: constraints,
+                      preferredMinWidth: _minTableWidth,
+                    );
+                    final layout = _SocialAccountsTableLayout.forWidth(width);
                     return SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       child: SizedBox(
@@ -531,7 +533,7 @@ class _SocialAccountsTableCard extends StatelessWidget {
                             : null,
                         child: Column(
                           children: [
-                            const _SocialAccountsTableHeader(),
+                            _SocialAccountsTableHeader(layout: layout),
                             Expanded(
                               child: rows.isEmpty
                                   ? const _SocialAccountsEmptyState()
@@ -540,6 +542,7 @@ class _SocialAccountsTableCard extends StatelessWidget {
                                       itemBuilder: (context, index) {
                                         return _SocialAccountsTableRow(
                                           row: rows[index],
+                                          layout: layout,
                                           onEdit: onEdit,
                                           onToggleActive: onToggleActive,
                                           onReconnect: onReconnect,
@@ -814,6 +817,72 @@ class _PageSizeSelect extends StatelessWidget {
   }
 }
 
+class _SocialAccountsTableLayout {
+  const _SocialAccountsTableLayout({
+    required this.selectWidth,
+    required this.platformWidth,
+    required this.permissionWidth,
+    required this.connectionWidth,
+    required this.statusWidth,
+    required this.dateWidth,
+    required this.actionsWidth,
+  });
+
+  final double selectWidth;
+  final double platformWidth;
+  final double permissionWidth;
+  final double connectionWidth;
+  final double statusWidth;
+  final double dateWidth;
+  final double actionsWidth;
+
+  factory _SocialAccountsTableLayout.forWidth(double tableWidth) {
+    final scale = AdminTableChrome.compactScale(
+      tableWidth: tableWidth,
+      preferredMinWidth: _SocialAccountsTableCard._minTableWidth,
+      minScale: 0.70,
+    );
+
+    return _SocialAccountsTableLayout(
+      selectWidth: AdminTableChrome.scaledColumn(
+        _SocialAccountsTableHeader._selectWidth,
+        scale,
+        minWidth: 38,
+      ),
+      platformWidth: AdminTableChrome.scaledColumn(
+        _SocialAccountsTableHeader._platformWidth,
+        scale,
+        minWidth: 122,
+      ),
+      permissionWidth: AdminTableChrome.scaledColumn(
+        _SocialAccountsTableHeader._permissionWidth,
+        scale,
+        minWidth: 128,
+      ),
+      connectionWidth: AdminTableChrome.scaledColumn(
+        _SocialAccountsTableHeader._connectionWidth,
+        scale,
+        minWidth: 98,
+      ),
+      statusWidth: AdminTableChrome.scaledColumn(
+        _SocialAccountsTableHeader._statusWidth,
+        scale,
+        minWidth: 108,
+      ),
+      dateWidth: AdminTableChrome.scaledColumn(
+        _SocialAccountsTableHeader._dateWidth,
+        scale,
+        minWidth: 96,
+      ),
+      actionsWidth: AdminTableChrome.scaledColumn(
+        _SocialAccountsTableHeader._actionsWidth,
+        scale,
+        minWidth: 54,
+      ),
+    );
+  }
+}
+
 class _SocialAccountsToolbar extends StatelessWidget {
   const _SocialAccountsToolbar({
     required this.pageSize,
@@ -861,7 +930,9 @@ class _SocialAccountsToolbar extends StatelessWidget {
 }
 
 class _SocialAccountsTableHeader extends StatelessWidget {
-  const _SocialAccountsTableHeader();
+  const _SocialAccountsTableHeader({required this.layout});
+
+  final _SocialAccountsTableLayout layout;
 
   static const _selectWidth = 42.0;
   static const _platformWidth = 210.0;
@@ -883,35 +954,35 @@ class _SocialAccountsTableHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const SizedBox(
-            width: _selectWidth,
-            child: Center(child: _ListCheckbox()),
+          SizedBox(
+            width: layout.selectWidth,
+            child: const Center(child: _ListCheckbox()),
           ),
           Expanded(
             child: _HeaderText(context.t('social.accounts.column.account')),
           ),
           SizedBox(
-            width: _platformWidth,
+            width: layout.platformWidth,
             child: _HeaderText(context.t('social.accounts.column.platform')),
           ),
           SizedBox(
-            width: _permissionWidth,
+            width: layout.permissionWidth,
             child: _HeaderText(context.t('social.accounts.column.permission')),
           ),
           SizedBox(
-            width: _connectionWidth,
+            width: layout.connectionWidth,
             child: _HeaderText(context.t('social.accounts.column.connection')),
           ),
           SizedBox(
-            width: _statusWidth,
+            width: layout.statusWidth,
             child: _HeaderText(context.t('social.accounts.column.status')),
           ),
           SizedBox(
-            width: _dateWidth,
+            width: layout.dateWidth,
             child: _HeaderText(context.t('social.accounts.column.date')),
           ),
           SizedBox(
-            width: _actionsWidth,
+            width: layout.actionsWidth,
             child: Center(
               child: Text(
                 context.t('social.accounts.column.actions'),
@@ -963,6 +1034,7 @@ class _HeaderText extends StatelessWidget {
 class _SocialAccountsTableRow extends StatelessWidget {
   const _SocialAccountsTableRow({
     required this.row,
+    required this.layout,
     required this.onEdit,
     required this.onToggleActive,
     required this.onReconnect,
@@ -970,6 +1042,7 @@ class _SocialAccountsTableRow extends StatelessWidget {
   });
 
   final _SocialAccountRowData row;
+  final _SocialAccountsTableLayout layout;
   final ValueChanged<_SocialAccountRowData> onEdit;
   final ValueChanged<_SocialAccountRowData> onToggleActive;
   final ValueChanged<_SocialAccountRowData> onReconnect;
@@ -988,9 +1061,9 @@ class _SocialAccountsTableRow extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const SizedBox(
-            width: _SocialAccountsTableHeader._selectWidth,
-            child: Center(child: _ListCheckbox()),
+          SizedBox(
+            width: layout.selectWidth,
+            child: const Center(child: _ListCheckbox()),
           ),
           Expanded(
             child: Row(
@@ -1032,7 +1105,7 @@ class _SocialAccountsTableRow extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: _SocialAccountsTableHeader._platformWidth,
+            width: layout.platformWidth,
             child: Text(
               _platformDisplayName(row.platform),
               maxLines: 1,
@@ -1046,7 +1119,7 @@ class _SocialAccountsTableRow extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: _SocialAccountsTableHeader._permissionWidth,
+            width: layout.permissionWidth,
             child: Text(
               row.permissionSummary,
               maxLines: 1,
@@ -1060,7 +1133,7 @@ class _SocialAccountsTableRow extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: _SocialAccountsTableHeader._connectionWidth,
+            width: layout.connectionWidth,
             child: Align(
               alignment: Alignment.centerLeft,
               child: _SoftBadge(
@@ -1070,7 +1143,7 @@ class _SocialAccountsTableRow extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: _SocialAccountsTableHeader._statusWidth,
+            width: layout.statusWidth,
             child: Align(
               alignment: Alignment.centerLeft,
               child: _StatusBadge(
@@ -1080,7 +1153,7 @@ class _SocialAccountsTableRow extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: _SocialAccountsTableHeader._dateWidth,
+            width: layout.dateWidth,
             child: Text(
               row.connectedAt,
               maxLines: 1,
@@ -1094,7 +1167,7 @@ class _SocialAccountsTableRow extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: _SocialAccountsTableHeader._actionsWidth,
+            width: layout.actionsWidth,
             child: Center(
               child: _SocialAccountRowMenu(
                 row: row,

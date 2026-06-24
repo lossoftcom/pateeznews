@@ -1281,9 +1281,10 @@ class _PagesTable extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final tableWidth = constraints.maxWidth < _minWidth
-            ? _minWidth
-            : constraints.maxWidth;
+        final tableWidth = AdminTableChrome.desktopTableWidth(
+          constraints: constraints,
+          preferredMinWidth: _minWidth,
+        );
         final widths = _PagesTableWidths.forWidth(tableWidth);
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
@@ -1377,7 +1378,8 @@ class _PagesTableWidths {
         (tableWidth -
                 _PagesTable._horizontalPadding -
                 _PagesTable._tableBorderWidth)
-            .clamp(_PagesTable._minContentWidth, double.infinity);
+            .clamp(0.0, double.infinity)
+            .toDouble();
     final scale = contentWidth / _PagesTable._minContentWidth;
     return _PagesTableWidths(
       title: _PagesTable._titleWidth * scale,

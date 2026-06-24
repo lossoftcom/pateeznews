@@ -1638,9 +1638,10 @@ class _CommentsDataTable extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final tableWidth = constraints.maxWidth < _minWidth
-            ? _minWidth
-            : constraints.maxWidth;
+        final tableWidth = AdminTableChrome.desktopTableWidth(
+          constraints: constraints,
+          preferredMinWidth: _minWidth,
+        );
         final layout = _CommentsTableColumnLayout.forWidth(tableWidth);
 
         return SingleChildScrollView(
@@ -1704,20 +1705,26 @@ class _CommentsDataTable extends StatelessWidget {
 
 class _CommentsTableColumnLayout {
   const _CommentsTableColumnLayout({
+    required this.selectWidth,
+    required this.idWidth,
     required this.commentWidth,
     required this.postWidth,
     required this.statusWidth,
     required this.likesWidth,
     required this.repliesWidth,
     required this.createdWidth,
+    required this.menuWidth,
   });
 
+  final double selectWidth;
+  final double idWidth;
   final double commentWidth;
   final double postWidth;
   final double statusWidth;
   final double likesWidth;
   final double repliesWidth;
   final double createdWidth;
+  final double menuWidth;
 
   static double get _baseCommentWidth {
     return _CommentsDataTable._minWidth -
@@ -1733,15 +1740,79 @@ class _CommentsTableColumnLayout {
   }
 
   factory _CommentsTableColumnLayout.forWidth(double tableWidth) {
-    final extraWidth = tableWidth - _CommentsDataTable._minWidth;
+    final scale = AdminTableChrome.compactScale(
+      tableWidth: tableWidth,
+      preferredMinWidth: _CommentsDataTable._minWidth,
+    );
+    final extraWidth = (tableWidth - _CommentsDataTable._minWidth)
+        .clamp(0.0, double.infinity)
+        .toDouble();
+    final selectWidth = AdminTableChrome.scaledColumn(
+      _CommentsDataTable._selectWidth,
+      scale,
+      minWidth: 38,
+    );
+    final idWidth = AdminTableChrome.scaledColumn(
+      _CommentsDataTable._idWidth,
+      scale,
+      minWidth: 48,
+    );
+    final postWidth = AdminTableChrome.scaledColumn(
+      _CommentsDataTable._postWidth,
+      scale,
+      minWidth: 150,
+    );
+    final statusWidth = AdminTableChrome.scaledColumn(
+      _CommentsDataTable._statusWidth,
+      scale,
+      minWidth: 84,
+    );
+    final likesWidth = AdminTableChrome.scaledColumn(
+      _CommentsDataTable._likesWidth,
+      scale,
+      minWidth: 58,
+    );
+    final repliesWidth = AdminTableChrome.scaledColumn(
+      _CommentsDataTable._repliesWidth,
+      scale,
+      minWidth: 58,
+    );
+    final createdWidth = AdminTableChrome.scaledColumn(
+      _CommentsDataTable._createdWidth,
+      scale,
+      minWidth: 126,
+    );
+    final menuWidth = AdminTableChrome.scaledColumn(
+      _CommentsDataTable._menuWidth,
+      scale,
+      minWidth: 54,
+    );
+    const contentSpacing = _CommentsDataTable._contentSpacing;
+    final fixedWidth =
+        selectWidth +
+        idWidth +
+        postWidth +
+        statusWidth +
+        likesWidth +
+        repliesWidth +
+        createdWidth +
+        menuWidth +
+        contentSpacing;
+
+    final commentWidth = extraWidth > 0
+        ? _baseCommentWidth + (extraWidth * 0.36)
+        : (tableWidth - fixedWidth).clamp(128.0, double.infinity).toDouble();
 
     return _CommentsTableColumnLayout(
-      commentWidth: _baseCommentWidth + (extraWidth * 0.36),
-      postWidth: _CommentsDataTable._postWidth + (extraWidth * 0.10),
-      statusWidth: _CommentsDataTable._statusWidth + (extraWidth * 0.08),
-      likesWidth: _CommentsDataTable._likesWidth + (extraWidth * 0.08),
-      repliesWidth: _CommentsDataTable._repliesWidth + (extraWidth * 0.08),
-      createdWidth: _CommentsDataTable._createdWidth + (extraWidth * 0.30),
+      selectWidth: selectWidth,
+      idWidth: idWidth,
+      commentWidth: commentWidth,
+      postWidth: postWidth + (extraWidth * 0.10),
+      statusWidth: statusWidth + (extraWidth * 0.08),
+      likesWidth: likesWidth + (extraWidth * 0.08),
+      repliesWidth: repliesWidth + (extraWidth * 0.08),
+      createdWidth: createdWidth + (extraWidth * 0.30),
+      menuWidth: menuWidth,
     );
   }
 }
@@ -1776,7 +1847,7 @@ class _CommentsHeader extends StatelessWidget {
       child: Row(
         children: [
           SizedBox(
-            width: _CommentsDataTable._selectWidth,
+            width: layout.selectWidth,
             child: _CommentCheckbox(
               value: selectedCount == 0 || totalCount == 0
                   ? false
@@ -1788,7 +1859,7 @@ class _CommentsHeader extends StatelessWidget {
             ),
           ),
           _SortableColumnHeader(
-            width: _CommentsDataTable._idWidth,
+            width: layout.idWidth,
             label: 'ID',
             sortKey: 'id',
             sortState: sortState,
@@ -1838,10 +1909,7 @@ class _CommentsHeader extends StatelessWidget {
             sortState: sortState,
             onSort: onSort,
           ),
-          const SizedBox(
-            width: _CommentsDataTable._menuWidth,
-            child: _HeaderText('Action'),
-          ),
+          SizedBox(width: layout.menuWidth, child: const _HeaderText('Action')),
         ],
       ),
     );
@@ -1920,14 +1988,14 @@ class _CommentsRow extends StatelessWidget {
       child: Row(
         children: [
           SizedBox(
-            width: _CommentsDataTable._selectWidth,
+            width: layout.selectWidth,
             child: _CommentCheckbox(
               value: selected,
               onChanged: (_) => onToggle(),
             ),
           ),
           SizedBox(
-            width: _CommentsDataTable._idWidth,
+            width: layout.idWidth,
             child: _RowSelectTapTarget(
               onTap: onToggle,
               child: Text(
@@ -1967,7 +2035,7 @@ class _CommentsRow extends StatelessWidget {
             child: _DateCell(dateTime: comment.createdAt),
           ),
           SizedBox(
-            width: _CommentsDataTable._menuWidth,
+            width: layout.menuWidth,
             child: Align(
               alignment: Alignment.centerLeft,
               child: _CommentRowMenu(

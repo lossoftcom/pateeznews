@@ -5,6 +5,7 @@ import '../../../../core/localization/admin_language_controller.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../features/settings/data/admin_language_models.dart';
+import '../../../../shared/widgets/admin_table_chrome.dart';
 import '../../../../shared/widgets/sortable_table_header.dart';
 import '../../../../shared/widgets/symbol_icon.dart';
 
@@ -70,19 +71,22 @@ class LanguageSettingsTable extends StatelessWidget {
           );
         }
 
-        final tableWidth = constraints.maxWidth < _minWidth
-            ? _minWidth
-            : constraints.maxWidth;
+        final tableWidth = AdminTableChrome.desktopTableWidth(
+          constraints: constraints,
+          preferredMinWidth: _minWidth,
+        );
         final languageWidth =
-            tableWidth -
-            _selectWidth -
-            _orderWidth -
-            _defaultWidth -
-            _actionsWidth -
-            _statusWidth -
-            _menuWidth -
-            _columnGap -
-            36;
+            (tableWidth -
+                    _selectWidth -
+                    _orderWidth -
+                    _defaultWidth -
+                    _actionsWidth -
+                    _statusWidth -
+                    _menuWidth -
+                    _columnGap -
+                    36)
+                .clamp(54.0, double.infinity)
+                .toDouble();
 
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,

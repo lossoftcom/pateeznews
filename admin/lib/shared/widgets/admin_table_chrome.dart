@@ -10,6 +10,32 @@ class AdminTableChrome {
   const AdminTableChrome._();
 
   static const double toolbarHeight = 38;
+
+  static double desktopTableWidth({
+    required BoxConstraints constraints,
+    required double preferredMinWidth,
+  }) {
+    final width = constraints.maxWidth;
+    if (!width.isFinite || width <= 0) return preferredMinWidth;
+    return width;
+  }
+
+  static double compactScale({
+    required double tableWidth,
+    required double preferredMinWidth,
+    double minScale = 0.64,
+  }) {
+    if (!tableWidth.isFinite || preferredMinWidth <= 0) return 1;
+    return (tableWidth / preferredMinWidth).clamp(minScale, 1.0).toDouble();
+  }
+
+  static double scaledColumn(
+    double width,
+    double scale, {
+    required double minWidth,
+  }) {
+    return (width * scale).clamp(minWidth, width).toDouble();
+  }
 }
 
 class AdminTablePageSizeSelect extends StatelessWidget {

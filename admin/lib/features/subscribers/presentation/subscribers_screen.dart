@@ -548,9 +548,9 @@ class _SubscribersTableCard extends StatelessWidget {
                   clipBehavior: Clip.antiAlias,
                   child: LayoutBuilder(
                     builder: (context, constraints) {
-                      final width = math.max(
-                        constraints.maxWidth,
-                        _minTableWidth,
+                      final width = AdminTableChrome.desktopTableWidth(
+                        constraints: constraints,
+                        preferredMinWidth: _minTableWidth,
                       );
                       return SingleChildScrollView(
                         scrollDirection: Axis.horizontal,

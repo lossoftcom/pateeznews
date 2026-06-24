@@ -720,9 +720,12 @@ class _WhatsappSettingsTableCard extends StatelessWidget {
                     clipBehavior: Clip.antiAlias,
                     child: LayoutBuilder(
                       builder: (context, constraints) {
-                        final tableWidth = math.max(
-                          constraints.maxWidth,
-                          _minTableWidth,
+                        final tableWidth = AdminTableChrome.desktopTableWidth(
+                          constraints: constraints,
+                          preferredMinWidth: _minTableWidth,
+                        );
+                        final layout = _WhatsappSettingsTableLayout.forWidth(
+                          tableWidth,
                         );
                         return SingleChildScrollView(
                           scrollDirection: Axis.horizontal,
@@ -734,6 +737,7 @@ class _WhatsappSettingsTableCard extends StatelessWidget {
                             child: Column(
                               children: [
                                 _WhatsappSettingsTableHeader(
+                                  layout: layout,
                                   selected: allSelected,
                                   sortState: sortState,
                                   onToggle: onToggleAllAccounts,
@@ -748,6 +752,7 @@ class _WhatsappSettingsTableCard extends StatelessWidget {
                                             final account = accounts[index];
                                             return _WhatsappSettingsTableRow(
                                               account: account,
+                                              layout: layout,
                                               selected: selectedIds.contains(
                                                 account.id,
                                               ),
@@ -921,8 +926,68 @@ class _WhatsappSettingsToolbar extends StatelessWidget {
   }
 }
 
+class _WhatsappSettingsTableLayout {
+  const _WhatsappSettingsTableLayout({
+    required this.selectWidth,
+    required this.serviceWidth,
+    required this.limitWidth,
+    required this.dnsWidth,
+    required this.statusWidth,
+    required this.actionsWidth,
+  });
+
+  final double selectWidth;
+  final double serviceWidth;
+  final double limitWidth;
+  final double dnsWidth;
+  final double statusWidth;
+  final double actionsWidth;
+
+  factory _WhatsappSettingsTableLayout.forWidth(double tableWidth) {
+    final scale = AdminTableChrome.compactScale(
+      tableWidth: tableWidth,
+      preferredMinWidth: _WhatsappSettingsTableCard._minTableWidth,
+      minScale: 0.76,
+    );
+
+    return _WhatsappSettingsTableLayout(
+      selectWidth: AdminTableChrome.scaledColumn(
+        _WhatsappSettingsTableHeader._selectWidth,
+        scale,
+        minWidth: 38,
+      ),
+      serviceWidth: AdminTableChrome.scaledColumn(
+        _WhatsappSettingsTableHeader._serviceWidth,
+        scale,
+        minWidth: 112,
+      ),
+      limitWidth: AdminTableChrome.scaledColumn(
+        _WhatsappSettingsTableHeader._limitWidth,
+        scale,
+        minWidth: 92,
+      ),
+      dnsWidth: AdminTableChrome.scaledColumn(
+        _WhatsappSettingsTableHeader._dnsWidth,
+        scale,
+        minWidth: 104,
+      ),
+      statusWidth: AdminTableChrome.scaledColumn(
+        _WhatsappSettingsTableHeader._statusWidth,
+        scale,
+        minWidth: 88,
+      ),
+      actionsWidth: AdminTableChrome.scaledColumn(
+        _WhatsappSettingsTableHeader._actionsWidth,
+        scale,
+        minWidth: 54,
+      ),
+    );
+  }
+}
+
 class _WhatsappSettingsTableHeader extends StatelessWidget {
   const _WhatsappSettingsTableHeader({
+    required this.layout,
     required this.selected,
     required this.sortState,
     required this.onToggle,
@@ -940,6 +1005,7 @@ class _WhatsappSettingsTableHeader extends StatelessWidget {
   static const _domainFlex = 3;
   static const _dateFlex = 3;
 
+  final _WhatsappSettingsTableLayout layout;
   final bool selected;
   final TableSortState sortState;
   final VoidCallback onToggle;
@@ -958,7 +1024,7 @@ class _WhatsappSettingsTableHeader extends StatelessWidget {
       child: Row(
         children: [
           SizedBox(
-            width: _selectWidth,
+            width: layout.selectWidth,
             child: Center(
               child: _ListCheckbox(selected: selected, onTap: onToggle),
             ),
@@ -982,7 +1048,7 @@ class _WhatsappSettingsTableHeader extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: _serviceWidth,
+            width: layout.serviceWidth,
             child: _WhatsappSettingsSortableHeader(
               label: 'whatsapp.settings.column.service',
               sortKey: 'service',
@@ -1000,7 +1066,7 @@ class _WhatsappSettingsTableHeader extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: _limitWidth,
+            width: layout.limitWidth,
             child: _WhatsappSettingsSortableHeader(
               label: 'whatsapp.settings.column.limit',
               sortKey: 'limit',
@@ -1009,7 +1075,7 @@ class _WhatsappSettingsTableHeader extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: _dnsWidth,
+            width: layout.dnsWidth,
             child: _WhatsappSettingsSortableHeader(
               label: 'whatsapp.settings.column.dns',
               sortKey: 'dns',
@@ -1018,7 +1084,7 @@ class _WhatsappSettingsTableHeader extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: _statusWidth,
+            width: layout.statusWidth,
             child: _WhatsappSettingsSortableHeader(
               label: 'whatsapp.settings.column.status',
               sortKey: 'status',
@@ -1036,7 +1102,7 @@ class _WhatsappSettingsTableHeader extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: _actionsWidth,
+            width: layout.actionsWidth,
             child: Center(
               child: Text(
                 context.t('whatsapp.settings.column.actions'),
@@ -1085,6 +1151,7 @@ class _WhatsappSettingsSortableHeader extends StatelessWidget {
 class _WhatsappSettingsTableRow extends StatelessWidget {
   const _WhatsappSettingsTableRow({
     required this.account,
+    required this.layout,
     required this.selected,
     required this.active,
     required this.onToggle,
@@ -1096,6 +1163,7 @@ class _WhatsappSettingsTableRow extends StatelessWidget {
   });
 
   final AdminWhatsappAccount account;
+  final _WhatsappSettingsTableLayout layout;
   final bool selected;
   final bool active;
   final VoidCallback onToggle;
@@ -1129,7 +1197,7 @@ class _WhatsappSettingsTableRow extends StatelessWidget {
           child: Row(
             children: [
               SizedBox(
-                width: _WhatsappSettingsTableHeader._selectWidth,
+                width: layout.selectWidth,
                 child: Center(
                   child: _ListCheckbox(selected: selected, onTap: onToggle),
                 ),
@@ -1221,7 +1289,7 @@ class _WhatsappSettingsTableRow extends StatelessWidget {
                 ),
               ),
               SizedBox(
-                width: _WhatsappSettingsTableHeader._serviceWidth,
+                width: layout.serviceWidth,
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1277,7 +1345,7 @@ class _WhatsappSettingsTableRow extends StatelessWidget {
                 ),
               ),
               SizedBox(
-                width: _WhatsappSettingsTableHeader._limitWidth,
+                width: layout.limitWidth,
                 child: Text(
                   context.t(
                     'whatsapp.settings.limitDaily',
@@ -1297,7 +1365,7 @@ class _WhatsappSettingsTableRow extends StatelessWidget {
                 ),
               ),
               SizedBox(
-                width: _WhatsappSettingsTableHeader._dnsWidth,
+                width: layout.dnsWidth,
                 child: Wrap(
                   spacing: 5,
                   runSpacing: 5,
@@ -1309,7 +1377,7 @@ class _WhatsappSettingsTableRow extends StatelessWidget {
                 ),
               ),
               SizedBox(
-                width: _WhatsappSettingsTableHeader._statusWidth,
+                width: layout.statusWidth,
                 child: _StatusBadge(
                   label: account.active
                       ? context.t('whatsapp.settings.status.active')
@@ -1349,7 +1417,7 @@ class _WhatsappSettingsTableRow extends StatelessWidget {
                 ),
               ),
               SizedBox(
-                width: _WhatsappSettingsTableHeader._actionsWidth,
+                width: layout.actionsWidth,
                 child: Align(
                   alignment: Alignment.center,
                   child: _WhatsappSettingsRowMenu(

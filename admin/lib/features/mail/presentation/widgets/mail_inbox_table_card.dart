@@ -1420,27 +1420,11 @@ class _MailDataTable extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final tableWidth = constraints.maxWidth < _minWidth
-            ? _minWidth
-            : constraints.maxWidth;
-        final fixedWidth =
-            _horizontalPadding +
-            _tableBorderWidth +
-            _selectWidth +
-            _idWidth +
-            _senderWidth +
-            _attachmentWidth +
-            _accountWidth +
-            _dateWidth +
-            _statusWidth +
-            _menuWidth;
-        final availableSubjectWidth = tableWidth - fixedWidth;
-        final subjectWidth = availableSubjectWidth
-            .clamp(_subjectMinWidth, _subjectMaxWidth)
-            .toDouble();
-        final spacerWidth = (availableSubjectWidth - subjectWidth)
-            .clamp(0, double.infinity)
-            .toDouble();
+        final tableWidth = AdminTableChrome.desktopTableWidth(
+          constraints: constraints,
+          preferredMinWidth: _minWidth,
+        );
+        final layout = _MailTableColumnLayout.forWidth(tableWidth);
 
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
@@ -1460,8 +1444,7 @@ class _MailDataTable extends StatelessWidget {
                   _MailHeader(
                     selectedCount: selectedMessageIds.length,
                     totalCount: messages.length,
-                    subjectWidth: subjectWidth,
-                    spacerWidth: spacerWidth,
+                    layout: layout,
                     sortState: sortState,
                     onToggleAllMessages: onToggleAllMessages,
                     onSort: onSort,
@@ -1475,8 +1458,7 @@ class _MailDataTable extends StatelessWidget {
                                 for (final message in messages)
                                   _MailRow(
                                     message: message,
-                                    subjectWidth: subjectWidth,
-                                    spacerWidth: spacerWidth,
+                                    layout: layout,
                                     selected: selectedMessageIds.contains(
                                       message.id,
                                     ),
@@ -1504,12 +1486,123 @@ class _MailDataTable extends StatelessWidget {
   }
 }
 
+class _MailTableColumnLayout {
+  const _MailTableColumnLayout({
+    required this.selectWidth,
+    required this.idWidth,
+    required this.senderWidth,
+    required this.subjectWidth,
+    required this.spacerWidth,
+    required this.attachmentWidth,
+    required this.accountWidth,
+    required this.dateWidth,
+    required this.statusWidth,
+    required this.menuWidth,
+  });
+
+  final double selectWidth;
+  final double idWidth;
+  final double senderWidth;
+  final double subjectWidth;
+  final double spacerWidth;
+  final double attachmentWidth;
+  final double accountWidth;
+  final double dateWidth;
+  final double statusWidth;
+  final double menuWidth;
+
+  factory _MailTableColumnLayout.forWidth(double tableWidth) {
+    final scale = AdminTableChrome.compactScale(
+      tableWidth: tableWidth,
+      preferredMinWidth: _MailDataTable._minWidth,
+    );
+    final selectWidth = AdminTableChrome.scaledColumn(
+      _MailDataTable._selectWidth,
+      scale,
+      minWidth: 38,
+    );
+    final idWidth = AdminTableChrome.scaledColumn(
+      _MailDataTable._idWidth,
+      scale,
+      minWidth: 44,
+    );
+    final senderWidth = AdminTableChrome.scaledColumn(
+      _MailDataTable._senderWidth,
+      scale,
+      minWidth: 122,
+    );
+    final attachmentWidth = AdminTableChrome.scaledColumn(
+      _MailDataTable._attachmentWidth,
+      scale,
+      minWidth: 44,
+    );
+    final accountWidth = AdminTableChrome.scaledColumn(
+      _MailDataTable._accountWidth,
+      scale,
+      minWidth: 102,
+    );
+    final dateWidth = AdminTableChrome.scaledColumn(
+      _MailDataTable._dateWidth,
+      scale,
+      minWidth: 92,
+    );
+    final statusWidth = AdminTableChrome.scaledColumn(
+      _MailDataTable._statusWidth,
+      scale,
+      minWidth: 58,
+    );
+    final menuWidth = AdminTableChrome.scaledColumn(
+      _MailDataTable._menuWidth,
+      scale,
+      minWidth: 54,
+    );
+    const contentSpacing =
+        _MailDataTable._horizontalPadding + _MailDataTable._tableBorderWidth;
+    final fixedWidth =
+        contentSpacing +
+        selectWidth +
+        idWidth +
+        senderWidth +
+        attachmentWidth +
+        accountWidth +
+        dateWidth +
+        statusWidth +
+        menuWidth;
+    final availableSubjectWidth = tableWidth - fixedWidth;
+    final subjectWidth = tableWidth >= _MailDataTable._minWidth
+        ? availableSubjectWidth
+              .clamp(
+                _MailDataTable._subjectMinWidth,
+                _MailDataTable._subjectMaxWidth,
+              )
+              .toDouble()
+        : availableSubjectWidth.clamp(112.0, double.infinity).toDouble();
+    final spacerWidth = tableWidth >= _MailDataTable._minWidth
+        ? (availableSubjectWidth - subjectWidth)
+              .clamp(0, double.infinity)
+              .toDouble()
+        : 0.0;
+
+    return _MailTableColumnLayout(
+      selectWidth: selectWidth,
+      idWidth: idWidth,
+      senderWidth: senderWidth,
+      subjectWidth: subjectWidth,
+      spacerWidth: spacerWidth,
+      attachmentWidth: attachmentWidth,
+      accountWidth: accountWidth,
+      dateWidth: dateWidth,
+      statusWidth: statusWidth,
+      menuWidth: menuWidth,
+    );
+  }
+}
+
 class _MailHeader extends StatelessWidget {
   const _MailHeader({
     required this.selectedCount,
     required this.totalCount,
-    required this.subjectWidth,
-    required this.spacerWidth,
+    required this.layout,
     required this.sortState,
     required this.onToggleAllMessages,
     required this.onSort,
@@ -1517,8 +1610,7 @@ class _MailHeader extends StatelessWidget {
 
   final int selectedCount;
   final int totalCount;
-  final double subjectWidth;
-  final double spacerWidth;
+  final _MailTableColumnLayout layout;
   final TableSortState sortState;
   final VoidCallback onToggleAllMessages;
   final ValueChanged<String> onSort;
@@ -1536,7 +1628,7 @@ class _MailHeader extends StatelessWidget {
       child: Row(
         children: [
           SizedBox(
-            width: _MailDataTable._selectWidth,
+            width: layout.selectWidth,
             child: _MailCheckbox(
               value: selectedCount == 0 || totalCount == 0
                   ? false
@@ -1548,55 +1640,55 @@ class _MailHeader extends StatelessWidget {
             ),
           ),
           _SortableColumnHeader(
-            width: _MailDataTable._idWidth,
+            width: layout.idWidth,
             label: 'ID',
             sortKey: 'id',
             sortState: sortState,
             onSort: onSort,
           ),
           _SortableColumnHeader(
-            width: _MailDataTable._senderWidth,
+            width: layout.senderWidth,
             label: 'mail.sender',
             sortKey: 'sender',
             sortState: sortState,
             onSort: onSort,
           ),
           _SortableColumnHeader(
-            width: subjectWidth,
+            width: layout.subjectWidth,
             label: 'mail.subject',
             sortKey: 'subject',
             sortState: sortState,
             onSort: onSort,
           ),
-          if (spacerWidth > 0) SizedBox(width: spacerWidth),
-          const SizedBox(
-            width: _MailDataTable._attachmentWidth,
-            child: _HeaderText('mail.attachments', centered: true),
+          if (layout.spacerWidth > 0) SizedBox(width: layout.spacerWidth),
+          SizedBox(
+            width: layout.attachmentWidth,
+            child: const _HeaderText('mail.attachments', centered: true),
           ),
           _SortableColumnHeader(
-            width: _MailDataTable._accountWidth,
+            width: layout.accountWidth,
             label: 'mail.account',
             sortKey: 'account',
             sortState: sortState,
             onSort: onSort,
           ),
           _SortableColumnHeader(
-            width: _MailDataTable._dateWidth,
+            width: layout.dateWidth,
             label: 'Date',
             sortKey: 'date',
             sortState: sortState,
             onSort: onSort,
           ),
           _SortableColumnHeader(
-            width: _MailDataTable._statusWidth,
+            width: layout.statusWidth,
             label: 'Status',
             sortKey: 'status',
             sortState: sortState,
             onSort: onSort,
           ),
-          const SizedBox(
-            width: _MailDataTable._menuWidth,
-            child: _HeaderText('Action', centered: true),
+          SizedBox(
+            width: layout.menuWidth,
+            child: const _HeaderText('Action', centered: true),
           ),
         ],
       ),
@@ -1661,8 +1753,7 @@ class _HeaderText extends StatelessWidget {
 class _MailRow extends StatelessWidget {
   const _MailRow({
     required this.message,
-    required this.subjectWidth,
-    required this.spacerWidth,
+    required this.layout,
     required this.selected,
     required this.onToggle,
     required this.onOpenMessage,
@@ -1676,8 +1767,7 @@ class _MailRow extends StatelessWidget {
   });
 
   final AdminMailMessage message;
-  final double subjectWidth;
-  final double spacerWidth;
+  final _MailTableColumnLayout layout;
   final bool selected;
   final VoidCallback onToggle;
   final ValueChanged<AdminMailMessage> onOpenMessage;
@@ -1703,11 +1793,11 @@ class _MailRow extends StatelessWidget {
       child: Row(
         children: [
           SizedBox(
-            width: _MailDataTable._selectWidth,
+            width: layout.selectWidth,
             child: _MailCheckbox(value: selected, onChanged: (_) => onToggle()),
           ),
           SizedBox(
-            width: _MailDataTable._idWidth,
+            width: layout.idWidth,
             child: _RowSelectTapTarget(
               onTap: onToggle,
               child: Text(
@@ -1721,38 +1811,38 @@ class _MailRow extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: _MailDataTable._senderWidth,
+            width: layout.senderWidth,
             child: _RowSelectTapTarget(
               onTap: () => onOpenMessage(message),
               child: _SenderCell(message: message),
             ),
           ),
           SizedBox(
-            width: subjectWidth,
+            width: layout.subjectWidth,
             child: _RowSelectTapTarget(
               onTap: () => onOpenMessage(message),
               child: _SubjectCell(message: message),
             ),
           ),
-          if (spacerWidth > 0) SizedBox(width: spacerWidth),
+          if (layout.spacerWidth > 0) SizedBox(width: layout.spacerWidth),
           SizedBox(
-            width: _MailDataTable._attachmentWidth,
+            width: layout.attachmentWidth,
             child: _AttachmentCell(message: message),
           ),
           SizedBox(
-            width: _MailDataTable._accountWidth,
+            width: layout.accountWidth,
             child: _TextCell(value: message.account),
           ),
           SizedBox(
-            width: _MailDataTable._dateWidth,
+            width: layout.dateWidth,
             child: _MailDateCell(dateTime: message.sentAt),
           ),
           SizedBox(
-            width: _MailDataTable._statusWidth,
+            width: layout.statusWidth,
             child: _MailStatusBadge(message: message),
           ),
           SizedBox(
-            width: _MailDataTable._menuWidth,
+            width: layout.menuWidth,
             child: Align(
               alignment: Alignment.center,
               child: _MailRowMenu(

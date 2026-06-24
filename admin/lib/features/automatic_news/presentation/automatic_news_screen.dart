@@ -2386,11 +2386,12 @@ class _AutomaticNewsDataTable extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final fixedWidth =
+        final preferredMinWidth =
             _horizontalPadding +
             _tableBorderWidth +
             _selectWidth +
             _idWidth +
+            _postMinWidth +
             _sourceWidth +
             _statusWidth +
             _languageWidth +
@@ -2398,13 +2399,14 @@ class _AutomaticNewsDataTable extends StatelessWidget {
             _qualityWidth +
             _dateWidth +
             _menuWidth;
-        final requiredMinWidth = fixedWidth + _postMinWidth;
-        final tableWidth = constraints.maxWidth < requiredMinWidth
-            ? requiredMinWidth
-            : constraints.maxWidth;
-        final postWidth = (tableWidth - fixedWidth) < _postMinWidth
-            ? _postMinWidth
-            : tableWidth - fixedWidth;
+        final tableWidth = AdminTableChrome.desktopTableWidth(
+          constraints: constraints,
+          preferredMinWidth: preferredMinWidth,
+        );
+        final layout = _AutomaticNewsTableColumnLayout.forWidth(
+          tableWidth,
+          preferredMinWidth,
+        );
 
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
@@ -2424,7 +2426,7 @@ class _AutomaticNewsDataTable extends StatelessWidget {
                   _AutomaticNewsHeader(
                     selectedCount: selectedDraftIds.length,
                     totalCount: drafts.length,
-                    postWidth: postWidth,
+                    layout: layout,
                     sortState: sortState,
                     onToggleVisibleDrafts: onToggleVisibleDrafts,
                     onSort: onSort,
@@ -2450,7 +2452,7 @@ class _AutomaticNewsDataTable extends StatelessWidget {
                                   _AutomaticNewsRow(
                                     draft: draft,
                                     imageRequestHeaders: imageRequestHeaders,
-                                    postWidth: postWidth,
+                                    layout: layout,
                                     selected: selectedDraftIds.contains(
                                       draft.id,
                                     ),
@@ -2475,11 +2477,125 @@ class _AutomaticNewsDataTable extends StatelessWidget {
   }
 }
 
+class _AutomaticNewsTableColumnLayout {
+  const _AutomaticNewsTableColumnLayout({
+    required this.selectWidth,
+    required this.idWidth,
+    required this.postWidth,
+    required this.sourceWidth,
+    required this.statusWidth,
+    required this.languageWidth,
+    required this.originWidth,
+    required this.qualityWidth,
+    required this.dateWidth,
+    required this.menuWidth,
+  });
+
+  final double selectWidth;
+  final double idWidth;
+  final double postWidth;
+  final double sourceWidth;
+  final double statusWidth;
+  final double languageWidth;
+  final double originWidth;
+  final double qualityWidth;
+  final double dateWidth;
+  final double menuWidth;
+
+  factory _AutomaticNewsTableColumnLayout.forWidth(
+    double tableWidth,
+    double preferredMinWidth,
+  ) {
+    final scale = AdminTableChrome.compactScale(
+      tableWidth: tableWidth,
+      preferredMinWidth: preferredMinWidth,
+      minScale: 0.60,
+    );
+    final extraWidth = (tableWidth - preferredMinWidth)
+        .clamp(0.0, double.infinity)
+        .toDouble();
+    final selectWidth = AdminTableChrome.scaledColumn(
+      _AutomaticNewsDataTable._selectWidth,
+      scale,
+      minWidth: 38,
+    );
+    final idWidth = AdminTableChrome.scaledColumn(
+      _AutomaticNewsDataTable._idWidth,
+      scale,
+      minWidth: 48,
+    );
+    final sourceWidth = AdminTableChrome.scaledColumn(
+      _AutomaticNewsDataTable._sourceWidth,
+      scale,
+      minWidth: 92,
+    );
+    final statusWidth = AdminTableChrome.scaledColumn(
+      _AutomaticNewsDataTable._statusWidth,
+      scale,
+      minWidth: 78,
+    );
+    final languageWidth = AdminTableChrome.scaledColumn(
+      _AutomaticNewsDataTable._languageWidth,
+      scale,
+      minWidth: 58,
+    );
+    final originWidth = AdminTableChrome.scaledColumn(
+      _AutomaticNewsDataTable._originWidth,
+      scale,
+      minWidth: 112,
+    );
+    final qualityWidth = AdminTableChrome.scaledColumn(
+      _AutomaticNewsDataTable._qualityWidth,
+      scale,
+      minWidth: 58,
+    );
+    final dateWidth = AdminTableChrome.scaledColumn(
+      _AutomaticNewsDataTable._dateWidth,
+      scale,
+      minWidth: 104,
+    );
+    final menuWidth = AdminTableChrome.scaledColumn(
+      _AutomaticNewsDataTable._menuWidth,
+      scale,
+      minWidth: 54,
+    );
+    const contentSpacing =
+        _AutomaticNewsDataTable._horizontalPadding +
+        _AutomaticNewsDataTable._tableBorderWidth;
+    final fixedWidth =
+        selectWidth +
+        idWidth +
+        sourceWidth +
+        statusWidth +
+        languageWidth +
+        originWidth +
+        qualityWidth +
+        dateWidth +
+        menuWidth +
+        contentSpacing;
+
+    return _AutomaticNewsTableColumnLayout(
+      selectWidth: selectWidth,
+      idWidth: idWidth,
+      postWidth: extraWidth > 0
+          ? _AutomaticNewsDataTable._postMinWidth + extraWidth
+          : (tableWidth - fixedWidth).clamp(86.0, double.infinity).toDouble(),
+      sourceWidth: sourceWidth,
+      statusWidth: statusWidth,
+      languageWidth: languageWidth,
+      originWidth: originWidth,
+      qualityWidth: qualityWidth,
+      dateWidth: dateWidth,
+      menuWidth: menuWidth,
+    );
+  }
+}
+
 class _AutomaticNewsHeader extends StatelessWidget {
   const _AutomaticNewsHeader({
     required this.selectedCount,
     required this.totalCount,
-    required this.postWidth,
+    required this.layout,
     required this.sortState,
     required this.onToggleVisibleDrafts,
     required this.onSort,
@@ -2487,7 +2603,7 @@ class _AutomaticNewsHeader extends StatelessWidget {
 
   final int selectedCount;
   final int totalCount;
-  final double postWidth;
+  final _AutomaticNewsTableColumnLayout layout;
   final TableSortState sortState;
   final VoidCallback onToggleVisibleDrafts;
   final ValueChanged<String> onSort;
@@ -2505,7 +2621,7 @@ class _AutomaticNewsHeader extends StatelessWidget {
       child: Row(
         children: [
           SizedBox(
-            width: _AutomaticNewsDataTable._selectWidth,
+            width: layout.selectWidth,
             child: _AutoNewsCheckbox(
               value: selectedCount == 0 || totalCount == 0
                   ? false
@@ -2517,28 +2633,28 @@ class _AutomaticNewsHeader extends StatelessWidget {
             ),
           ),
           _SortableColumnHeader(
-            width: _AutomaticNewsDataTable._idWidth,
+            width: layout.idWidth,
             label: 'ID',
             sortKey: 'id',
             sortState: sortState,
             onSort: onSort,
           ),
           _SortableColumnHeader(
-            width: postWidth,
+            width: layout.postWidth,
             label: 'Haber',
             sortKey: 'post',
             sortState: sortState,
             onSort: onSort,
           ),
           _SortableColumnHeader(
-            width: _AutomaticNewsDataTable._sourceWidth,
+            width: layout.sourceWidth,
             label: 'Kaynak',
             sortKey: 'source',
             sortState: sortState,
             onSort: onSort,
           ),
           _SortableColumnHeader(
-            width: _AutomaticNewsDataTable._statusWidth,
+            width: layout.statusWidth,
             label: 'Durum',
             sortKey: 'status',
             sortState: sortState,
@@ -2546,7 +2662,7 @@ class _AutomaticNewsHeader extends StatelessWidget {
             centered: true,
           ),
           _SortableColumnHeader(
-            width: _AutomaticNewsDataTable._languageWidth,
+            width: layout.languageWidth,
             label: 'Dil',
             sortKey: 'language',
             sortState: sortState,
@@ -2554,26 +2670,26 @@ class _AutomaticNewsHeader extends StatelessWidget {
             centered: true,
           ),
           _SortableColumnHeader(
-            width: _AutomaticNewsDataTable._originWidth,
+            width: layout.originWidth,
             label: 'Alındığı Yer',
             sortKey: 'origin',
             sortState: sortState,
             onSort: onSort,
           ),
-          const SizedBox(
-            width: _AutomaticNewsDataTable._qualityWidth,
-            child: _HeaderText('Kalite', centered: true),
+          SizedBox(
+            width: layout.qualityWidth,
+            child: const _HeaderText('Kalite', centered: true),
           ),
           _SortableColumnHeader(
-            width: _AutomaticNewsDataTable._dateWidth,
+            width: layout.dateWidth,
             label: 'Tarih',
             sortKey: 'date',
             sortState: sortState,
             onSort: onSort,
           ),
-          const SizedBox(
-            width: _AutomaticNewsDataTable._menuWidth,
-            child: _HeaderText('İşlem', centered: true),
+          SizedBox(
+            width: layout.menuWidth,
+            child: const _HeaderText('İşlem', centered: true),
           ),
         ],
       ),
@@ -2649,7 +2765,7 @@ class _AutomaticNewsRow extends StatelessWidget {
   const _AutomaticNewsRow({
     required this.draft,
     required this.imageRequestHeaders,
-    required this.postWidth,
+    required this.layout,
     required this.selected,
     required this.onToggle,
     required this.onView,
@@ -2660,7 +2776,7 @@ class _AutomaticNewsRow extends StatelessWidget {
 
   final _AutomaticNewsDraft draft;
   final Map<String, String> imageRequestHeaders;
-  final double postWidth;
+  final _AutomaticNewsTableColumnLayout layout;
   final bool selected;
   final VoidCallback onToggle;
   final VoidCallback onView;
@@ -2682,14 +2798,14 @@ class _AutomaticNewsRow extends StatelessWidget {
       child: Row(
         children: [
           SizedBox(
-            width: _AutomaticNewsDataTable._selectWidth,
+            width: layout.selectWidth,
             child: _AutoNewsCheckbox(
               value: selected,
               onChanged: (_) => onToggle(),
             ),
           ),
           SizedBox(
-            width: _AutomaticNewsDataTable._idWidth,
+            width: layout.idWidth,
             child: _RowTapTarget(
               onTap: onToggle,
               child: Text(
@@ -2704,38 +2820,38 @@ class _AutomaticNewsRow extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: postWidth,
+            width: layout.postWidth,
             child: _DraftIdentity(
               draft: draft,
               imageRequestHeaders: imageRequestHeaders,
             ),
           ),
           SizedBox(
-            width: _AutomaticNewsDataTable._sourceWidth,
+            width: layout.sourceWidth,
             child: _SourceCell(draft: draft),
           ),
           SizedBox(
-            width: _AutomaticNewsDataTable._statusWidth,
+            width: layout.statusWidth,
             child: Center(child: _StatusBadge(value: draft.status)),
           ),
           SizedBox(
-            width: _AutomaticNewsDataTable._languageWidth,
+            width: layout.languageWidth,
             child: Center(child: _LanguageBadge(value: draft.language)),
           ),
           SizedBox(
-            width: _AutomaticNewsDataTable._originWidth,
+            width: layout.originWidth,
             child: _OriginCell(draft: draft),
           ),
           SizedBox(
-            width: _AutomaticNewsDataTable._qualityWidth,
+            width: layout.qualityWidth,
             child: Center(child: _QualityBadge(value: draft.quality)),
           ),
           SizedBox(
-            width: _AutomaticNewsDataTable._dateWidth,
+            width: layout.dateWidth,
             child: _DateCell(dateTime: draft.capturedAt),
           ),
           SizedBox(
-            width: _AutomaticNewsDataTable._menuWidth,
+            width: layout.menuWidth,
             child: Align(
               alignment: Alignment.center,
               child: _AutomaticNewsRowMenu(

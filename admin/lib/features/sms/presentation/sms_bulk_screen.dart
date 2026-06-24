@@ -1306,13 +1306,66 @@ class _BulkMailTable extends StatelessWidget {
           );
         }
 
-        final tableWidth = constraints.maxWidth < _minWidth
-            ? _minWidth
-            : constraints.maxWidth;
+        final tableWidth = AdminTableChrome.desktopTableWidth(
+          constraints: constraints,
+          preferredMinWidth: _minWidth,
+        );
+        final scale = AdminTableChrome.compactScale(
+          tableWidth: tableWidth,
+          preferredMinWidth: _minWidth,
+          minScale: 0.60,
+        );
         final contentWidth = tableWidth - _horizontalPadding;
+        final extraWidth = (contentWidth - _columnsMinWidth)
+            .clamp(0.0, 160.0)
+            .toDouble();
+        final selectWidth = AdminTableChrome.scaledColumn(
+          _selectWidth,
+          scale,
+          minWidth: 38,
+        );
         final campaignWidth =
-            _campaignWidth +
-            (contentWidth - _columnsMinWidth).clamp(0.0, 160.0).toDouble();
+            AdminTableChrome.scaledColumn(
+              _campaignWidth,
+              scale,
+              minWidth: 132,
+            ) +
+            extraWidth;
+        final recipientWidth = AdminTableChrome.scaledColumn(
+          _recipientWidth,
+          scale,
+          minWidth: 52,
+        );
+        final metricWidth = AdminTableChrome.scaledColumn(
+          _metricWidth,
+          scale,
+          minWidth: 52,
+        );
+        final bounceWidth = AdminTableChrome.scaledColumn(
+          _bounceWidth,
+          scale,
+          minWidth: 48,
+        );
+        final statusWidth = AdminTableChrome.scaledColumn(
+          _statusWidth,
+          scale,
+          minWidth: 72,
+        );
+        final controlWidth = AdminTableChrome.scaledColumn(
+          _controlWidth,
+          scale,
+          minWidth: 78,
+        );
+        final dateWidth = AdminTableChrome.scaledColumn(
+          _dateWidth,
+          scale,
+          minWidth: 88,
+        );
+        final menuWidth = AdminTableChrome.scaledColumn(
+          _menuWidth,
+          scale,
+          minWidth: 54,
+        );
 
         return Container(
           decoration: BoxDecoration(
@@ -1340,7 +1393,7 @@ class _BulkMailTable extends StatelessWidget {
                     child: Row(
                       children: [
                         SizedBox(
-                          width: _selectWidth,
+                          width: selectWidth,
                           child: _BulkMailCheckbox(
                             value: allSelected
                                 ? true
@@ -1359,7 +1412,7 @@ class _BulkMailTable extends StatelessWidget {
                           onSort: onSort,
                         ),
                         _HeaderSortable(
-                          width: _recipientWidth,
+                          width: recipientWidth,
                           label: 'common.recipient',
                           sortKey: 'recipient',
                           sortState: sortState,
@@ -1367,7 +1420,7 @@ class _BulkMailTable extends StatelessWidget {
                           centered: true,
                         ),
                         _HeaderSortable(
-                          width: _metricWidth,
+                          width: metricWidth,
                           label: 'common.sent',
                           sortKey: 'sent',
                           sortState: sortState,
@@ -1375,7 +1428,7 @@ class _BulkMailTable extends StatelessWidget {
                           centered: true,
                         ),
                         _HeaderSortable(
-                          width: _metricWidth,
+                          width: metricWidth,
                           label: 'common.opening',
                           sortKey: 'open',
                           sortState: sortState,
@@ -1383,7 +1436,7 @@ class _BulkMailTable extends StatelessWidget {
                           centered: true,
                         ),
                         _HeaderSortable(
-                          width: _metricWidth,
+                          width: metricWidth,
                           label: 'common.clicking',
                           sortKey: 'click',
                           sortState: sortState,
@@ -1391,7 +1444,7 @@ class _BulkMailTable extends StatelessWidget {
                           centered: true,
                         ),
                         _HeaderSortable(
-                          width: _bounceWidth,
+                          width: bounceWidth,
                           label: 'Bounce',
                           sortKey: 'bounce',
                           sortState: sortState,
@@ -1400,25 +1453,25 @@ class _BulkMailTable extends StatelessWidget {
                           centered: true,
                         ),
                         _HeaderSortable(
-                          width: _statusWidth,
+                          width: statusWidth,
                           label: 'common.status',
                           sortKey: 'status',
                           sortState: sortState,
                           onSort: onSort,
                         ),
                         SizedBox(
-                          width: _controlWidth,
+                          width: controlWidth,
                           child: _HeaderText('sms.bulk.control'),
                         ),
                         _HeaderSortable(
-                          width: _dateWidth,
+                          width: dateWidth,
                           label: 'sms.bulk.startDate',
                           sortKey: 'date',
                           sortState: sortState,
                           onSort: onSort,
                         ),
                         SizedBox(
-                          width: _menuWidth,
+                          width: menuWidth,
                           child: _HeaderText('common.action', centered: true),
                         ),
                       ],
@@ -1433,7 +1486,15 @@ class _BulkMailTable extends StatelessWidget {
                               final campaign = campaigns[index];
                               return _BulkMailRow(
                                 campaign: campaign,
+                                selectWidth: selectWidth,
                                 campaignWidth: campaignWidth,
+                                recipientWidth: recipientWidth,
+                                metricWidth: metricWidth,
+                                bounceWidth: bounceWidth,
+                                statusWidth: statusWidth,
+                                controlWidth: controlWidth,
+                                dateWidth: dateWidth,
+                                menuWidth: menuWidth,
                                 selected: selectedIds.contains(campaign.id),
                                 onToggle: () => onToggleCampaign(campaign.id),
                                 onDetail: onDetail,
@@ -1637,7 +1698,15 @@ class _HeaderText extends StatelessWidget {
 class _BulkMailRow extends StatelessWidget {
   const _BulkMailRow({
     required this.campaign,
+    required this.selectWidth,
     required this.campaignWidth,
+    required this.recipientWidth,
+    required this.metricWidth,
+    required this.bounceWidth,
+    required this.statusWidth,
+    required this.controlWidth,
+    required this.dateWidth,
+    required this.menuWidth,
     required this.selected,
     required this.onToggle,
     required this.onDetail,
@@ -1651,7 +1720,15 @@ class _BulkMailRow extends StatelessWidget {
   });
 
   final AdminSmsBulkCampaign campaign;
+  final double selectWidth;
   final double campaignWidth;
+  final double recipientWidth;
+  final double metricWidth;
+  final double bounceWidth;
+  final double statusWidth;
+  final double controlWidth;
+  final double dateWidth;
+  final double menuWidth;
   final bool selected;
   final VoidCallback onToggle;
   final ValueChanged<AdminSmsBulkCampaign> onDetail;
@@ -1677,7 +1754,7 @@ class _BulkMailRow extends StatelessWidget {
       child: Row(
         children: [
           SizedBox(
-            width: _BulkMailTable._selectWidth,
+            width: selectWidth,
             child: _BulkMailCheckbox(
               value: selected,
               onChanged: (_) => onToggle(),
@@ -1691,40 +1768,40 @@ class _BulkMailRow extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: _BulkMailTable._recipientWidth,
+            width: recipientWidth,
             child: _TextCell(value: '${campaign.recipientCount}'),
           ),
           SizedBox(
-            width: _BulkMailTable._metricWidth,
+            width: metricWidth,
             child: _TextCell(value: '${campaign.sentCount}'),
           ),
           SizedBox(
-            width: _BulkMailTable._metricWidth,
+            width: metricWidth,
             child: _RateCell(
               count: campaign.openCount,
               rate: campaign.openRate,
             ),
           ),
           SizedBox(
-            width: _BulkMailTable._metricWidth,
+            width: metricWidth,
             child: _RateCell(
               count: campaign.clickCount,
               rate: campaign.clickRate,
             ),
           ),
           SizedBox(
-            width: _BulkMailTable._bounceWidth,
+            width: bounceWidth,
             child: _RateCell(
               count: campaign.bounceCount,
               rate: campaign.bounceRate,
             ),
           ),
           SizedBox(
-            width: _BulkMailTable._statusWidth,
+            width: statusWidth,
             child: _CampaignStatusBadge(status: campaign.status),
           ),
           SizedBox(
-            width: _BulkMailTable._controlWidth,
+            width: controlWidth,
             child: _CampaignControlButton(
               campaign: campaign,
               onStart: () => onStart(campaign),
@@ -1733,11 +1810,11 @@ class _BulkMailRow extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: _BulkMailTable._dateWidth,
+            width: dateWidth,
             child: _CampaignDateCell(campaign: campaign),
           ),
           SizedBox(
-            width: _BulkMailTable._menuWidth,
+            width: menuWidth,
             child: Align(
               alignment: Alignment.center,
               child: _BulkMailRowMenu(

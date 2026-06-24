@@ -5,6 +5,7 @@ import '../../../../core/localization/admin_language_controller.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../shared/widgets/admin_mobile_list.dart';
+import '../../../../shared/widgets/admin_table_chrome.dart';
 import '../../../../shared/widgets/highlighted_text.dart';
 import '../../../../shared/widgets/sortable_table_header.dart';
 import '../../../../shared/widgets/symbol_icon.dart';
@@ -82,9 +83,10 @@ class RolesPermissionsTable extends StatelessWidget {
               onDeleteRole: onDeleteRole,
             );
           }
-          final tableWidth = constraints.maxWidth < _minWidth
-              ? _minWidth
-              : constraints.maxWidth;
+          final tableWidth = AdminTableChrome.desktopTableWidth(
+            constraints: constraints,
+            preferredMinWidth: _minWidth,
+          );
           final layout = _RolesTableColumnLayout.forWidth(tableWidth);
           final selectableCount = roles
               .where((role) => !role.systemLocked)
@@ -152,18 +154,26 @@ class RolesPermissionsTable extends StatelessWidget {
 
 class _RolesTableColumnLayout {
   const _RolesTableColumnLayout({
+    required this.selectWidth,
+    required this.orderWidth,
     required this.nameWidth,
     required this.slugWidth,
     required this.permissionsWidth,
     required this.statusWidth,
     required this.menuWidth,
+    required this.columnGap,
+    required this.statusActionGap,
   });
 
+  final double selectWidth;
+  final double orderWidth;
   final double nameWidth;
   final double slugWidth;
   final double permissionsWidth;
   final double statusWidth;
   final double menuWidth;
+  final double columnGap;
+  final double statusActionGap;
 
   static double get _baseNameWidth {
     return RolesPermissionsTable._minWidth -
@@ -179,15 +189,71 @@ class _RolesTableColumnLayout {
   }
 
   factory _RolesTableColumnLayout.forWidth(double tableWidth) {
-    final extraWidth = tableWidth - RolesPermissionsTable._minWidth;
+    final scale = AdminTableChrome.compactScale(
+      tableWidth: tableWidth,
+      preferredMinWidth: RolesPermissionsTable._minWidth,
+      minScale: 0.68,
+    );
+    final extraWidth = (tableWidth - RolesPermissionsTable._minWidth)
+        .clamp(0.0, double.infinity)
+        .toDouble();
+    final selectWidth = AdminTableChrome.scaledColumn(
+      RolesPermissionsTable._selectWidth,
+      scale,
+      minWidth: 38,
+    );
+    final orderWidth = AdminTableChrome.scaledColumn(
+      RolesPermissionsTable._orderWidth,
+      scale,
+      minWidth: 54,
+    );
+    final slugWidth = AdminTableChrome.scaledColumn(
+      RolesPermissionsTable._slugWidth,
+      scale,
+      minWidth: 92,
+    );
+    final permissionsWidth = AdminTableChrome.scaledColumn(
+      RolesPermissionsTable._permissionsWidth,
+      scale,
+      minWidth: 170,
+    );
+    final statusWidth = AdminTableChrome.scaledColumn(
+      RolesPermissionsTable._statusWidth,
+      scale,
+      minWidth: 86,
+    );
+    final menuWidth = AdminTableChrome.scaledColumn(
+      RolesPermissionsTable._menuWidth,
+      scale,
+      minWidth: 82,
+    );
+    final columnGap = RolesPermissionsTable._columnGap * scale;
+    final statusActionGap = RolesPermissionsTable._statusActionGap * scale;
+    final contentSpacing = RolesPermissionsTable._contentSpacing;
+    final fixedWidth =
+        selectWidth +
+        orderWidth +
+        slugWidth +
+        permissionsWidth +
+        statusWidth +
+        menuWidth +
+        columnGap +
+        statusActionGap +
+        contentSpacing;
+    final nameWidth = extraWidth > 0
+        ? _baseNameWidth + (extraWidth * 0.24)
+        : (tableWidth - fixedWidth).clamp(98.0, double.infinity).toDouble();
 
     return _RolesTableColumnLayout(
-      nameWidth: _baseNameWidth + (extraWidth * 0.24),
-      slugWidth: RolesPermissionsTable._slugWidth + (extraWidth * 0.12),
-      permissionsWidth:
-          RolesPermissionsTable._permissionsWidth + (extraWidth * 0.40),
-      statusWidth: RolesPermissionsTable._statusWidth + (extraWidth * 0.12),
-      menuWidth: RolesPermissionsTable._menuWidth + (extraWidth * 0.12),
+      selectWidth: selectWidth,
+      orderWidth: orderWidth,
+      nameWidth: nameWidth,
+      slugWidth: slugWidth + (extraWidth * 0.12),
+      permissionsWidth: permissionsWidth + (extraWidth * 0.40),
+      statusWidth: statusWidth + (extraWidth * 0.12),
+      menuWidth: menuWidth + (extraWidth * 0.12),
+      columnGap: columnGap,
+      statusActionGap: statusActionGap,
     );
   }
 }
@@ -222,7 +288,7 @@ class _RolesHeader extends StatelessWidget {
       child: Row(
         children: [
           SizedBox(
-            width: RolesPermissionsTable._selectWidth,
+            width: layout.selectWidth,
             child: _RolesCheckbox(
               value: selectedCount == 0 || selectableCount == 0
                   ? false
@@ -235,7 +301,7 @@ class _RolesHeader extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: RolesPermissionsTable._orderWidth,
+            width: layout.orderWidth,
             child: SortableTableHeader(
               label: 'ID',
               sortKey: 'order',
@@ -261,7 +327,7 @@ class _RolesHeader extends StatelessWidget {
               onSort: onSort,
             ),
           ),
-          const SizedBox(width: RolesPermissionsTable._columnGap),
+          SizedBox(width: layout.columnGap),
           SizedBox(
             width: layout.permissionsWidth,
             child: SortableTableHeader(
@@ -281,7 +347,7 @@ class _RolesHeader extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
             ),
           ),
-          const SizedBox(width: RolesPermissionsTable._statusActionGap),
+          SizedBox(width: layout.statusActionGap),
           SizedBox(
             width: layout.menuWidth,
             child: const Center(child: _HeaderText('Action')),
@@ -329,7 +395,7 @@ class _RolesTableRow extends StatelessWidget {
       child: Row(
         children: [
           SizedBox(
-            width: RolesPermissionsTable._selectWidth,
+            width: layout.selectWidth,
             child: _RolesCheckbox(
               value: selected,
               enabled: !role.systemLocked,
@@ -337,7 +403,7 @@ class _RolesTableRow extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: RolesPermissionsTable._orderWidth,
+            width: layout.orderWidth,
             child: _RowSelectTapTarget(
               enabled: !role.systemLocked,
               onTap: onToggle,
@@ -372,7 +438,7 @@ class _RolesTableRow extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: RolesPermissionsTable._columnGap),
+          SizedBox(width: layout.columnGap),
           SizedBox(
             width: layout.permissionsWidth,
             child: Align(
@@ -411,7 +477,7 @@ class _RolesTableRow extends StatelessWidget {
                     ),
             ),
           ),
-          const SizedBox(width: RolesPermissionsTable._statusActionGap),
+          SizedBox(width: layout.statusActionGap),
           SizedBox(
             width: layout.menuWidth,
             child: Align(

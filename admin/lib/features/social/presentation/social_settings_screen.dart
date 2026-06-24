@@ -768,9 +768,9 @@ class _SocialSettingsTableCard extends StatelessWidget {
                     clipBehavior: Clip.antiAlias,
                     child: LayoutBuilder(
                       builder: (context, constraints) {
-                        final tableWidth = math.max(
-                          constraints.maxWidth,
-                          _minTableWidth,
+                        final tableWidth = AdminTableChrome.desktopTableWidth(
+                          constraints: constraints,
+                          preferredMinWidth: _minTableWidth,
                         );
                         return SingleChildScrollView(
                           scrollDirection: Axis.horizontal,

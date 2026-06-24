@@ -725,10 +725,11 @@ class _SmsSettingsTableCard extends StatelessWidget {
                 clipBehavior: Clip.antiAlias,
                 child: LayoutBuilder(
                   builder: (context, constraints) {
-                    final tableWidth = math.max(
-                      constraints.maxWidth,
-                      _minTableWidth,
+                    final tableWidth = AdminTableChrome.desktopTableWidth(
+                      constraints: constraints,
+                      preferredMinWidth: _minTableWidth,
                     );
+                    final layout = _SmsSettingsTableLayout.forWidth(tableWidth);
                     return SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       child: SizedBox(
@@ -739,6 +740,7 @@ class _SmsSettingsTableCard extends StatelessWidget {
                         child: Column(
                           children: [
                             _SmsSettingsTableHeader(
+                              layout: layout,
                               selected: allSelected,
                               sortState: sortState,
                               onToggle: onToggleAllAccounts,
@@ -753,6 +755,7 @@ class _SmsSettingsTableCard extends StatelessWidget {
                                         final account = accounts[index];
                                         return _SmsSettingsTableRow(
                                           account: account,
+                                          layout: layout,
                                           selected: selectedIds.contains(
                                             account.id,
                                           ),
@@ -926,8 +929,61 @@ class _SmsSettingsToolbar extends StatelessWidget {
   }
 }
 
+class _SmsSettingsTableLayout {
+  const _SmsSettingsTableLayout({
+    required this.selectWidth,
+    required this.limitWidth,
+    required this.dnsWidth,
+    required this.statusWidth,
+    required this.actionsWidth,
+  });
+
+  final double selectWidth;
+  final double limitWidth;
+  final double dnsWidth;
+  final double statusWidth;
+  final double actionsWidth;
+
+  factory _SmsSettingsTableLayout.forWidth(double tableWidth) {
+    final scale = AdminTableChrome.compactScale(
+      tableWidth: tableWidth,
+      preferredMinWidth: _SmsSettingsTableCard._minTableWidth,
+      minScale: 0.76,
+    );
+
+    return _SmsSettingsTableLayout(
+      selectWidth: AdminTableChrome.scaledColumn(
+        _SmsSettingsTableHeader._selectWidth,
+        scale,
+        minWidth: 38,
+      ),
+      limitWidth: AdminTableChrome.scaledColumn(
+        _SmsSettingsTableHeader._limitWidth,
+        scale,
+        minWidth: 92,
+      ),
+      dnsWidth: AdminTableChrome.scaledColumn(
+        _SmsSettingsTableHeader._dnsWidth,
+        scale,
+        minWidth: 104,
+      ),
+      statusWidth: AdminTableChrome.scaledColumn(
+        _SmsSettingsTableHeader._statusWidth,
+        scale,
+        minWidth: 88,
+      ),
+      actionsWidth: AdminTableChrome.scaledColumn(
+        _SmsSettingsTableHeader._actionsWidth,
+        scale,
+        minWidth: 54,
+      ),
+    );
+  }
+}
+
 class _SmsSettingsTableHeader extends StatelessWidget {
   const _SmsSettingsTableHeader({
+    required this.layout,
     required this.selected,
     required this.sortState,
     required this.onToggle,
@@ -944,6 +1000,7 @@ class _SmsSettingsTableHeader extends StatelessWidget {
   static const _domainFlex = 3;
   static const _dateFlex = 3;
 
+  final _SmsSettingsTableLayout layout;
   final bool selected;
   final TableSortState sortState;
   final VoidCallback onToggle;
@@ -962,7 +1019,7 @@ class _SmsSettingsTableHeader extends StatelessWidget {
       child: Row(
         children: [
           SizedBox(
-            width: _selectWidth,
+            width: layout.selectWidth,
             child: Center(
               child: _ListCheckbox(selected: selected, onTap: onToggle),
             ),
@@ -995,7 +1052,7 @@ class _SmsSettingsTableHeader extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: _limitWidth,
+            width: layout.limitWidth,
             child: _SmsSettingsSortableHeader(
               label: 'sms.settings.column.limit',
               sortKey: 'limit',
@@ -1005,7 +1062,7 @@ class _SmsSettingsTableHeader extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: _dnsWidth,
+            width: layout.dnsWidth,
             child: _SmsSettingsSortableHeader(
               label: 'sms.settings.column.dns',
               sortKey: 'dns',
@@ -1014,7 +1071,7 @@ class _SmsSettingsTableHeader extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: _statusWidth,
+            width: layout.statusWidth,
             child: _SmsSettingsSortableHeader(
               label: 'sms.settings.column.status',
               sortKey: 'status',
@@ -1032,7 +1089,7 @@ class _SmsSettingsTableHeader extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: _actionsWidth,
+            width: layout.actionsWidth,
             child: Center(
               child: Text(
                 context.t('sms.settings.column.actions'),
@@ -1123,6 +1180,7 @@ class _SmsSettingsSortableHeader extends StatelessWidget {
 class _SmsSettingsTableRow extends StatelessWidget {
   const _SmsSettingsTableRow({
     required this.account,
+    required this.layout,
     required this.selected,
     required this.active,
     required this.onToggle,
@@ -1134,6 +1192,7 @@ class _SmsSettingsTableRow extends StatelessWidget {
   });
 
   final AdminSmsAccount account;
+  final _SmsSettingsTableLayout layout;
   final bool selected;
   final bool active;
   final VoidCallback onToggle;
@@ -1168,7 +1227,7 @@ class _SmsSettingsTableRow extends StatelessWidget {
           child: Row(
             children: [
               SizedBox(
-                width: _SmsSettingsTableHeader._selectWidth,
+                width: layout.selectWidth,
                 child: Center(
                   child: _ListCheckbox(selected: selected, onTap: onToggle),
                 ),
@@ -1306,7 +1365,7 @@ class _SmsSettingsTableRow extends StatelessWidget {
                 ),
               ),
               SizedBox(
-                width: _SmsSettingsTableHeader._limitWidth,
+                width: layout.limitWidth,
                 child: Center(
                   child: Text(
                     context.t(
@@ -1329,7 +1388,7 @@ class _SmsSettingsTableRow extends StatelessWidget {
                 ),
               ),
               SizedBox(
-                width: _SmsSettingsTableHeader._dnsWidth,
+                width: layout.dnsWidth,
                 child: Wrap(
                   spacing: 5,
                   runSpacing: 5,
@@ -1341,7 +1400,7 @@ class _SmsSettingsTableRow extends StatelessWidget {
                 ),
               ),
               SizedBox(
-                width: _SmsSettingsTableHeader._statusWidth,
+                width: layout.statusWidth,
                 child: _StatusBadge(
                   label: account.active
                       ? context.t('sms.settings.status.active')
@@ -1381,7 +1440,7 @@ class _SmsSettingsTableRow extends StatelessWidget {
                 ),
               ),
               SizedBox(
-                width: _SmsSettingsTableHeader._actionsWidth,
+                width: layout.actionsWidth,
                 child: Align(
                   alignment: Alignment.center,
                   child: _SmsSettingsRowMenu(

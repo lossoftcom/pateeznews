@@ -1434,9 +1434,10 @@ class _StoriesDataTable extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final tableWidth = constraints.maxWidth < _minWidth
-            ? _minWidth
-            : constraints.maxWidth;
+        final tableWidth = AdminTableChrome.desktopTableWidth(
+          constraints: constraints,
+          preferredMinWidth: _minWidth,
+        );
         final fixedWidth =
             _horizontalPadding +
             _tableBorderWidth +
@@ -1446,9 +1447,13 @@ class _StoriesDataTable extends StatelessWidget {
             _expiresWidth +
             _statusWidth +
             _menuWidth;
-        final storyWidth = (tableWidth - fixedWidth) < _storyMinWidth
-            ? _storyMinWidth
-            : tableWidth - fixedWidth;
+        final storyWidth = tableWidth >= _minWidth
+            ? (tableWidth - fixedWidth)
+                  .clamp(_storyMinWidth, double.infinity)
+                  .toDouble()
+            : (tableWidth - fixedWidth)
+                  .clamp(140.0, double.infinity)
+                  .toDouble();
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: SizedBox(
