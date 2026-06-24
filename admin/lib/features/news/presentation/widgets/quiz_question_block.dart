@@ -8,6 +8,7 @@ import '../../../../shared/data/media_service.dart';
 import '../../../../shared/widgets/admin_cached_image.dart';
 import '../../../../shared/widgets/admin_rich_text_editor.dart'
     show adminEmptyQuillDeltaJson, adminQuillDocumentFromJson;
+import '../../../../shared/widgets/media_image_download_button.dart';
 import '../../../../shared/widgets/media_library_dialog.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
@@ -641,6 +642,14 @@ class _DashedImageBox extends StatelessWidget {
                           onTap: onClear,
                         ),
                       ],
+                    ),
+                  ),
+                  Positioned(
+                    right: 8,
+                    bottom: 8,
+                    child: MediaImageDownloadButton(
+                      imageUrl: imageUrl!,
+                      borderColor: _quizQuestionBlockStrongLine,
                     ),
                   ),
                 ],

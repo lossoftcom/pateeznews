@@ -8,6 +8,7 @@ import '../../../../shared/data/media_service.dart';
 import '../../../../shared/widgets/admin_cached_image.dart';
 import '../../../../shared/widgets/admin_rich_text_editor.dart'
     show adminEmptyQuillDeltaJson, adminQuillDocumentFromJson;
+import '../../../../shared/widgets/media_image_download_button.dart';
 import '../../../../shared/widgets/media_library_dialog.dart';
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
 
@@ -620,6 +621,17 @@ class _SliderImageThumbState extends State<_SliderImageThumb> {
                       onTap: widget.onRemove,
                     ),
                   ],
+                ),
+              ),
+            if (_hover)
+              Positioned(
+                right: 6,
+                bottom: 6,
+                child: MediaImageDownloadButton(
+                  imageUrl: widget.imageUrl,
+                  size: 28,
+                  iconSize: 14,
+                  borderColor: _sliderImageBlockStrongLine,
                 ),
               ),
           ],

@@ -14,6 +14,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../auth/data/admin_auth_models.dart';
 import '../../settings/data/admin_content_settings_repository.dart';
+import '../../settings/data/admin_ai_settings_repository.dart';
 import '../data/admin_news_ai_repository.dart';
 import '../data/admin_news_source_reader.dart';
 import '../data/admin_news_repository.dart';
@@ -30,6 +31,7 @@ import '../../../shared/widgets/admin_rich_text_editor.dart'
         adminQuillHtml,
         adminSetQuillHtml;
 import '../../../shared/widgets/app_confirmation_dialog.dart';
+import '../../../shared/widgets/media_image_download_button.dart';
 import '../../../shared/widgets/media_library_dialog.dart';
 import '../../../shared/widgets/symbol_icon.dart';
 import 'news_models.dart';
@@ -3552,6 +3554,9 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
         return _MansetImageDialog(
           initialImageUrl: _mansetImageUrl,
           onValidateImage: _validateMansetImageSelection,
+          languageCode: _languageCode,
+          headlineText: _titleController.text,
+          summaryText: _summaryController.text,
         );
       },
     );
@@ -4942,6 +4947,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
       onRemoveFaq: _handleRemoveFaq,
       onAiMediaSeo: _openAiMediaSeoDialog,
       onAiGenerate: _openAiContentGenerator,
+      onPrompts: _openNewsPromptsDialog,
       onTextPreview: _openFullNewsTextPreview,
     );
   }
@@ -5195,6 +5201,34 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
             ),
           ]
         : const <AdminNewsSourceImage>[];
+  }
+
+  Future<void> _openNewsPromptsDialog() async {
+    await showDialog<void>(
+      context: context,
+      barrierColor: AppColors.deepOcean.withValues(alpha: 0.58),
+      builder: (_) {
+        return _NewsPromptLibraryDialog(
+          session: widget.session,
+          languageCode: _languageCode,
+          initialPurpose: _aiPromptPurposeForActiveTab,
+          repository: const SupabaseAdminAiSettingsRepository(),
+        );
+      },
+    );
+  }
+
+  String get _aiPromptPurposeForActiveTab {
+    return switch (_activeTab) {
+      NewsAddFormatTab.quiz => adminAiPromptPurposeQuiz,
+      NewsAddFormatTab.poll => adminAiPromptPurposePoll,
+      NewsAddFormatTab.video => adminAiPromptPurposeVideo,
+      NewsAddFormatTab.contents => adminAiPromptPurposeContents,
+      NewsAddFormatTab.recipe => adminAiPromptPurposeRecipe,
+      NewsAddFormatTab.event => adminAiPromptPurposeEvent,
+      NewsAddFormatTab.article ||
+      NewsAddFormatTab.opinion => adminAiPromptPurposeContent,
+    };
   }
 
   Future<void> _openFullNewsTextPreview() async {
@@ -9115,14 +9149,369 @@ class _DashedBorderPainter extends CustomPainter {
 // Content Info card
 // ──────────────────────────────────────────────────────────────────────────────
 
+Future<String?> _openNewsImageEditorDialog({
+  required BuildContext context,
+  required String imageUrl,
+  required String languageCode,
+  required String headlineText,
+  required String summaryText,
+  required String sourceFilePrefix,
+  required String customFileSuffix,
+  required String loadingMessage,
+  required String emptyResponseMessage,
+  required String errorMessagePrefix,
+}) async {
+  final mediaService = MediaService();
+  final resolvedImageUrl = imageUrl.startsWith('http')
+      ? imageUrl
+      : mediaService.resolveUrl(imageUrl);
+  if (!context.mounted) return null;
+
+  final baseTheme = Theme.of(context);
+  final editorKey = GlobalKey<ProImageEditorState>();
+  String? editedImageSrc;
+  var editorClosing = false;
+  await showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    barrierColor: AppColors.deepOcean.withValues(alpha: 0.58),
+    builder: (editorContext) {
+      final size = MediaQuery.sizeOf(editorContext);
+      final width = (size.width * 0.76).clamp(860.0, 1280.0);
+      final height = (size.height * 0.72).clamp(560.0, 760.0);
+
+      return Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 48, vertical: 42),
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.value),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: SizedBox(
+          width: width,
+          height: height,
+          child: ProImageEditor.network(
+            resolvedImageUrl,
+            key: editorKey,
+            configs: ProImageEditorConfigs(
+              i18n: I18n(
+                cancel: 'İptal',
+                undo: 'Geri al',
+                redo: 'İleri al',
+                done: 'Bitti',
+                remove: 'Kaldır',
+                importStateHistoryMsg: 'Düzenleyici başlatılıyor',
+                doneLoadingMsg: loadingMessage,
+                various: const I18nVarious(
+                  loadingDialogMsg: 'Lütfen bekleyin...',
+                  closeEditorWarningTitle: 'Görsel düzenleyici kapatılsın mı?',
+                  closeEditorWarningMessage:
+                      'Görsel düzenleyiciyi kapatmak istediğinize emin '
+                      'misiniz? Yaptığınız değişiklikler kaydedilmeyecek.',
+                  closeEditorWarningConfirmBtn: 'Kapat',
+                  closeEditorWarningCancelBtn: 'Vazgeç',
+                ),
+                paintEditor: const I18nPaintEditor(
+                  bottomNavigationBarText: 'Boya',
+                  moveAndZoom: 'Yakınlaştır',
+                  freestyle: 'Serbest çizim',
+                  arrow: 'Ok',
+                  line: 'Çizgi',
+                  rectangle: 'Dikdörtgen',
+                  circle: 'Daire',
+                  dashLine: 'Kesik çizgi',
+                  blur: 'Bulanık',
+                  pixelate: 'Pikselleştir',
+                  lineWidth: 'Çizgi kalınlığı',
+                  eraser: 'Silgi',
+                  toggleFill: 'Dolguyu değiştir',
+                  changeOpacity: 'Saydamlık',
+                  undo: 'Geri al',
+                  redo: 'İleri al',
+                  done: 'Bitti',
+                  back: 'Geri',
+                  smallScreenMoreTooltip: 'Daha fazla',
+                  opacity: 'Saydamlık',
+                  color: 'Renk',
+                  strokeWidth: 'Kalınlık',
+                  fill: 'Dolgu',
+                  cancel: 'İptal',
+                ),
+                textEditor: const I18nTextEditor(
+                  inputHintText: 'Metin gir',
+                  bottomNavigationBarText: 'Yazı',
+                  back: 'Geri',
+                  done: 'Bitti',
+                  textAlign: 'Hizala',
+                  fontScale: 'Yazı boyutu',
+                  backgroundMode: 'Arka plan modu',
+                  smallScreenMoreTooltip: 'Daha fazla',
+                ),
+                cropRotateEditor: const I18nCropRotateEditor(
+                  bottomNavigationBarText: 'Kırp/Döndür',
+                  rotate: 'Döndür',
+                  flip: 'Çevir',
+                  ratio: 'Oran',
+                  back: 'Geri',
+                  done: 'Bitti',
+                  cancel: 'İptal',
+                  undo: 'Geri al',
+                  redo: 'İleri al',
+                  smallScreenMoreTooltip: 'Daha fazla',
+                  reset: 'Sıfırla',
+                ),
+                tuneEditor: const I18nTuneEditor(
+                  bottomNavigationBarText: 'Ayarla',
+                  back: 'Geri',
+                  done: 'Bitti',
+                  brightness: 'Parlaklık',
+                  contrast: 'Kontrast',
+                  saturation: 'Doygunluk',
+                  exposure: 'Pozlama',
+                  hue: 'Renk tonu',
+                  temperature: 'Sıcaklık',
+                  sharpness: 'Keskinlik',
+                  fade: 'Soldurma',
+                  luminance: 'Aydınlık',
+                  undo: 'Geri al',
+                  redo: 'İleri al',
+                ),
+                filterEditor: const I18nFilterEditor(
+                  bottomNavigationBarText: 'Filtre',
+                  back: 'Geri',
+                  done: 'Bitti',
+                ),
+                blurEditor: const I18nBlurEditor(
+                  bottomNavigationBarText: 'Bulanıklık',
+                  back: 'Geri',
+                  done: 'Bitti',
+                ),
+                emojiEditor: const I18nEmojiEditor(
+                  bottomNavigationBarText: 'Emoji',
+                  search: 'Ara',
+                  categoryRecent: 'Son kullanılan',
+                  categorySmileys: 'İfadeler ve İnsanlar',
+                  categoryAnimals: 'Hayvanlar ve Doğa',
+                  categoryFood: 'Yiyecek ve İçecek',
+                  categoryActivities: 'Etkinlikler',
+                  categoryTravel: 'Seyahat ve Yerler',
+                  categoryObjects: 'Nesneler',
+                  categorySymbols: 'Semboller',
+                  categoryFlags: 'Bayraklar',
+                ),
+                layerInteraction: const I18nLayerInteraction(
+                  remove: 'Kaldır',
+                  edit: 'Düzenle',
+                  rotateScale: 'Döndür ve Ölçekle',
+                ),
+              ),
+              theme: baseTheme.copyWith(
+                colorScheme: baseTheme.colorScheme.copyWith(
+                  primary: AppColors.deepOcean,
+                  secondary: AppColors.actionRed,
+                ),
+              ),
+              dialogConfigs: DialogConfigs(
+                widgets: DialogWidgets(
+                  loadingDialog: (message, _) =>
+                      _CoverEditorLoadingDialog(message: message),
+                ),
+              ),
+              mainEditor: MainEditorConfigs(
+                widgets: MainEditorWidgets(
+                  bodyItems: (editor, rebuildStream) {
+                    return [
+                      ReactiveWidget(
+                        stream: rebuildStream,
+                        builder: (_) => _CoverTemplateLauncher(
+                          editor: editor,
+                          headlineText: () => headlineText,
+                          summaryText: () => summaryText,
+                        ),
+                      ),
+                    ];
+                  },
+                ),
+              ),
+              textEditor: const TextEditorConfigs(
+                showSelectFontStyleBottomBar: true,
+                showTextAlignButton: true,
+                showFontScaleButton: true,
+                showBackgroundModeButton: true,
+                defaultTextStyle: TextStyle(
+                  fontFamily: 'PateezSans',
+                  fontWeight: FontWeight.w600,
+                ),
+                customTextStyles: [
+                  TextStyle(
+                    fontFamily: 'PateezSans',
+                    fontWeight: FontWeight.w400,
+                  ),
+                  TextStyle(
+                    fontFamily: 'PateezSans',
+                    fontWeight: FontWeight.w700,
+                  ),
+                  TextStyle(
+                    fontFamily: 'PateezSans',
+                    fontWeight: FontWeight.w800,
+                  ),
+                  TextStyle(
+                    fontFamily: 'PateezSans',
+                    fontStyle: FontStyle.italic,
+                  ),
+                  TextStyle(
+                    fontFamily: 'PateezSans',
+                    decoration: TextDecoration.underline,
+                  ),
+                  TextStyle(
+                    fontFamily: 'PateezSans',
+                    fontWeight: FontWeight.w800,
+                    fontStyle: FontStyle.italic,
+                  ),
+                  TextStyle(
+                    fontFamily: 'PateezSans',
+                    fontWeight: FontWeight.w700,
+                    decoration: TextDecoration.underline,
+                  ),
+                ],
+              ),
+            ),
+            callbacks: ProImageEditorCallbacks(
+              onCloseEditor: (_) {
+                if (editorClosing || !editorContext.mounted) return;
+                editorClosing = true;
+                Navigator.of(editorContext).pop();
+              },
+              onImageEditingComplete: (bytes) async {
+                try {
+                  final sourceFileName = _newsImageEditorSourceFileName(
+                    sourceFilePrefix,
+                  );
+                  final uploadSettings = await mediaService.fetchUploadSettings(
+                    languageCode: languageCode,
+                  );
+                  final prepared = await prepareMediaUploadForStorage(
+                    fileName: sourceFileName,
+                    bytes: bytes,
+                    type: 'image',
+                    imageFileFormat: uploadSettings.imageFileFormat,
+                    forceImageEncoding: true,
+                  );
+                  final result = await mediaService.uploadFile(
+                    fileName: prepared.fileName,
+                    bytes: prepared.bytes,
+                    type: 'image',
+                    customFilename: _newsImageEditorCustomFileName(
+                      headlineText,
+                      suffix: customFileSuffix,
+                      extensionSource: prepared.fileName,
+                    ),
+                    languageCode: languageCode,
+                  );
+                  final nextSrc = result?.src.trim() ?? '';
+                  if (nextSrc.isEmpty) {
+                    throw MediaUploadException(emptyResponseMessage);
+                  }
+                  editedImageSrc = nextSrc;
+                  if (editorContext.mounted) {
+                    editorClosing = true;
+                    Navigator.of(editorContext).pop();
+                  }
+                } catch (error) {
+                  if (context.mounted) {
+                    AdminToast.show(
+                      context,
+                      message: '$errorMessagePrefix: $error',
+                      tone: AdminToastTone.error,
+                    );
+                  }
+                  editorClosing = true;
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    editorClosing = false;
+                  });
+                }
+              },
+              mainEditorCallbacks: MainEditorCallbacks(
+                onKeyboardEvent: (event) {
+                  if (event is! KeyDownEvent ||
+                      event.logicalKey != LogicalKeyboardKey.escape) {
+                    return false;
+                  }
+                  if (!editorClosing && editorContext.mounted) {
+                    editorClosing = true;
+                    Navigator.of(editorContext).pop();
+                  }
+                  return true;
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+    },
+  );
+  return editedImageSrc;
+}
+
+String _newsImageEditorSourceFileName(String prefix) {
+  return '$prefix-${DateTime.now().millisecondsSinceEpoch}.jpg';
+}
+
+String _newsImageEditorCustomFileName(
+  String headline, {
+  required String suffix,
+  String? extensionSource,
+}) {
+  final slug = _newsImageEditorSlug(headline);
+  final base = slug.isEmpty ? suffix : '$slug-$suffix';
+  final extension = _newsImageEditorExtension(extensionSource);
+  return '$base-${DateTime.now().millisecondsSinceEpoch}.$extension';
+}
+
+String _newsImageEditorExtension(String? fileName) {
+  final clean = (fileName ?? '').split('?').first.split('#').first;
+  final dotIndex = clean.lastIndexOf('.');
+  if (dotIndex < 0 || dotIndex == clean.length - 1) return 'jpg';
+  final extension = clean.substring(dotIndex + 1).toLowerCase();
+  return RegExp(r'^[a-z0-9]+$').hasMatch(extension) ? extension : 'jpg';
+}
+
+String _newsImageEditorSlug(String value) {
+  var output = value.trim().toLowerCase();
+  const replacements = {
+    'ç': 'c',
+    'ğ': 'g',
+    'ı': 'i',
+    'i̇': 'i',
+    'ö': 'o',
+    'ş': 's',
+    'ü': 'u',
+  };
+  replacements.forEach((key, replacement) {
+    output = output.replaceAll(key, replacement);
+  });
+  output = output
+      .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
+      .replaceAll(RegExp(r'-+'), '-')
+      .replaceAll(RegExp(r'^-|-$'), '');
+  if (output.length <= 52) return output;
+  return output.substring(0, 52).replaceAll(RegExp(r'-$'), '');
+}
+
 class _MansetImageDialog extends StatefulWidget {
   const _MansetImageDialog({
     required this.initialImageUrl,
     required this.onValidateImage,
+    required this.languageCode,
+    required this.headlineText,
+    required this.summaryText,
   });
 
   final String? initialImageUrl;
   final Future<Size?> Function(String imageUrl) onValidateImage;
+  final String languageCode;
+  final String headlineText;
+  final String summaryText;
 
   @override
   State<_MansetImageDialog> createState() => _MansetImageDialogState();
@@ -9154,6 +9543,27 @@ class _MansetImageDialogState extends State<_MansetImageDialog> {
     final selected = await showUrlImageDialog(context);
     if (selected == null || selected.trim().isEmpty || !mounted) return;
     await _applySelectedImage(selected.trim());
+  }
+
+  Future<void> _openImageEditor() async {
+    if (_checking) return;
+    final current = _imageUrl?.trim();
+    if (current == null || current.isEmpty) return;
+    final edited = await _openNewsImageEditorDialog(
+      context: context,
+      imageUrl: current,
+      languageCode: widget.languageCode,
+      headlineText: widget.headlineText,
+      summaryText: widget.summaryText,
+      sourceFilePrefix: 'manset-slider-kaynak',
+      customFileSuffix: 'manset-slider',
+      loadingMessage:
+          'Manşet görseli hazırlanıyor, R2 ve yerel depoya yükleniyor...',
+      emptyResponseMessage: 'Manşet görseli yükleme yanıtı boş döndü.',
+      errorMessagePrefix: 'Manşet görseli güncellenemedi',
+    );
+    if (edited == null || !mounted) return;
+    await _applySelectedImage(edited);
   }
 
   Future<void> _applySelectedImage(String value) async {
@@ -9232,6 +9642,7 @@ class _MansetImageDialogState extends State<_MansetImageDialog> {
                           onHoverChanged: (value) =>
                               setState(() => _hover = value),
                           onPickImage: () => unawaited(_openMediaLibrary()),
+                          onEditImage: () => unawaited(_openImageEditor()),
                           onUrlTap: _checking
                               ? null
                               : () => unawaited(_openUrlDialog()),
@@ -9402,6 +9813,7 @@ class _MansetImagePreview extends StatelessWidget {
     required this.hover,
     required this.onHoverChanged,
     required this.onPickImage,
+    required this.onEditImage,
     required this.onUrlTap,
     required this.onClear,
     required this.resolvedImageUrl,
@@ -9413,6 +9825,7 @@ class _MansetImagePreview extends StatelessWidget {
   final bool hover;
   final ValueChanged<bool> onHoverChanged;
   final VoidCallback onPickImage;
+  final VoidCallback onEditImage;
   final VoidCallback? onUrlTap;
   final VoidCallback onClear;
   final String Function(String value) resolvedImageUrl;
@@ -9421,6 +9834,7 @@ class _MansetImagePreview extends StatelessWidget {
   Widget build(BuildContext context) {
     final current = imageUrl?.trim();
     final hasImage = current != null && current.isNotEmpty;
+    final previewAspectRatio = _previewAspectRatio(imageSize);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -9436,9 +9850,9 @@ class _MansetImagePreview extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         AspectRatio(
-          aspectRatio: 1,
+          aspectRatio: previewAspectRatio,
           child: GestureDetector(
-            onTap: checking ? null : onPickImage,
+            onTap: checking ? null : (hasImage ? onEditImage : onPickImage),
             child: MouseRegion(
               onEnter: (_) => onHoverChanged(true),
               onExit: (_) => onHoverChanged(false),
@@ -9468,7 +9882,7 @@ class _MansetImagePreview extends StatelessWidget {
                             ),
                             child: AdminCachedImage(
                               url: resolvedImageUrl(current),
-                              fit: BoxFit.cover,
+                              fit: BoxFit.contain,
                               filterQuality: FilterQuality.high,
                               useOldImageOnUrlChange: true,
                               errorWidget: Center(
@@ -9503,7 +9917,7 @@ class _MansetImagePreview extends StatelessWidget {
                               _CoverImageActionButton(
                                 icon: Symbols.edit_outlined,
                                 color: AppColors.deepOcean,
-                                onTap: onPickImage,
+                                onTap: onEditImage,
                               ),
                               const SizedBox(width: 8),
                               _CoverImageActionButton(
@@ -9512,6 +9926,15 @@ class _MansetImagePreview extends StatelessWidget {
                                 onTap: onClear,
                               ),
                             ],
+                          ),
+                        ),
+                      if (hasImage && hover && !checking)
+                        Positioned(
+                          right: 8,
+                          bottom: 8,
+                          child: MediaImageDownloadButton(
+                            imageUrl: current,
+                            borderColor: _newsAddStrongLine,
                           ),
                         ),
                     ],
@@ -9525,6 +9948,13 @@ class _MansetImagePreview extends StatelessWidget {
         _MansetImageSizeBadge(imageSize: imageSize, hasImage: hasImage),
       ],
     );
+  }
+
+  double _previewAspectRatio(Size? size) {
+    if (size == null || size.width <= 0 || size.height <= 0) {
+      return 16 / 9;
+    }
+    return (size.width / size.height).clamp(0.72, 16 / 9).toDouble();
   }
 }
 
@@ -9745,6 +10175,7 @@ class _ContentInfoCard extends StatelessWidget {
     required this.onRemoveFaq,
     required this.onAiMediaSeo,
     required this.onAiGenerate,
+    required this.onPrompts,
     required this.onTextPreview,
   });
 
@@ -9772,6 +10203,7 @@ class _ContentInfoCard extends StatelessWidget {
   final ValueChanged<_FaqEntry> onRemoveFaq;
   final VoidCallback onAiMediaSeo;
   final VoidCallback onAiGenerate;
+  final VoidCallback onPrompts;
   final VoidCallback onTextPreview;
 
   @override
@@ -9808,6 +10240,7 @@ class _ContentInfoCard extends StatelessWidget {
                 onPinChanged: onPinChanged,
                 onAiMediaSeo: onAiMediaSeo,
                 onAiGenerate: onAiGenerate,
+                onPrompts: onPrompts,
                 onTextPreview: onTextPreview,
               );
               return Padding(
@@ -9987,6 +10420,7 @@ class _HeaderToggles extends StatelessWidget {
     required this.onPinChanged,
     required this.onAiMediaSeo,
     required this.onAiGenerate,
+    required this.onPrompts,
     required this.onTextPreview,
   });
 
@@ -9996,6 +10430,7 @@ class _HeaderToggles extends StatelessWidget {
   final ValueChanged<bool> onPinChanged;
   final VoidCallback onAiMediaSeo;
   final VoidCallback onAiGenerate;
+  final VoidCallback onPrompts;
   final VoidCallback onTextPreview;
 
   @override
@@ -10021,6 +10456,7 @@ class _HeaderToggles extends StatelessWidget {
         ),
         _AiMediaSeoButton(onTap: onAiMediaSeo),
         _AiButton(onTap: onAiGenerate),
+        _NewsPromptsButton(onTap: onPrompts),
         _NewsTextPreviewButton(onTap: onTextPreview),
       ],
     );
@@ -10160,6 +10596,54 @@ class _AiButton extends StatelessWidget {
   }
 }
 
+class _NewsPromptsButton extends StatelessWidget {
+  const _NewsPromptsButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Promtları yönet',
+      waitDuration: const Duration(milliseconds: 350),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: Container(
+            height: 30,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: AppColors.deepOcean.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(AppRadius.value),
+              border: Border.all(
+                color: AppColors.deepOcean.withValues(alpha: 0.15),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: const [
+                Icon(Symbols.draft, size: 14, color: AppColors.deepOcean),
+                SizedBox(width: 6),
+                Text(
+                  'Promtlar',
+                  style: TextStyle(
+                    color: AppColors.deepOcean,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _NewsTextPreviewButton extends StatelessWidget {
   const _NewsTextPreviewButton({required this.onTap});
 
@@ -10200,6 +10684,1133 @@ class _NewsTextPreviewButton extends StatelessWidget {
       ),
     );
   }
+}
+
+class _NewsPromptLibraryDialog extends StatefulWidget {
+  const _NewsPromptLibraryDialog({
+    required this.session,
+    required this.languageCode,
+    required this.initialPurpose,
+    required this.repository,
+  });
+
+  final AdminSession session;
+  final String languageCode;
+  final String initialPurpose;
+  final AdminAiSettingsRepository repository;
+
+  @override
+  State<_NewsPromptLibraryDialog> createState() =>
+      _NewsPromptLibraryDialogState();
+}
+
+class _NewsPromptLibraryDialogState extends State<_NewsPromptLibraryDialog> {
+  final _listScrollController = ScrollController();
+  final _contentScrollController = ScrollController();
+  final _titleController = TextEditingController();
+  final _promptController = TextEditingController();
+
+  var _prompts = <AdminAiPrompt>[];
+  AdminAiPrompt? _selectedPrompt;
+  var _purpose = adminAiPromptPurposeContent;
+  var _loading = true;
+  var _saving = false;
+  var _showAllPrompts = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _purpose = normalizeAdminAiPromptPurpose(widget.initialPurpose);
+    unawaited(_loadPrompts());
+  }
+
+  @override
+  void dispose() {
+    _listScrollController.dispose();
+    _contentScrollController.dispose();
+    _titleController.dispose();
+    _promptController.dispose();
+    super.dispose();
+  }
+
+  String get _languageCode {
+    final cleaned = widget.languageCode.trim().toLowerCase();
+    return cleaned.isEmpty ? 'tr' : cleaned;
+  }
+
+  Future<void> _loadPrompts() async {
+    setState(() => _loading = true);
+    try {
+      final prompts = await widget.repository.fetchPrompts(_languageCode);
+      if (!mounted) return;
+      final selected =
+          _promptById(prompts, _selectedPrompt?.id) ??
+          (prompts.isEmpty ? null : prompts.first);
+      setState(() {
+        _prompts = prompts;
+        _loading = false;
+        _applyPromptToForm(selected);
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      _showMessage('Promtlar yüklenemedi: $error', tone: AdminToastTone.error);
+    }
+  }
+
+  AdminAiPrompt? _promptById(List<AdminAiPrompt> prompts, String? id) {
+    final cleanId = id?.trim() ?? '';
+    if (cleanId.isEmpty) return null;
+    for (final prompt in prompts) {
+      if (prompt.id == cleanId) return prompt;
+    }
+    return null;
+  }
+
+  void _applyPromptToForm(AdminAiPrompt? prompt) {
+    _selectedPrompt = prompt;
+    _titleController.text = prompt?.title ?? '';
+    _promptController.text = prompt?.prompt ?? '';
+    _purpose = normalizeAdminAiPromptPurpose(
+      prompt?.purpose ?? widget.initialPurpose,
+    );
+  }
+
+  void _startNewPrompt() {
+    if (_saving) return;
+    setState(() {
+      _showAllPrompts = false;
+      _applyPromptToForm(null);
+    });
+  }
+
+  void _selectPrompt(AdminAiPrompt prompt) {
+    if (_saving) return;
+    setState(() {
+      _showAllPrompts = false;
+      _applyPromptToForm(prompt);
+    });
+  }
+
+  Future<void> _savePrompt() async {
+    if (_saving) return;
+    final title = _titleController.text.trim();
+    final prompt = _promptController.text.trim();
+    if (title.isEmpty || prompt.isEmpty) {
+      _showMessage('Promt başlığı ve metni boş olamaz.');
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      final saved = await widget.repository.savePrompt(
+        session: widget.session,
+        languageCode: _languageCode,
+        data: AiPromptFormData(title: title, prompt: prompt, purpose: _purpose),
+        id: _selectedPrompt?.id,
+      );
+      if (!mounted) return;
+      setState(() {
+        final next = [..._prompts];
+        final index = next.indexWhere((item) => item.id == saved.id);
+        if (index == -1) {
+          next.insert(0, saved);
+        } else {
+          next[index] = saved;
+        }
+        _prompts = next;
+        _saving = false;
+        _showAllPrompts = false;
+        _applyPromptToForm(saved);
+      });
+      _showMessage('Promt kaydedildi.', tone: AdminToastTone.success);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      _showMessage('Promt kaydedilemedi: $error', tone: AdminToastTone.error);
+    }
+  }
+
+  Future<void> _copyCurrentPrompt() async {
+    final text = _currentPromptCopyText();
+    if (text.isEmpty) {
+      _showMessage('Kopyalanacak promt yok.');
+      return;
+    }
+    await Clipboard.setData(ClipboardData(text: text));
+    if (!mounted) return;
+    _showMessage('Promt kopyalandı.', tone: AdminToastTone.success);
+  }
+
+  Future<void> _copyAllPrompts() async {
+    final text = _allPromptsCopyText();
+    if (text.isEmpty) {
+      _showMessage('Kopyalanacak promt yok.');
+      return;
+    }
+    await Clipboard.setData(ClipboardData(text: text));
+    if (!mounted) return;
+    _showMessage('Tüm promtlar kopyalandı.', tone: AdminToastTone.success);
+  }
+
+  String _currentPromptCopyText() {
+    final title = _titleController.text.trim();
+    final prompt = _promptController.text.trim();
+    if (title.isEmpty && prompt.isEmpty) return '';
+    return [
+      if (title.isNotEmpty) 'Başlık: $title',
+      'Kullanım: ${context.t(_newsPromptPurposeLabelKey(_purpose))}',
+      if (prompt.isNotEmpty) '',
+      if (prompt.isNotEmpty) prompt,
+    ].join('\n').trim();
+  }
+
+  String _allPromptsCopyText() {
+    return _prompts
+        .map(_savedPromptCopyText)
+        .where((text) => text.isNotEmpty)
+        .join('\n\n---\n\n')
+        .trim();
+  }
+
+  String _savedPromptCopyText(AdminAiPrompt prompt) {
+    final title = prompt.title.trim();
+    final text = prompt.prompt.trim();
+    if (title.isEmpty && text.isEmpty) return '';
+    return [
+      if (title.isNotEmpty) 'Başlık: $title',
+      'Kullanım: ${context.t(_newsPromptPurposeLabelKey(prompt.purpose))}',
+      if (text.isNotEmpty) '',
+      if (text.isNotEmpty) text,
+    ].join('\n').trim();
+  }
+
+  void _showMessage(
+    String message, {
+    AdminToastTone tone = AdminToastTone.info,
+  }) {
+    AdminToast.show(context, message: message, tone: tone);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final narrow = size.width < 720;
+    final horizontalInset = narrow ? 14.0 : 24.0;
+    final verticalInset = size.height < 700 ? 18.0 : 24.0;
+    var dialogWidth = size.width - horizontalInset * 2;
+    if (dialogWidth > 1040) dialogWidth = 1040;
+    var dialogHeight = size.height - verticalInset * 2;
+    if (dialogHeight > 760) dialogHeight = 760;
+
+    return Dialog(
+      insetPadding: EdgeInsets.symmetric(
+        horizontal: horizontalInset,
+        vertical: verticalInset,
+      ),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      child: SizedBox(
+        width: dialogWidth,
+        height: dialogHeight,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(AppRadius.value + 2),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.22),
+                blurRadius: 34,
+                offset: const Offset(0, 18),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              _buildHeader(context, narrow),
+              Expanded(child: _buildBody(context, narrow)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context, bool narrow) {
+    final iconChip = Container(
+      width: narrow ? 38 : 42,
+      height: narrow ? 38 : 42,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
+      ),
+      child: Icon(Symbols.draft, color: Colors.white, size: narrow ? 20 : 22),
+    );
+
+    final closeButton = Tooltip(
+      message: 'Kapat',
+      child: IconButton(
+        onPressed: () => Navigator.of(context).pop(),
+        icon: const Icon(Symbols.close, color: Colors.white, size: 20),
+        splashRadius: 20,
+      ),
+    );
+
+    final titleBlock = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          'Promtlar',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: narrow ? 17 : 18,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.2,
+            height: 1.15,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '${_languageCode.toUpperCase()} • ${_prompts.length} kayıt',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.68),
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+
+    final headerAction = _NewsPromptHeaderAction(
+      label: 'Tümünü Kopyala',
+      icon: Icons.content_copy_rounded,
+      enabled: !_loading && _prompts.isNotEmpty,
+      onTap: _copyAllPrompts,
+    );
+
+    final headerDecoration = const BoxDecoration(
+      color: AppColors.deepOcean,
+      borderRadius: BorderRadius.vertical(
+        top: Radius.circular(AppRadius.value + 2),
+      ),
+    );
+
+    if (narrow) {
+      return Container(
+        padding: const EdgeInsets.fromLTRB(16, 14, 8, 16),
+        decoration: headerDecoration,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                iconChip,
+                const Spacer(),
+                headerAction,
+                const SizedBox(width: 2),
+                closeButton,
+              ],
+            ),
+            const SizedBox(height: 14),
+            titleBlock,
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(22, 18, 14, 18),
+      decoration: headerDecoration,
+      child: Row(
+        children: [
+          iconChip,
+          const SizedBox(width: 14),
+          Expanded(child: titleBlock),
+          const SizedBox(width: 12),
+          headerAction,
+          const SizedBox(width: 8),
+          closeButton,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBody(BuildContext context, bool narrow) {
+    if (_loading) {
+      return const Center(
+        child: SizedBox(
+          width: 28,
+          height: 28,
+          child: CircularProgressIndicator(strokeWidth: 2.4),
+        ),
+      );
+    }
+
+    final padding = narrow
+        ? const EdgeInsets.fromLTRB(12, 12, 12, 14)
+        : const EdgeInsets.fromLTRB(20, 18, 20, 20);
+
+    if (narrow) {
+      return Padding(
+        padding: padding,
+        child: Column(
+          children: [
+            SizedBox(height: 224, child: _buildPromptList(context)),
+            const SizedBox(height: 12),
+            Expanded(child: _buildContentPanel(context, narrow: true)),
+          ],
+        ),
+      );
+    }
+
+    return Padding(
+      padding: padding,
+      child: Row(
+        children: [
+          SizedBox(width: 302, child: _buildPromptList(context)),
+          const SizedBox(width: 14),
+          Expanded(child: _buildContentPanel(context, narrow: false)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPromptList(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: _newsAddSoftLine),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Kayıtlı Promtlar',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: AppColors.deepOcean,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ),
+                _NewsPromptCompactButton(
+                  label: 'Yeni',
+                  icon: Symbols.add,
+                  enabled: !_saving,
+                  onTap: _startNewPrompt,
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Expanded(
+              child: _prompts.isEmpty
+                  ? const _NewsPromptEmptyState()
+                  : Scrollbar(
+                      controller: _listScrollController,
+                      thumbVisibility: true,
+                      child: ListView.separated(
+                        controller: _listScrollController,
+                        itemCount: _prompts.length,
+                        separatorBuilder: (context, _) =>
+                            const SizedBox(height: 8),
+                        itemBuilder: (context, index) {
+                          final prompt = _prompts[index];
+                          return _NewsPromptListItem(
+                            prompt: prompt,
+                            selected: prompt.id == _selectedPrompt?.id,
+                            onTap: () => _selectPrompt(prompt),
+                          );
+                        },
+                      ),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContentPanel(BuildContext context, {required bool narrow}) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: _newsAddSoftLine),
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(16, narrow ? 12 : 14, 12, 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _showAllPrompts
+                        ? 'Tüm Promtlar'
+                        : (_selectedPrompt == null
+                              ? 'Yeni Promt'
+                              : 'Promt Düzenle'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.deepOcean,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ),
+                _NewsPromptCompactButton(
+                  label: _showAllPrompts ? 'Düzenle' : 'Tümünü Gör',
+                  icon: _showAllPrompts
+                      ? Symbols.edit_square
+                      : Symbols.visibility_outlined,
+                  enabled: !_saving,
+                  onTap: () => setState(() {
+                    _showAllPrompts = !_showAllPrompts;
+                  }),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, thickness: 1, color: _newsAddSoftLine),
+          Expanded(
+            child: _showAllPrompts
+                ? _buildAllPromptsPreview(context)
+                : _buildPromptForm(context, narrow: narrow),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPromptForm(BuildContext context, {required bool narrow}) {
+    return Scrollbar(
+      controller: _contentScrollController,
+      thumbVisibility: true,
+      child: SingleChildScrollView(
+        controller: _contentScrollController,
+        padding: EdgeInsets.fromLTRB(16, 16, 16, narrow ? 16 : 18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _NewsPromptField(
+              label: 'Promt Başlığı',
+              controller: _titleController,
+              hintText: 'Örn: Haber İçerik Üretici',
+              enabled: !_saving,
+            ),
+            const SizedBox(height: 14),
+            _NewsPromptPurposeDropdown(
+              value: _purpose,
+              enabled: !_saving,
+              onChanged: (value) {
+                if (value == null) return;
+                setState(() => _purpose = normalizeAdminAiPromptPurpose(value));
+              },
+            ),
+            const SizedBox(height: 14),
+            _NewsPromptField(
+              label: 'Promt Metni',
+              controller: _promptController,
+              hintText: 'AI asistanına gönderilecek sistem komutunu yaz...',
+              enabled: !_saving,
+              minLines: narrow ? 7 : 10,
+              maxLines: narrow ? 11 : 16,
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              alignment: WrapAlignment.end,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                _NewsPromptOutlineButton(
+                  label: 'Kopyala',
+                  icon: Icons.content_copy_rounded,
+                  enabled: !_saving,
+                  onTap: _copyCurrentPrompt,
+                ),
+                _NewsPromptPrimaryButton(saving: _saving, onTap: _savePrompt),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAllPromptsPreview(BuildContext context) {
+    final text = _allPromptsCopyText();
+    if (text.isEmpty) return const _NewsPromptEmptyState();
+
+    return Scrollbar(
+      controller: _contentScrollController,
+      thumbVisibility: true,
+      child: SingleChildScrollView(
+        controller: _contentScrollController,
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 22),
+        child: SelectableText(
+          text,
+          style: const TextStyle(
+            color: Color(0xFF314252),
+            fontSize: 13.5,
+            fontWeight: FontWeight.w600,
+            height: 1.55,
+            letterSpacing: 0,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NewsPromptHeaderAction extends StatelessWidget {
+  const _NewsPromptHeaderAction({
+    required this.label,
+    required this.icon,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: enabled ? onTap : null,
+        child: Opacity(
+          opacity: enabled ? 1 : 0.55,
+          child: Container(
+            height: 36,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(AppRadius.value),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 16, color: AppColors.deepOcean),
+                const SizedBox(width: 8),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: AppColors.deepOcean,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NewsPromptCompactButton extends StatelessWidget {
+  const _NewsPromptCompactButton({
+    required this.label,
+    required this.icon,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: label,
+      child: MouseRegion(
+        cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: enabled ? onTap : null,
+          child: Opacity(
+            opacity: enabled ? 1 : 0.5,
+            child: Container(
+              height: 30,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              decoration: BoxDecoration(
+                color: AppColors.deepOcean.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(AppRadius.value),
+                border: Border.all(
+                  color: AppColors.deepOcean.withValues(alpha: 0.15),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, size: 14, color: AppColors.deepOcean),
+                  const SizedBox(width: 6),
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      color: AppColors.deepOcean,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NewsPromptListItem extends StatelessWidget {
+  const _NewsPromptListItem({
+    required this.prompt,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final AdminAiPrompt prompt;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final borderColor = selected
+        ? AppColors.deepOcean.withValues(alpha: 0.42)
+        : _newsAddSoftLine;
+    final backgroundColor = selected
+        ? AppColors.deepOcean.withValues(alpha: 0.05)
+        : Colors.white;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            borderRadius: BorderRadius.circular(AppRadius.value),
+            border: Border.all(color: borderColor),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      prompt.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.deepOcean,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                  ),
+                  if (selected) ...[
+                    const SizedBox(width: 8),
+                    const Icon(
+                      Symbols.check_circle,
+                      size: 15,
+                      color: AppColors.deepOcean,
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 7),
+              _NewsPromptPurposeBadge(purpose: prompt.purpose),
+              const SizedBox(height: 8),
+              Text(
+                prompt.prompt,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.inkSoft,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  height: 1.36,
+                  letterSpacing: 0,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NewsPromptPurposeBadge extends StatelessWidget {
+  const _NewsPromptPurposeBadge({required this.purpose});
+
+  final String purpose;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.actionRed.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: AppColors.actionRed.withValues(alpha: 0.2)),
+      ),
+      child: Text(
+        context.t(_newsPromptPurposeLabelKey(purpose)),
+        style: const TextStyle(
+          color: AppColors.actionRed,
+          fontSize: 11,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 0,
+        ),
+      ),
+    );
+  }
+}
+
+class _NewsPromptField extends StatelessWidget {
+  const _NewsPromptField({
+    required this.label,
+    required this.controller,
+    required this.hintText,
+    required this.enabled,
+    this.minLines = 1,
+    this.maxLines = 1,
+  });
+
+  final String label;
+  final TextEditingController controller;
+  final String hintText;
+  final bool enabled;
+  final int minLines;
+  final int maxLines;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _NewsPromptFieldLabel(label),
+        const SizedBox(height: 8),
+        TextField(
+          controller: controller,
+          enabled: enabled,
+          minLines: minLines,
+          maxLines: maxLines,
+          cursorColor: AppColors.deepOcean,
+          style: const TextStyle(
+            color: AppColors.deepOcean,
+            fontSize: 13.5,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0,
+            height: 1.45,
+          ),
+          decoration: _newsPromptInputDecoration(hintText),
+        ),
+      ],
+    );
+  }
+}
+
+class _NewsPromptPurposeDropdown extends StatelessWidget {
+  const _NewsPromptPurposeDropdown({
+    required this.value,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  final String value;
+  final bool enabled;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final safeValue = _newsPromptPurposeOptions.contains(value)
+        ? value
+        : adminAiPromptPurposeContent;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _NewsPromptFieldLabel('Kullanım Alanı'),
+        const SizedBox(height: 8),
+        Container(
+          height: 42,
+          padding: const EdgeInsets.only(left: 12, right: 8),
+          decoration: BoxDecoration(
+            color: enabled ? Colors.white : AppColors.surface,
+            borderRadius: BorderRadius.circular(AppRadius.value),
+            border: Border.all(color: _newsAddStrongLine),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              isExpanded: true,
+              value: safeValue,
+              borderRadius: BorderRadius.circular(AppRadius.value),
+              dropdownColor: Colors.white,
+              focusColor: Colors.transparent,
+              mouseCursor: enabled
+                  ? SystemMouseCursors.click
+                  : SystemMouseCursors.basic,
+              dropdownMenuItemMouseCursor: SystemMouseCursors.click,
+              icon: const SymbolIcon(
+                Symbols.keyboard_arrow_down,
+                color: AppColors.iconMuted,
+                size: 18,
+              ),
+              style: const TextStyle(
+                color: AppColors.deepOcean,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                fontFamily: 'PateezSans',
+                letterSpacing: 0,
+              ),
+              items: [
+                for (final purpose in _newsPromptPurposeOptions)
+                  DropdownMenuItem<String>(
+                    value: purpose,
+                    child: Text(context.t(_newsPromptPurposeLabelKey(purpose))),
+                  ),
+              ],
+              onChanged: enabled ? onChanged : null,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _NewsPromptFieldLabel extends StatelessWidget {
+  const _NewsPromptFieldLabel(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      label,
+      style: const TextStyle(
+        color: AppColors.inkSoft,
+        fontSize: 12.5,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 0,
+      ),
+    );
+  }
+}
+
+class _NewsPromptOutlineButton extends StatelessWidget {
+  const _NewsPromptOutlineButton({
+    required this.label,
+    required this.icon,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 36,
+      child: TextButton.icon(
+        onPressed: enabled ? onTap : null,
+        icon: Icon(icon, size: 16),
+        label: Text(label),
+        style:
+            TextButton.styleFrom(
+              foregroundColor: AppColors.deepOcean,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.value),
+                side: BorderSide(color: AppColors.line.withValues(alpha: 0.9)),
+              ),
+              textStyle: const TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0,
+              ),
+            ).copyWith(
+              mouseCursor: WidgetStatePropertyAll(
+                enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+              ),
+            ),
+      ),
+    );
+  }
+}
+
+class _NewsPromptPrimaryButton extends StatelessWidget {
+  const _NewsPromptPrimaryButton({required this.saving, required this.onTap});
+
+  final bool saving;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 36,
+      width: 112,
+      child: TextButton(
+        onPressed: saving ? null : onTap,
+        style:
+            TextButton.styleFrom(
+              backgroundColor: AppColors.deepOcean,
+              foregroundColor: Colors.white,
+              disabledForegroundColor: Colors.white.withValues(alpha: 0.7),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.value),
+              ),
+              textStyle: const TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0,
+              ),
+            ).copyWith(
+              mouseCursor: WidgetStatePropertyAll(
+                saving ? SystemMouseCursors.basic : SystemMouseCursors.click,
+              ),
+            ),
+        child: saving
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              )
+            : const Text('Kaydet'),
+      ),
+    );
+  }
+}
+
+class _NewsPromptEmptyState extends StatelessWidget {
+  const _NewsPromptEmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(AppRadius.value),
+          border: Border.all(color: _newsAddSoftLine),
+        ),
+        child: const Text(
+          'Kayıtlı promt yok.',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: AppColors.inkSoft,
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+InputDecoration _newsPromptInputDecoration(String hintText) {
+  return InputDecoration(
+    hintText: hintText,
+    hintStyle: const TextStyle(
+      color: AppColors.placeholder,
+      fontSize: 13,
+      fontWeight: FontWeight.w500,
+      letterSpacing: 0,
+    ),
+    isDense: true,
+    filled: true,
+    fillColor: Colors.white,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(AppRadius.value),
+      borderSide: const BorderSide(color: _newsAddStrongLine),
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(AppRadius.value),
+      borderSide: const BorderSide(color: _newsAddStrongLine),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(AppRadius.value),
+      borderSide: const BorderSide(color: AppColors.deepOcean, width: 1.2),
+    ),
+    disabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(AppRadius.value),
+      borderSide: const BorderSide(color: _newsAddSoftLine),
+    ),
+  );
+}
+
+const _newsPromptPurposeOptions = <String>[
+  adminAiPromptPurposeContent,
+  adminAiPromptPurposeQuiz,
+  adminAiPromptPurposePoll,
+  adminAiPromptPurposeVideo,
+  adminAiPromptPurposeContents,
+  adminAiPromptPurposeRecipe,
+  adminAiPromptPurposeEvent,
+  adminAiPromptPurposeMediaSeo,
+  adminAiPromptPurposeHeadlineImage,
+];
+
+String _newsPromptPurposeLabelKey(String purpose) {
+  return switch (normalizeAdminAiPromptPurpose(purpose)) {
+    adminAiPromptPurposeQuiz => 'aiSettings.promptPurpose.quiz',
+    adminAiPromptPurposePoll => 'aiSettings.promptPurpose.poll',
+    adminAiPromptPurposeVideo => 'aiSettings.promptPurpose.video',
+    adminAiPromptPurposeContents => 'aiSettings.promptPurpose.contents',
+    adminAiPromptPurposeRecipe => 'aiSettings.promptPurpose.recipe',
+    adminAiPromptPurposeEvent => 'aiSettings.promptPurpose.event',
+    adminAiPromptPurposeMediaSeo => 'aiSettings.promptPurpose.mediaSeo',
+    adminAiPromptPurposeHeadlineImage =>
+      'aiSettings.promptPurpose.headlineImage',
+    _ => 'aiSettings.promptPurpose.content',
+  };
 }
 
 class _NewsTextPreviewData {
@@ -14078,6 +15689,19 @@ class _SourceImageTile extends StatelessWidget {
                           ),
                         ),
                       ),
+                    Align(
+                      alignment: Alignment.bottomRight,
+                      child: Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: MediaImageDownloadButton(
+                          imageUrl: _sourceImageDisplayUrl(image),
+                          fileNameSeed: label,
+                          size: 24,
+                          iconSize: 13,
+                          borderColor: _newsAddStrongLine,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -15595,6 +17219,14 @@ class _ImageDropAreaState extends State<_ImageDropArea> {
                               onTap: _clearImage,
                             ),
                           ],
+                        ),
+                      ),
+                      Positioned(
+                        right: 8,
+                        bottom: 8,
+                        child: MediaImageDownloadButton(
+                          imageUrl: _imageUrl!,
+                          borderColor: _newsAddStrongLine,
                         ),
                       ),
                     ],
