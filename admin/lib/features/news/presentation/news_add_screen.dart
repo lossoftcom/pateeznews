@@ -21,6 +21,7 @@ import '../data/admin_news_repository.dart';
 import '../data/admin_video_metadata_reader.dart';
 import '../../../shared/icons/symbols.dart';
 import '../../../shared/data/media_service.dart';
+import '../../../shared/data/media_upload_transformer.dart';
 import '../../../shared/widgets/admin_cached_image.dart';
 import '../../../shared/widgets/admin_rich_text_editor.dart'
     show
@@ -16291,11 +16292,23 @@ class _CoverCardState extends State<_CoverCard> {
                 },
                 onImageEditingComplete: (bytes) async {
                   try {
-                    final result = await mediaService.uploadFile(
-                      fileName: _coverEditorSourceFileName(),
+                    final sourceFileName = _coverEditorSourceFileName();
+                    final uploadSettings = await mediaService
+                        .fetchUploadSettings(languageCode: widget.languageCode);
+                    final prepared = await prepareMediaUploadForStorage(
+                      fileName: sourceFileName,
                       bytes: bytes,
                       type: 'image',
-                      customFilename: _coverEditorCustomFileName(),
+                      imageFileFormat: uploadSettings.imageFileFormat,
+                      forceImageEncoding: true,
+                    );
+                    final result = await mediaService.uploadFile(
+                      fileName: prepared.fileName,
+                      bytes: prepared.bytes,
+                      type: 'image',
+                      customFilename: _coverEditorCustomFileName(
+                        extensionSource: prepared.fileName,
+                      ),
                       languageCode: widget.languageCode,
                     );
                     final nextSrc = result?.src.trim() ?? '';
@@ -16351,10 +16364,19 @@ class _CoverCardState extends State<_CoverCard> {
     return 'haber-kapagi-kaynak-${DateTime.now().millisecondsSinceEpoch}.jpg';
   }
 
-  String _coverEditorCustomFileName() {
+  String _coverEditorCustomFileName({String? extensionSource}) {
     final slug = _coverEditorSlug(widget.headlineText());
     final base = slug.isEmpty ? 'haber-kapagi' : '$slug-haber-kapagi';
-    return '$base-${DateTime.now().millisecondsSinceEpoch}.jpg';
+    final extension = _coverEditorExtension(extensionSource);
+    return '$base-${DateTime.now().millisecondsSinceEpoch}.$extension';
+  }
+
+  String _coverEditorExtension(String? fileName) {
+    final clean = (fileName ?? '').split('?').first.split('#').first;
+    final dotIndex = clean.lastIndexOf('.');
+    if (dotIndex < 0 || dotIndex == clean.length - 1) return 'jpg';
+    final extension = clean.substring(dotIndex + 1).toLowerCase();
+    return RegExp(r'^[a-z0-9]+$').hasMatch(extension) ? extension : 'jpg';
   }
 
   String _coverEditorSlug(String value) {
@@ -16938,9 +16960,6 @@ class _CoverTemplateSheetState extends State<_CoverTemplateSheet> {
     final headline = _headlineController.text.trim();
     final subhead = _subheadController.text.trim();
     final layers = <TextLayer>[];
-    final textShadow = const [
-      Shadow(color: Color(0xB0000000), blurRadius: 16, offset: Offset(0, 4)),
-    ];
     // Kontur + gölge: fotoğraf üzerinde beyaz başlık her zeminde okunsun.
     final outlineShadow = const [
       Shadow(color: Color(0xCC000000), blurRadius: 2, offset: Offset(2, 2)),
