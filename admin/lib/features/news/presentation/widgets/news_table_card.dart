@@ -98,6 +98,8 @@ class NewsTableCard extends StatelessWidget {
     required this.onSort,
     required this.onAddPost,
     required this.onEditPost,
+    required this.onSharePost,
+    required this.onNotifyPost,
     required this.onToggleStatus,
     required this.onTogglePinned,
     required this.onDeletePost,
@@ -138,6 +140,8 @@ class NewsTableCard extends StatelessWidget {
   final ValueChanged<String> onSort;
   final VoidCallback onAddPost;
   final ValueChanged<AdminNewsPost> onEditPost;
+  final ValueChanged<AdminNewsPost> onSharePost;
+  final ValueChanged<AdminNewsPost> onNotifyPost;
   final ValueChanged<AdminNewsPost> onToggleStatus;
   final ValueChanged<AdminNewsPost> onTogglePinned;
   final ValueChanged<AdminNewsPost> onDeletePost;
@@ -185,6 +189,8 @@ class NewsTableCard extends StatelessWidget {
               onTogglePost: onTogglePost,
               onAddPost: onAddPost,
               onEditPost: onEditPost,
+              onSharePost: onSharePost,
+              onNotifyPost: onNotifyPost,
               onToggleStatus: onToggleStatus,
               onTogglePinned: onTogglePinned,
               onDeletePost: onDeletePost,
@@ -251,6 +257,8 @@ class NewsTableCard extends StatelessWidget {
                               onToggleAllPosts: onToggleAllPosts,
                               onSort: onSort,
                               onEditPost: onEditPost,
+                              onSharePost: onSharePost,
+                              onNotifyPost: onNotifyPost,
                               onToggleStatus: onToggleStatus,
                               onTogglePinned: onTogglePinned,
                               onDeletePost: onDeletePost,
@@ -1022,6 +1030,8 @@ class _NewsDataTable extends StatefulWidget {
     required this.onToggleAllPosts,
     required this.onSort,
     required this.onEditPost,
+    required this.onSharePost,
+    required this.onNotifyPost,
     required this.onToggleStatus,
     required this.onTogglePinned,
     required this.onDeletePost,
@@ -1039,6 +1049,8 @@ class _NewsDataTable extends StatefulWidget {
   final VoidCallback onToggleAllPosts;
   final ValueChanged<String> onSort;
   final ValueChanged<AdminNewsPost> onEditPost;
+  final ValueChanged<AdminNewsPost> onSharePost;
+  final ValueChanged<AdminNewsPost> onNotifyPost;
   final ValueChanged<AdminNewsPost> onToggleStatus;
   final ValueChanged<AdminNewsPost> onTogglePinned;
   final ValueChanged<AdminNewsPost> onDeletePost;
@@ -1159,6 +1171,8 @@ class _NewsDataTableState extends State<_NewsDataTable> {
                                     canManagePublication:
                                         widget.canManagePublication,
                                     onEditPost: widget.onEditPost,
+                                    onSharePost: widget.onSharePost,
+                                    onNotifyPost: widget.onNotifyPost,
                                     onToggleStatus: widget.onToggleStatus,
                                     onTogglePinned: widget.onTogglePinned,
                                     onDeletePost: widget.onDeletePost,
@@ -1502,6 +1516,8 @@ class _NewsRow extends StatelessWidget {
     required this.trashMode,
     required this.canManagePublication,
     required this.onEditPost,
+    required this.onSharePost,
+    required this.onNotifyPost,
     required this.onToggleStatus,
     required this.onTogglePinned,
     required this.onDeletePost,
@@ -1516,6 +1532,8 @@ class _NewsRow extends StatelessWidget {
   final bool trashMode;
   final bool canManagePublication;
   final ValueChanged<AdminNewsPost> onEditPost;
+  final ValueChanged<AdminNewsPost> onSharePost;
+  final ValueChanged<AdminNewsPost> onNotifyPost;
   final ValueChanged<AdminNewsPost> onToggleStatus;
   final ValueChanged<AdminNewsPost> onTogglePinned;
   final ValueChanged<AdminNewsPost> onDeletePost;
@@ -1615,6 +1633,8 @@ class _NewsRow extends StatelessWidget {
                           post: post,
                           canManagePublication: canManagePublication,
                           onEditPost: onEditPost,
+                          onSharePost: onSharePost,
+                          onNotifyPost: onNotifyPost,
                           onToggleStatus: onToggleStatus,
                           onTogglePinned: onTogglePinned,
                           onDeletePost: onDeletePost,
@@ -4184,6 +4204,8 @@ class _NewsRowMenu extends StatefulWidget {
     required this.post,
     required this.canManagePublication,
     required this.onEditPost,
+    required this.onSharePost,
+    required this.onNotifyPost,
     required this.onToggleStatus,
     required this.onTogglePinned,
     required this.onDeletePost,
@@ -4192,6 +4214,8 @@ class _NewsRowMenu extends StatefulWidget {
   final AdminNewsPost post;
   final bool canManagePublication;
   final ValueChanged<AdminNewsPost> onEditPost;
+  final ValueChanged<AdminNewsPost> onSharePost;
+  final ValueChanged<AdminNewsPost> onNotifyPost;
   final ValueChanged<AdminNewsPost> onToggleStatus;
   final ValueChanged<AdminNewsPost> onTogglePinned;
   final ValueChanged<AdminNewsPost> onDeletePost;
@@ -4235,6 +4259,10 @@ class _NewsRowMenuState extends State<_NewsRowMenu> {
                 canManagePublication: widget.canManagePublication,
                 onEdit: () =>
                     _runAndClose(() => widget.onEditPost(widget.post)),
+                onShare: () =>
+                    _runAndClose(() => widget.onSharePost(widget.post)),
+                onNotify: () =>
+                    _runAndClose(() => widget.onNotifyPost(widget.post)),
                 onToggleStatus: () =>
                     _runAndClose(() => widget.onToggleStatus(widget.post)),
                 onTogglePinned: () =>
@@ -4304,6 +4332,8 @@ class _NewsMenuCard extends StatelessWidget {
     required this.post,
     required this.canManagePublication,
     required this.onEdit,
+    required this.onShare,
+    required this.onNotify,
     required this.onToggleStatus,
     required this.onTogglePinned,
     required this.onDelete,
@@ -4312,6 +4342,8 @@ class _NewsMenuCard extends StatelessWidget {
   final AdminNewsPost post;
   final bool canManagePublication;
   final VoidCallback onEdit;
+  final VoidCallback onShare;
+  final VoidCallback onNotify;
   final VoidCallback onToggleStatus;
   final VoidCallback onTogglePinned;
   final VoidCallback onDelete;
@@ -4349,6 +4381,18 @@ class _NewsMenuCard extends StatelessWidget {
                 label: post.published ? 'Unpublish' : 'Publish',
                 onTap: onToggleStatus,
               ),
+            if (canManagePublication) ...[
+              _NewsMenuItem(
+                icon: Symbols.share_outlined,
+                label: 'Share',
+                onTap: onShare,
+              ),
+              _NewsMenuItem(
+                icon: Symbols.notifications,
+                label: 'Send notification',
+                onTap: onNotify,
+              ),
+            ],
             _NewsMenuItem(
               icon: post.isPinned ? Symbols.visibility_off : Symbols.verified,
               label: post.isPinned ? 'Unpin' : 'Pin',
@@ -4647,6 +4691,8 @@ class _NewsMobileView extends StatefulWidget {
     required this.onTogglePost,
     required this.onAddPost,
     required this.onEditPost,
+    required this.onSharePost,
+    required this.onNotifyPost,
     required this.onToggleStatus,
     required this.onTogglePinned,
     required this.onDeletePost,
@@ -4683,6 +4729,8 @@ class _NewsMobileView extends StatefulWidget {
   final ValueChanged<String> onTogglePost;
   final VoidCallback onAddPost;
   final ValueChanged<AdminNewsPost> onEditPost;
+  final ValueChanged<AdminNewsPost> onSharePost;
+  final ValueChanged<AdminNewsPost> onNotifyPost;
   final ValueChanged<AdminNewsPost> onToggleStatus;
   final ValueChanged<AdminNewsPost> onTogglePinned;
   final ValueChanged<AdminNewsPost> onDeletePost;
@@ -4842,6 +4890,8 @@ class _NewsMobileViewState extends State<_NewsMobileView> {
                             trashMode: widget.trashMode,
                             canManagePublication: widget.canManagePublication,
                             onEditPost: widget.onEditPost,
+                            onSharePost: widget.onSharePost,
+                            onNotifyPost: widget.onNotifyPost,
                             onToggleStatus: widget.onToggleStatus,
                             onTogglePinned: widget.onTogglePinned,
                             onDeletePost: widget.onDeletePost,
@@ -5543,6 +5593,8 @@ class _NewsMobileCard extends StatelessWidget {
     required this.trashMode,
     required this.canManagePublication,
     required this.onEditPost,
+    required this.onSharePost,
+    required this.onNotifyPost,
     required this.onToggleStatus,
     required this.onTogglePinned,
     required this.onDeletePost,
@@ -5554,6 +5606,8 @@ class _NewsMobileCard extends StatelessWidget {
   final bool trashMode;
   final bool canManagePublication;
   final ValueChanged<AdminNewsPost> onEditPost;
+  final ValueChanged<AdminNewsPost> onSharePost;
+  final ValueChanged<AdminNewsPost> onNotifyPost;
   final ValueChanged<AdminNewsPost> onToggleStatus;
   final ValueChanged<AdminNewsPost> onTogglePinned;
   final ValueChanged<AdminNewsPost> onDeletePost;
@@ -5665,6 +5719,18 @@ class _NewsMobileCard extends StatelessWidget {
                             post.published ? 'Unpublish' : 'Publish',
                           ),
                           onTap: () => onToggleStatus(post),
+                        ),
+                      if (canManagePublication)
+                        AdminMobileMenuAction(
+                          icon: Symbols.share_outlined,
+                          label: context.t('Share'),
+                          onTap: () => onSharePost(post),
+                        ),
+                      if (canManagePublication)
+                        AdminMobileMenuAction(
+                          icon: Symbols.notifications,
+                          label: context.t('Send notification'),
+                          onTap: () => onNotifyPost(post),
                         ),
                       AdminMobileMenuAction(
                         icon: post.isPinned

@@ -286,6 +286,8 @@ const Map<String, String> adminEnTranslations = <String, String>{
   "Published": "Published",
   "Publish": "Publish",
   "Unpublish": "Unpublish",
+  "Share": "Share",
+  "Send notification": "Send notification",
   "Search posts...": "Search posts...",
   "news.search.clear": "Clear search",
   "Add Post": "Add Post",

@@ -45,10 +45,13 @@ class NewsPublishShareData {
   final String category;
 }
 
+enum NewsPublishShareMode { publishFlow, socialOnly, notificationOnly }
+
 Future<void> showNewsPublishShareDialog(
   BuildContext context, {
   required AdminSession session,
   required NewsPublishShareData data,
+  NewsPublishShareMode mode = NewsPublishShareMode.publishFlow,
   Future<void> Function()? onConfirmPublish,
 }) {
   return showGeneralDialog<void>(
@@ -60,6 +63,7 @@ Future<void> showNewsPublishShareDialog(
     pageBuilder: (_, _, _) => _NewsPublishShareDialog(
       session: session,
       data: data,
+      mode: mode,
       onConfirmPublish: onConfirmPublish,
     ),
     transitionBuilder: (ctx, anim, _, child) {
@@ -160,11 +164,13 @@ class _NewsPublishShareDialog extends StatefulWidget {
   const _NewsPublishShareDialog({
     required this.session,
     required this.data,
+    required this.mode,
     required this.onConfirmPublish,
   });
 
   final AdminSession session;
   final NewsPublishShareData data;
+  final NewsPublishShareMode mode;
   final Future<void> Function()? onConfirmPublish;
 
   @override
@@ -206,6 +212,20 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
   @override
   void initState() {
     super.initState();
+    switch (widget.mode) {
+      case NewsPublishShareMode.publishFlow:
+        _shareSocial = true;
+        _notify = true;
+        _step = _Step.intro;
+      case NewsPublishShareMode.socialOnly:
+        _shareSocial = true;
+        _notify = false;
+        _step = _Step.social;
+      case NewsPublishShareMode.notificationOnly:
+        _shareSocial = false;
+        _notify = true;
+        _step = _Step.notif;
+    }
     _imgSel = List<bool>.filled(_images.length, true);
     final d = widget.data;
     _postText = TextEditingController(
@@ -301,7 +321,7 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
   }
 
   List<_Step> get _stepFlow => [
-    _Step.intro,
+    if (widget.mode == NewsPublishShareMode.publishFlow) _Step.intro,
     if (_shareSocial) _Step.social,
     if (_notify) _Step.notif,
     _Step.done,
@@ -349,6 +369,28 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
     return i >= 0 && i == flow.length - 2;
   }
 
+  bool get _isFirstFlowStep {
+    final flow = _stepFlow;
+    return flow.indexOf(_step) == 0;
+  }
+
+  String get _finishToast {
+    return switch (widget.mode) {
+      NewsPublishShareMode.socialOnly => 'Paylaşım hazırlandı.',
+      NewsPublishShareMode.notificationOnly => 'Bildirim hazırlandı.',
+      NewsPublishShareMode.publishFlow => 'Haber yayına alındı.',
+    };
+  }
+
+  String get _doneSubtitle {
+    return switch (widget.mode) {
+      NewsPublishShareMode.socialOnly => 'Sosyal medya paylaşımı hazır.',
+      NewsPublishShareMode.notificationOnly => 'Bildirim gönderimi hazır.',
+      NewsPublishShareMode.publishFlow =>
+        'Haber yayında. Paylaşım ve bildirim adımları hazır.',
+    };
+  }
+
   void _goNext() {
     final flow = _stepFlow;
     final i = flow.indexOf(_step);
@@ -374,7 +416,7 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
   void _finish() {
     AdminToast.show(
       context,
-      message: 'Haber yayına alındı.',
+      message: _finishToast,
       tone: AdminToastTone.success,
     );
     Navigator.of(context).maybePop();
@@ -1771,10 +1813,10 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
           ),
         ),
         const SizedBox(height: 4),
-        const Center(
+        Center(
           child: Text(
-            'Haber yayında. Paylaşım ve bildirim adımları hazır.',
-            style: TextStyle(color: _soft, fontSize: 13),
+            _doneSubtitle,
+            style: const TextStyle(color: _soft, fontSize: 13),
           ),
         ),
         const SizedBox(height: 16),
@@ -1944,7 +1986,11 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
         );
       case _Step.social:
         children.add(
-          _Btn(label: 'Geri', icon: Symbols.arrow_back, onTap: _goPrev),
+          _Btn(
+            label: _isFirstFlowStep ? 'Kapat' : 'Geri',
+            icon: _isFirstFlowStep ? Symbols.close : Symbols.arrow_back,
+            onTap: _isFirstFlowStep ? _close : _goPrev,
+          ),
         );
         children.add(const Spacer());
         children.add(
@@ -1961,7 +2007,11 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
         );
       case _Step.notif:
         children.add(
-          _Btn(label: 'Geri', icon: Symbols.arrow_back, onTap: _goPrev),
+          _Btn(
+            label: _isFirstFlowStep ? 'Kapat' : 'Geri',
+            icon: _isFirstFlowStep ? Symbols.close : Symbols.arrow_back,
+            onTap: _isFirstFlowStep ? _close : _goPrev,
+          ),
         );
         children.add(const Spacer());
         children.add(
@@ -1975,7 +2025,15 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
         );
       case _Step.done:
         children.add(
-          _Btn(label: 'Yeni haber', icon: Symbols.add, onTap: _close),
+          _Btn(
+            label: widget.mode == NewsPublishShareMode.publishFlow
+                ? 'Yeni haber'
+                : 'Kapat',
+            icon: widget.mode == NewsPublishShareMode.publishFlow
+                ? Symbols.add
+                : Symbols.close,
+            onTap: _close,
+          ),
         );
         children.add(const Spacer());
         children.add(

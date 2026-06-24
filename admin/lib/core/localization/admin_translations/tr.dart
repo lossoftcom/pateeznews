@@ -282,6 +282,8 @@ const Map<String, String> adminTrTranslations = <String, String>{
   "Published": "Yayında",
   "Publish": "Yayınla",
   "Unpublish": "Yayından kaldır",
+  "Share": "Paylaş",
+  "Send notification": "Bildirim gönder",
   "Search posts...": "Ara...",
   "news.search.clear": "Aramayı temizle",
   "Add Post": "Haber Ekle",

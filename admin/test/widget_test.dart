@@ -4553,6 +4553,8 @@ void main() {
                 onSort: (_) {},
                 onAddPost: () {},
                 onEditPost: (_) {},
+                onSharePost: (_) {},
+                onNotifyPost: (_) {},
                 onToggleStatus: (_) {},
                 onTogglePinned: (_) {},
                 onDeletePost: (_) {},

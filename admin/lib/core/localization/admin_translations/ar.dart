@@ -281,6 +281,8 @@ const Map<String, String> adminArTranslations = <String, String>{
   "Published": "منشور",
   "Publish": "نشر",
   "Unpublish": "إلغاء النشر",
+  "Share": "مشاركة",
+  "Send notification": "إرسال إشعار",
   "Search posts...": "بحث في الأخبار...",
   "news.search.clear": "مسح البحث",
   "Add Post": "إضافة خبر",

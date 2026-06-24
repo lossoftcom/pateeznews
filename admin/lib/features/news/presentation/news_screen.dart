@@ -431,6 +431,36 @@ class _NewsScreenState extends State<NewsScreen> {
     }
   }
 
+  Future<void> _openShareDialog(
+    AdminNewsPost post,
+    NewsPublishShareMode mode,
+  ) async {
+    if (!_isSuperAdminUser) {
+      AdminToast.show(
+        context,
+        message: 'Bu işlem sadece Süper Yöneticiye aittir.',
+        tone: AdminToastTone.error,
+      );
+      return;
+    }
+    try {
+      final editorPost = await widget.repository.fetchEditorPost(post.id);
+      if (!mounted) return;
+      await showNewsPublishShareDialog(
+        context,
+        session: widget.session,
+        data: _shareDataForPost(editorPost),
+        mode: mode,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _errorText = error.toString();
+        _loading = false;
+      });
+    }
+  }
+
   Future<void> _toggleStatusAndReload(AdminNewsPost post) async {
     setState(() {
       _loadingMessageKey = 'news.loading.processing';
@@ -699,6 +729,12 @@ class _NewsScreenState extends State<NewsScreen> {
                 onAddPost: () => _openPostEditor(),
                 onEditPost: (post) => _openPostEditor(post.id),
                 onToggleStatus: (post) => unawaited(_toggleStatus(post)),
+                onSharePost: (post) => unawaited(
+                  _openShareDialog(post, NewsPublishShareMode.socialOnly),
+                ),
+                onNotifyPost: (post) => unawaited(
+                  _openShareDialog(post, NewsPublishShareMode.notificationOnly),
+                ),
                 onTogglePinned: (post) => unawaited(_togglePinned(post)),
                 onDeletePost: (post) => unawaited(_deletePost(post)),
                 onDeleteSelected: () => unawaited(_deleteSelected()),
