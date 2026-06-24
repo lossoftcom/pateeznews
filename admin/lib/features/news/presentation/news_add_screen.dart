@@ -8074,6 +8074,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
       imageUrl: _coverImageUrl,
       altController: _coverAltController,
       onImageChanged: _handleCoverImageChanged,
+      languageCode: _languageCode,
       headlineText: () => _titleController.text.trim(),
       summaryText: () => _summaryController.text.trim(),
     );
@@ -16017,6 +16018,7 @@ class _CoverCard extends StatefulWidget {
     required this.imageUrl,
     required this.altController,
     required this.onImageChanged,
+    required this.languageCode,
     required this.headlineText,
     required this.summaryText,
   });
@@ -16024,6 +16026,7 @@ class _CoverCard extends StatefulWidget {
   final String? imageUrl;
   final TextEditingController altController;
   final ValueChanged<String?> onImageChanged;
+  final String languageCode;
   final ValueGetter<String> headlineText;
   final ValueGetter<String> summaryText;
 
@@ -16033,6 +16036,16 @@ class _CoverCard extends StatefulWidget {
 
 class _CoverCardState extends State<_CoverCard> {
   var _coverHover = false;
+
+  static const _turkishSlugMap = {
+    'ç': 'c',
+    'ğ': 'g',
+    'ı': 'i',
+    'i̇': 'i',
+    'ö': 'o',
+    'ş': 's',
+    'ü': 'u',
+  };
 
   Future<void> _openMediaLibrary() async {
     final selected = await showMediaLibraryDialog(context);
@@ -16087,10 +16100,128 @@ class _CoverCardState extends State<_CoverCard> {
               imageUrl,
               key: editorKey,
               configs: ProImageEditorConfigs(
+                i18n: const I18n(
+                  cancel: 'İptal',
+                  undo: 'Geri al',
+                  redo: 'İleri al',
+                  done: 'Bitti',
+                  remove: 'Kaldır',
+                  importStateHistoryMsg: 'Düzenleyici başlatılıyor',
+                  doneLoadingMsg:
+                      'Kapak görseli hazırlanıyor, R2 ve yerel depoya yükleniyor...',
+                  various: I18nVarious(
+                    loadingDialogMsg: 'Lütfen bekleyin...',
+                    closeEditorWarningTitle: 'Görsel düzenleyici kapatılsın mı?',
+                    closeEditorWarningMessage:
+                        'Görsel düzenleyiciyi kapatmak istediğinize emin '
+                        'misiniz? Yaptığınız değişiklikler kaydedilmeyecek.',
+                    closeEditorWarningConfirmBtn: 'Kapat',
+                    closeEditorWarningCancelBtn: 'Vazgeç',
+                  ),
+                  paintEditor: I18nPaintEditor(
+                    bottomNavigationBarText: 'Boya',
+                    moveAndZoom: 'Yakınlaştır',
+                    freestyle: 'Serbest çizim',
+                    arrow: 'Ok',
+                    line: 'Çizgi',
+                    rectangle: 'Dikdörtgen',
+                    circle: 'Daire',
+                    dashLine: 'Kesik çizgi',
+                    blur: 'Bulanık',
+                    pixelate: 'Pikselleştir',
+                    lineWidth: 'Çizgi kalınlığı',
+                    eraser: 'Silgi',
+                    toggleFill: 'Dolguyu değiştir',
+                    changeOpacity: 'Saydamlık',
+                    undo: 'Geri al',
+                    redo: 'İleri al',
+                    done: 'Bitti',
+                    back: 'Geri',
+                    smallScreenMoreTooltip: 'Daha fazla',
+                    opacity: 'Saydamlık',
+                    color: 'Renk',
+                    strokeWidth: 'Kalınlık',
+                    fill: 'Dolgu',
+                    cancel: 'İptal',
+                  ),
+                  textEditor: I18nTextEditor(
+                    inputHintText: 'Metin gir',
+                    bottomNavigationBarText: 'Yazı',
+                    back: 'Geri',
+                    done: 'Bitti',
+                    textAlign: 'Hizala',
+                    fontScale: 'Yazı boyutu',
+                    backgroundMode: 'Arka plan modu',
+                    smallScreenMoreTooltip: 'Daha fazla',
+                  ),
+                  cropRotateEditor: I18nCropRotateEditor(
+                    bottomNavigationBarText: 'Kırp/Döndür',
+                    rotate: 'Döndür',
+                    flip: 'Çevir',
+                    ratio: 'Oran',
+                    back: 'Geri',
+                    done: 'Bitti',
+                    cancel: 'İptal',
+                    undo: 'Geri al',
+                    redo: 'İleri al',
+                    smallScreenMoreTooltip: 'Daha fazla',
+                    reset: 'Sıfırla',
+                  ),
+                  tuneEditor: I18nTuneEditor(
+                    bottomNavigationBarText: 'Ayarla',
+                    back: 'Geri',
+                    done: 'Bitti',
+                    brightness: 'Parlaklık',
+                    contrast: 'Kontrast',
+                    saturation: 'Doygunluk',
+                    exposure: 'Pozlama',
+                    hue: 'Renk tonu',
+                    temperature: 'Sıcaklık',
+                    sharpness: 'Keskinlik',
+                    fade: 'Soldurma',
+                    luminance: 'Aydınlık',
+                    undo: 'Geri al',
+                    redo: 'İleri al',
+                  ),
+                  filterEditor: I18nFilterEditor(
+                    bottomNavigationBarText: 'Filtre',
+                    back: 'Geri',
+                    done: 'Bitti',
+                  ),
+                  blurEditor: I18nBlurEditor(
+                    bottomNavigationBarText: 'Bulanıklık',
+                    back: 'Geri',
+                    done: 'Bitti',
+                  ),
+                  emojiEditor: I18nEmojiEditor(
+                    bottomNavigationBarText: 'Emoji',
+                    search: 'Ara',
+                    categoryRecent: 'Son kullanılan',
+                    categorySmileys: 'İfadeler ve İnsanlar',
+                    categoryAnimals: 'Hayvanlar ve Doğa',
+                    categoryFood: 'Yiyecek ve İçecek',
+                    categoryActivities: 'Etkinlikler',
+                    categoryTravel: 'Seyahat ve Yerler',
+                    categoryObjects: 'Nesneler',
+                    categorySymbols: 'Semboller',
+                    categoryFlags: 'Bayraklar',
+                  ),
+                  layerInteraction: I18nLayerInteraction(
+                    remove: 'Kaldır',
+                    edit: 'Düzenle',
+                    rotateScale: 'Döndür ve Ölçekle',
+                  ),
+                ),
                 theme: baseTheme.copyWith(
                   colorScheme: baseTheme.colorScheme.copyWith(
                     primary: AppColors.deepOcean,
                     secondary: AppColors.actionRed,
+                  ),
+                ),
+                dialogConfigs: DialogConfigs(
+                  widgets: DialogWidgets(
+                    loadingDialog: (message, _) =>
+                        _CoverEditorLoadingDialog(message: message),
                   ),
                 ),
                 mainEditor: MainEditorConfigs(
@@ -16159,19 +16290,40 @@ class _CoverCardState extends State<_CoverCard> {
                   Navigator.of(editorContext).pop();
                 },
                 onImageEditingComplete: (bytes) async {
-                  final result = await mediaService.uploadFile(
-                    fileName:
-                        'cover-edited-${DateTime.now().millisecondsSinceEpoch}.jpg',
-                    bytes: bytes,
-                    type: 'image',
-                  );
-                  if (result != null && mounted) {
-                    widget.onImageChanged(result.src);
-                    setState(() => _coverHover = false);
-                  }
-                  if (editorContext.mounted) {
+                  try {
+                    final result = await mediaService.uploadFile(
+                      fileName: _coverEditorSourceFileName(),
+                      bytes: bytes,
+                      type: 'image',
+                      customFilename: _coverEditorCustomFileName(),
+                      languageCode: widget.languageCode,
+                    );
+                    final nextSrc = result?.src.trim() ?? '';
+                    if (nextSrc.isEmpty) {
+                      throw const MediaUploadException(
+                        'Kapak görseli yükleme yanıtı boş döndü.',
+                      );
+                    }
+                    if (mounted) {
+                      widget.onImageChanged(nextSrc);
+                      setState(() => _coverHover = false);
+                    }
+                    if (editorContext.mounted) {
+                      editorClosing = true;
+                      Navigator.of(editorContext).pop();
+                    }
+                  } catch (error) {
+                    if (mounted) {
+                      AdminToast.show(
+                        context,
+                        message: 'Kapak görseli güncellenemedi: $error',
+                        tone: AdminToastTone.error,
+                      );
+                    }
                     editorClosing = true;
-                    Navigator.of(editorContext).pop();
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      editorClosing = false;
+                    });
                   }
                 },
                 mainEditorCallbacks: MainEditorCallbacks(
@@ -16193,6 +16345,29 @@ class _CoverCardState extends State<_CoverCard> {
         );
       },
     );
+  }
+
+  String _coverEditorSourceFileName() {
+    return 'haber-kapagi-kaynak-${DateTime.now().millisecondsSinceEpoch}.jpg';
+  }
+
+  String _coverEditorCustomFileName() {
+    final slug = _coverEditorSlug(widget.headlineText());
+    final base = slug.isEmpty ? 'haber-kapagi' : '$slug-haber-kapagi';
+    return '$base-${DateTime.now().millisecondsSinceEpoch}.jpg';
+  }
+
+  String _coverEditorSlug(String value) {
+    var output = value.trim().toLowerCase();
+    _turkishSlugMap.forEach((key, replacement) {
+      output = output.replaceAll(key, replacement);
+    });
+    output = output
+        .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
+        .replaceAll(RegExp(r'-+'), '-')
+        .replaceAll(RegExp(r'^-|-$'), '');
+    if (output.length <= 52) return output;
+    return output.substring(0, 52).replaceAll(RegExp(r'-$'), '');
   }
 
   void _clearCoverImage() {
@@ -16340,15 +16515,85 @@ class _CoverAltTextPanel extends StatelessWidget {
   }
 }
 
+class _CoverEditorLoadingDialog extends StatelessWidget {
+  const _CoverEditorLoadingDialog({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final dialogWidth = math.min(MediaQuery.sizeOf(context).width - 32, 360.0);
+    return Stack(
+      children: [
+        ModalBarrier(
+          dismissible: false,
+          color: Colors.black.withValues(alpha: 0.58),
+        ),
+        Center(
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              width: dialogWidth,
+              padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.22),
+                    blurRadius: 28,
+                    offset: const Offset(0, 16),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  const SizedBox(
+                    width: 30,
+                    height: 30,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 3,
+                      color: AppColors.deepOcean,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Text(
+                      message,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.deepOcean,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                        height: 1.25,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 enum _CoverTemplatePresetId {
-  editorialRight,
+  posterStack,
   lowerThird,
-  leftLead,
-  glassCard,
+  editorialRight,
+  redSash,
   breakingBand,
-  cleanLabel,
+  boldImpact,
+  leftLead,
   yellowTag,
   centerPoster,
+  cleanLabel,
+  glassCard,
+  tealFresh,
 }
 
 class _CoverTemplatePreset {
@@ -16367,15 +16612,39 @@ class _CoverTemplatePreset {
 
 const _coverTemplatePresets = [
   _CoverTemplatePreset(
-    id: _CoverTemplatePresetId.editorialRight,
-    title: 'Sağ Manşet',
-    description: 'Büyük başlık, altında vurucu alt manşet',
-    accent: Color(0xFFFFD21A),
+    id: _CoverTemplatePresetId.posterStack,
+    title: 'Afiş Manşet',
+    description: 'Kırmızı blok + sarı bant, en dikkat çekici',
+    accent: AppColors.actionRed,
   ),
   _CoverTemplatePreset(
     id: _CoverTemplatePresetId.lowerThird,
     title: 'Alt Bant',
-    description: 'Haber kapağı için güvenli alt yerleşim',
+    description: 'Altta lacivert bant, çok okunaklı',
+    accent: AppColors.deepOcean,
+  ),
+  _CoverTemplatePreset(
+    id: _CoverTemplatePresetId.editorialRight,
+    title: 'Sağ Manşet',
+    description: 'Sağda büyük başlık, sarı vurgu',
+    accent: Color(0xFFFFD21A),
+  ),
+  _CoverTemplatePreset(
+    id: _CoverTemplatePresetId.redSash,
+    title: 'Kırmızı Kuşak',
+    description: 'Ortada geniş kırmızı kuşak başlık',
+    accent: AppColors.actionRed,
+  ),
+  _CoverTemplatePreset(
+    id: _CoverTemplatePresetId.breakingBand,
+    title: 'Son Dakika',
+    description: 'Üstte kırmızı etiket, güçlü başlık',
+    accent: AppColors.actionRed,
+  ),
+  _CoverTemplatePreset(
+    id: _CoverTemplatePresetId.boldImpact,
+    title: 'İri Vurgu',
+    description: 'Dev lacivert başlık, sarı alt bant',
     accent: AppColors.deepOcean,
   ),
   _CoverTemplatePreset(
@@ -16383,24 +16652,6 @@ const _coverTemplatePresets = [
     title: 'Sol Dikey',
     description: 'Fotoğraf odağı sağda kalıyorsa ideal',
     accent: AppColors.actionRed,
-  ),
-  _CoverTemplatePreset(
-    id: _CoverTemplatePresetId.glassCard,
-    title: 'Cam Kart',
-    description: 'Okunurluğu yüksek yumuşak kart',
-    accent: Color(0xFFEAF2F6),
-  ),
-  _CoverTemplatePreset(
-    id: _CoverTemplatePresetId.breakingBand,
-    title: 'Son Dakika',
-    description: 'Üst bant ve güçlü ana başlık',
-    accent: AppColors.actionRed,
-  ),
-  _CoverTemplatePreset(
-    id: _CoverTemplatePresetId.cleanLabel,
-    title: 'Temiz Etiket',
-    description: 'Beyaz haber etiketi, sade tipografi',
-    accent: Colors.white,
   ),
   _CoverTemplatePreset(
     id: _CoverTemplatePresetId.yellowTag,
@@ -16412,6 +16663,24 @@ const _coverTemplatePresets = [
     id: _CoverTemplatePresetId.centerPoster,
     title: 'Merkez Poster',
     description: 'Ortalanmış afiş manşeti',
+    accent: Color(0xFFFFD21A),
+  ),
+  _CoverTemplatePreset(
+    id: _CoverTemplatePresetId.cleanLabel,
+    title: 'Temiz Etiket',
+    description: 'Beyaz başlık bloğu, sade tipografi',
+    accent: Colors.white,
+  ),
+  _CoverTemplatePreset(
+    id: _CoverTemplatePresetId.glassCard,
+    title: 'Cam Kart',
+    description: 'Okunurluğu yüksek yumuşak kart',
+    accent: Color(0xFFEAF2F6),
+  ),
+  _CoverTemplatePreset(
+    id: _CoverTemplatePresetId.tealFresh,
+    title: 'Yeşil Vurgu',
+    description: 'Turkuaz blok, ferah ve net',
     accent: Color(0xFF25C2A0),
   ),
 ];
@@ -16672,6 +16941,14 @@ class _CoverTemplateSheetState extends State<_CoverTemplateSheet> {
     final textShadow = const [
       Shadow(color: Color(0xB0000000), blurRadius: 16, offset: Offset(0, 4)),
     ];
+    // Kontur + gölge: fotoğraf üzerinde beyaz başlık her zeminde okunsun.
+    final outlineShadow = const [
+      Shadow(color: Color(0xCC000000), blurRadius: 2, offset: Offset(2, 2)),
+      Shadow(color: Color(0xCC000000), blurRadius: 2, offset: Offset(-2, 2)),
+      Shadow(color: Color(0xCC000000), blurRadius: 2, offset: Offset(2, -2)),
+      Shadow(color: Color(0xCC000000), blurRadius: 2, offset: Offset(-2, -2)),
+      Shadow(color: Color(0x99000000), blurRadius: 16, offset: Offset(0, 5)),
+    ];
 
     void addHeadline({
       required Offset offset,
@@ -16732,22 +17009,22 @@ class _CoverTemplateSheetState extends State<_CoverTemplateSheet> {
     }
 
     switch (_selectedPreset.id) {
-      case _CoverTemplatePresetId.editorialRight:
+      case _CoverTemplatePresetId.posterStack:
+        // Afiş: dev beyaz başlık kırmızı blokta, altında sarı bant.
         addHeadline(
-          offset: _point(bodySize, 0.72, 0.24),
-          scale: 0.95,
-          width: 0.46,
+          offset: _point(bodySize, 0.48, 0.60),
+          scale: 1.06,
+          width: 0.78,
           color: Colors.white,
-          background: Colors.transparent,
+          background: AppColors.actionRed,
           align: TextAlign.center,
           weight: FontWeight.w900,
-          colorMode: LayerBackgroundMode.onlyColor,
-          shadows: textShadow,
+          colorMode: LayerBackgroundMode.backgroundAndColor,
         );
         addSubhead(
-          offset: _point(bodySize, 0.72, 0.40),
-          scale: 0.42,
-          width: 0.42,
+          offset: _point(bodySize, 0.48, 0.80),
+          scale: 0.44,
+          width: 0.66,
           color: AppColors.deepOcean,
           background: const Color(0xFFFFD21A),
           align: TextAlign.center,
@@ -16755,116 +17032,30 @@ class _CoverTemplateSheetState extends State<_CoverTemplateSheet> {
           colorMode: LayerBackgroundMode.backgroundAndColor,
         );
       case _CoverTemplatePresetId.lowerThird:
-        addHeadline(
-          offset: _point(bodySize, 0.5, 0.82),
-          scale: 0.72,
-          width: 0.72,
-          color: Colors.white,
-          background: AppColors.deepOcean.withValues(alpha: 0.92),
-          align: TextAlign.center,
-          weight: FontWeight.w900,
-          colorMode: LayerBackgroundMode.backgroundAndColor,
-        );
         addSubhead(
-          offset: _point(bodySize, 0.5, 0.69),
-          scale: 0.34,
-          width: 0.62,
+          offset: _point(bodySize, 0.5, 0.72),
+          scale: 0.38,
+          width: 0.64,
           color: AppColors.deepOcean,
           background: const Color(0xFFFFD21A),
           align: TextAlign.center,
-          weight: FontWeight.w800,
-          colorMode: LayerBackgroundMode.backgroundAndColor,
-        );
-      case _CoverTemplatePresetId.leftLead:
-        addSubhead(
-          offset: _point(bodySize, 0.22, 0.18),
-          scale: 0.34,
-          width: 0.34,
-          color: Colors.white,
-          background: AppColors.actionRed,
-          align: TextAlign.left,
-          weight: FontWeight.w800,
-          colorMode: LayerBackgroundMode.backgroundAndColor,
-        );
-        addHeadline(
-          offset: _point(bodySize, 0.24, 0.31),
-          scale: 0.78,
-          width: 0.38,
-          color: Colors.white,
-          background: Colors.transparent,
-          align: TextAlign.left,
-          weight: FontWeight.w900,
-          colorMode: LayerBackgroundMode.onlyColor,
-          shadows: textShadow,
-        );
-      case _CoverTemplatePresetId.glassCard:
-        addHeadline(
-          offset: _point(bodySize, 0.5, 0.74),
-          scale: 0.66,
-          width: 0.58,
-          color: AppColors.deepOcean,
-          background: Colors.white.withValues(alpha: 0.88),
-          align: TextAlign.center,
-          weight: FontWeight.w900,
-          colorMode: LayerBackgroundMode.backgroundAndColor,
-        );
-        addSubhead(
-          offset: _point(bodySize, 0.5, 0.87),
-          scale: 0.32,
-          width: 0.52,
-          color: Colors.white,
-          background: AppColors.deepOcean.withValues(alpha: 0.86),
-          align: TextAlign.center,
-          weight: FontWeight.w700,
-          colorMode: LayerBackgroundMode.backgroundAndColor,
-        );
-      case _CoverTemplatePresetId.breakingBand:
-        addSubhead(
-          offset: _point(bodySize, 0.24, 0.14),
-          scale: 0.34,
-          width: 0.34,
-          color: Colors.white,
-          background: AppColors.actionRed,
-          align: TextAlign.center,
           weight: FontWeight.w900,
           colorMode: LayerBackgroundMode.backgroundAndColor,
         );
         addHeadline(
-          offset: _point(bodySize, 0.56, 0.28),
-          scale: 0.82,
-          width: 0.60,
-          color: Colors.white,
-          background: Colors.transparent,
-          align: TextAlign.center,
-          weight: FontWeight.w900,
-          colorMode: LayerBackgroundMode.onlyColor,
-          shadows: textShadow,
-        );
-      case _CoverTemplatePresetId.cleanLabel:
-        addHeadline(
-          offset: _point(bodySize, 0.5, 0.24),
-          scale: 0.64,
-          width: 0.52,
-          color: AppColors.deepOcean,
-          background: Colors.white,
-          align: TextAlign.center,
-          weight: FontWeight.w900,
-          colorMode: LayerBackgroundMode.backgroundAndColor,
-        );
-        addSubhead(
-          offset: _point(bodySize, 0.5, 0.36),
-          scale: 0.32,
-          width: 0.48,
+          offset: _point(bodySize, 0.5, 0.86),
+          scale: 0.70,
+          width: 0.88,
           color: Colors.white,
           background: AppColors.deepOcean,
           align: TextAlign.center,
-          weight: FontWeight.w700,
+          weight: FontWeight.w900,
           colorMode: LayerBackgroundMode.backgroundAndColor,
         );
-      case _CoverTemplatePresetId.yellowTag:
-        addHeadline(
-          offset: _point(bodySize, 0.66, 0.68),
-          scale: 0.70,
+      case _CoverTemplatePresetId.editorialRight:
+        addSubhead(
+          offset: _point(bodySize, 0.70, 0.30),
+          scale: 0.42,
           width: 0.46,
           color: AppColors.deepOcean,
           background: const Color(0xFFFFD21A),
@@ -16872,12 +17063,120 @@ class _CoverTemplateSheetState extends State<_CoverTemplateSheet> {
           weight: FontWeight.w900,
           colorMode: LayerBackgroundMode.backgroundAndColor,
         );
-        addSubhead(
-          offset: _point(bodySize, 0.66, 0.80),
-          scale: 0.33,
-          width: 0.42,
+        addHeadline(
+          offset: _point(bodySize, 0.70, 0.48),
+          scale: 0.95,
+          width: 0.50,
           color: Colors.white,
-          background: AppColors.deepOcean.withValues(alpha: 0.92),
+          background: Colors.transparent,
+          align: TextAlign.center,
+          weight: FontWeight.w900,
+          colorMode: LayerBackgroundMode.onlyColor,
+          shadows: outlineShadow,
+        );
+      case _CoverTemplatePresetId.redSash:
+        addSubhead(
+          offset: _point(bodySize, 0.5, 0.40),
+          scale: 0.38,
+          width: 0.58,
+          color: AppColors.deepOcean,
+          background: const Color(0xFFFFD21A),
+          align: TextAlign.center,
+          weight: FontWeight.w900,
+          colorMode: LayerBackgroundMode.backgroundAndColor,
+        );
+        addHeadline(
+          offset: _point(bodySize, 0.5, 0.55),
+          scale: 0.92,
+          width: 0.90,
+          color: Colors.white,
+          background: AppColors.actionRed,
+          align: TextAlign.center,
+          weight: FontWeight.w900,
+          colorMode: LayerBackgroundMode.backgroundAndColor,
+        );
+      case _CoverTemplatePresetId.breakingBand:
+        addSubhead(
+          offset: _point(bodySize, 0.26, 0.13),
+          scale: 0.38,
+          width: 0.40,
+          color: Colors.white,
+          background: AppColors.actionRed,
+          align: TextAlign.center,
+          weight: FontWeight.w900,
+          colorMode: LayerBackgroundMode.backgroundAndColor,
+        );
+        addHeadline(
+          offset: _point(bodySize, 0.5, 0.30),
+          scale: 0.86,
+          width: 0.74,
+          color: Colors.white,
+          background: Colors.transparent,
+          align: TextAlign.center,
+          weight: FontWeight.w900,
+          colorMode: LayerBackgroundMode.onlyColor,
+          shadows: outlineShadow,
+        );
+      case _CoverTemplatePresetId.boldImpact:
+        addHeadline(
+          offset: _point(bodySize, 0.5, 0.66),
+          scale: 1.02,
+          width: 0.82,
+          color: Colors.white,
+          background: AppColors.deepOcean,
+          align: TextAlign.center,
+          weight: FontWeight.w900,
+          colorMode: LayerBackgroundMode.backgroundAndColor,
+        );
+        addSubhead(
+          offset: _point(bodySize, 0.5, 0.84),
+          scale: 0.40,
+          width: 0.58,
+          color: AppColors.deepOcean,
+          background: const Color(0xFFFFD21A),
+          align: TextAlign.center,
+          weight: FontWeight.w900,
+          colorMode: LayerBackgroundMode.backgroundAndColor,
+        );
+      case _CoverTemplatePresetId.leftLead:
+        addSubhead(
+          offset: _point(bodySize, 0.28, 0.20),
+          scale: 0.36,
+          width: 0.40,
+          color: Colors.white,
+          background: AppColors.actionRed,
+          align: TextAlign.left,
+          weight: FontWeight.w900,
+          colorMode: LayerBackgroundMode.backgroundAndColor,
+        );
+        addHeadline(
+          offset: _point(bodySize, 0.30, 0.37),
+          scale: 0.80,
+          width: 0.52,
+          color: Colors.white,
+          background: Colors.transparent,
+          align: TextAlign.left,
+          weight: FontWeight.w900,
+          colorMode: LayerBackgroundMode.onlyColor,
+          shadows: outlineShadow,
+        );
+      case _CoverTemplatePresetId.yellowTag:
+        addHeadline(
+          offset: _point(bodySize, 0.62, 0.66),
+          scale: 0.72,
+          width: 0.52,
+          color: AppColors.deepOcean,
+          background: const Color(0xFFFFD21A),
+          align: TextAlign.center,
+          weight: FontWeight.w900,
+          colorMode: LayerBackgroundMode.backgroundAndColor,
+        );
+        addSubhead(
+          offset: _point(bodySize, 0.62, 0.80),
+          scale: 0.35,
+          width: 0.46,
+          color: Colors.white,
+          background: AppColors.deepOcean,
           align: TextAlign.center,
           weight: FontWeight.w800,
           colorMode: LayerBackgroundMode.backgroundAndColor,
@@ -16885,19 +17184,82 @@ class _CoverTemplateSheetState extends State<_CoverTemplateSheet> {
       case _CoverTemplatePresetId.centerPoster:
         addHeadline(
           offset: _point(bodySize, 0.5, 0.42),
-          scale: 0.86,
-          width: 0.60,
+          scale: 0.90,
+          width: 0.66,
           color: Colors.white,
           background: Colors.transparent,
           align: TextAlign.center,
           weight: FontWeight.w900,
           colorMode: LayerBackgroundMode.onlyColor,
-          shadows: textShadow,
+          shadows: outlineShadow,
         );
         addSubhead(
-          offset: _point(bodySize, 0.5, 0.56),
+          offset: _point(bodySize, 0.5, 0.58),
+          scale: 0.40,
+          width: 0.50,
+          color: AppColors.deepOcean,
+          background: const Color(0xFFFFD21A),
+          align: TextAlign.center,
+          weight: FontWeight.w900,
+          colorMode: LayerBackgroundMode.backgroundAndColor,
+        );
+      case _CoverTemplatePresetId.cleanLabel:
+        addHeadline(
+          offset: _point(bodySize, 0.5, 0.22),
+          scale: 0.66,
+          width: 0.62,
+          color: AppColors.deepOcean,
+          background: Colors.white,
+          align: TextAlign.center,
+          weight: FontWeight.w900,
+          colorMode: LayerBackgroundMode.backgroundAndColor,
+        );
+        addSubhead(
+          offset: _point(bodySize, 0.5, 0.35),
+          scale: 0.34,
+          width: 0.56,
+          color: Colors.white,
+          background: AppColors.deepOcean,
+          align: TextAlign.center,
+          weight: FontWeight.w800,
+          colorMode: LayerBackgroundMode.backgroundAndColor,
+        );
+      case _CoverTemplatePresetId.glassCard:
+        addHeadline(
+          offset: _point(bodySize, 0.5, 0.74),
+          scale: 0.66,
+          width: 0.66,
+          color: AppColors.deepOcean,
+          background: Colors.white.withValues(alpha: 0.90),
+          align: TextAlign.center,
+          weight: FontWeight.w900,
+          colorMode: LayerBackgroundMode.backgroundAndColor,
+        );
+        addSubhead(
+          offset: _point(bodySize, 0.5, 0.87),
+          scale: 0.33,
+          width: 0.60,
+          color: Colors.white,
+          background: AppColors.deepOcean.withValues(alpha: 0.88),
+          align: TextAlign.center,
+          weight: FontWeight.w800,
+          colorMode: LayerBackgroundMode.backgroundAndColor,
+        );
+      case _CoverTemplatePresetId.tealFresh:
+        addHeadline(
+          offset: _point(bodySize, 0.5, 0.72),
+          scale: 0.74,
+          width: 0.80,
+          color: Colors.white,
+          background: const Color(0xFF1E9E84),
+          align: TextAlign.center,
+          weight: FontWeight.w900,
+          colorMode: LayerBackgroundMode.backgroundAndColor,
+        );
+        addSubhead(
+          offset: _point(bodySize, 0.5, 0.86),
           scale: 0.36,
-          width: 0.46,
+          width: 0.56,
           color: AppColors.deepOcean,
           background: const Color(0xFFFFD21A),
           align: TextAlign.center,
@@ -17456,95 +17818,70 @@ class _CoverTemplateMiniPreview extends StatelessWidget {
   }
 
   List<Widget> _previewBlocks() {
-    final accent = preset.accent;
+    const red = AppColors.actionRed;
+    const navy = AppColors.deepOcean;
+    const yellow = Color(0xFFFFD21A);
+    const teal = Color(0xFF25C2A0);
     switch (preset.id) {
-      case _CoverTemplatePresetId.editorialRight:
+      case _CoverTemplatePresetId.posterStack:
         return [
-          _previewTextBlock(right: 8, top: 18, width: 58, height: 10),
-          _previewTextBlock(
-            right: 10,
-            top: 34,
-            width: 48,
-            height: 8,
-            color: accent,
-          ),
+          _previewTextBlock(left: 14, top: 38, width: 76, height: 18, color: red),
+          _previewTextBlock(left: 24, top: 60, width: 56, height: 9, color: yellow),
         ];
       case _CoverTemplatePresetId.lowerThird:
         return [
-          _previewTextBlock(left: 14, bottom: 18, width: 82, height: 11),
-          _previewTextBlock(
-            left: 22,
-            bottom: 34,
-            width: 56,
-            height: 7,
-            color: accent,
-          ),
+          _previewTextBlock(left: 24, bottom: 30, width: 50, height: 8, color: yellow),
+          _previewTextBlock(left: 10, bottom: 12, width: 84, height: 14, color: navy),
         ];
-      case _CoverTemplatePresetId.leftLead:
+      case _CoverTemplatePresetId.editorialRight:
         return [
-          _previewTextBlock(
-            left: 12,
-            top: 16,
-            width: 38,
-            height: 7,
-            color: accent,
-          ),
-          _previewTextBlock(left: 12, top: 30, width: 50, height: 20),
+          _previewTextBlock(right: 12, top: 18, width: 44, height: 8, color: yellow),
+          _previewTextBlock(right: 8, top: 30, width: 56, height: 16),
         ];
-      case _CoverTemplatePresetId.glassCard:
+      case _CoverTemplatePresetId.redSash:
         return [
-          _previewTextBlock(
-            left: 18,
-            bottom: 26,
-            width: 72,
-            height: 17,
-            color: accent,
-          ),
-          _previewTextBlock(left: 28, bottom: 13, width: 50, height: 7),
+          _previewTextBlock(left: 26, top: 24, width: 52, height: 8, color: yellow),
+          _previewTextBlock(left: 8, top: 36, width: 88, height: 16, color: red),
         ];
       case _CoverTemplatePresetId.breakingBand:
         return [
-          _previewTextBlock(
-            left: 12,
-            top: 10,
-            width: 36,
-            height: 7,
-            color: accent,
-          ),
-          _previewTextBlock(left: 28, top: 26, width: 64, height: 16),
+          _previewTextBlock(left: 12, top: 10, width: 34, height: 7, color: red),
+          _previewTextBlock(left: 16, top: 24, width: 72, height: 16),
         ];
-      case _CoverTemplatePresetId.cleanLabel:
+      case _CoverTemplatePresetId.boldImpact:
         return [
-          _previewTextBlock(
-            left: 24,
-            top: 15,
-            width: 58,
-            height: 14,
-            color: accent,
-          ),
-          _previewTextBlock(left: 31, top: 36, width: 44, height: 7),
+          _previewTextBlock(left: 10, top: 38, width: 84, height: 18, color: navy),
+          _previewTextBlock(left: 26, top: 60, width: 52, height: 8, color: yellow),
+        ];
+      case _CoverTemplatePresetId.leftLead:
+        return [
+          _previewTextBlock(left: 12, top: 16, width: 34, height: 7, color: red),
+          _previewTextBlock(left: 12, top: 28, width: 50, height: 20),
         ];
       case _CoverTemplatePresetId.yellowTag:
         return [
-          _previewTextBlock(
-            right: 12,
-            bottom: 28,
-            width: 58,
-            height: 13,
-            color: accent,
-          ),
-          _previewTextBlock(right: 18, bottom: 13, width: 42, height: 7),
+          _previewTextBlock(right: 12, bottom: 26, width: 56, height: 13, color: yellow),
+          _previewTextBlock(right: 18, bottom: 12, width: 42, height: 7, color: navy),
         ];
       case _CoverTemplatePresetId.centerPoster:
         return [
-          _previewTextBlock(left: 20, top: 30, width: 72, height: 14),
-          _previewTextBlock(
-            left: 33,
-            top: 50,
-            width: 46,
-            height: 7,
-            color: accent,
-          ),
+          _previewTextBlock(left: 18, top: 26, width: 68, height: 14),
+          _previewTextBlock(left: 30, top: 46, width: 44, height: 8, color: yellow),
+        ];
+      case _CoverTemplatePresetId.cleanLabel:
+        return [
+          _previewTextBlock(left: 22, top: 14, width: 60, height: 13),
+          _previewTextBlock(left: 30, top: 32, width: 44, height: 7, color: navy),
+        ];
+      case _CoverTemplatePresetId.glassCard:
+        return [
+          _previewTextBlock(left: 16, bottom: 22, width: 72, height: 16),
+          _previewTextBlock(left: 28, bottom: 11, width: 48, height: 7, color: navy),
+        ];
+      case _CoverTemplatePresetId.tealFresh:
+        return [
+          _previewTextBlock(left: 12, top: 40, width: 80, height: 16, color: teal),
+          _previewTextBlock(left: 28, top: 60, width: 48, height: 8, color: yellow),
         ];
     }
   }
