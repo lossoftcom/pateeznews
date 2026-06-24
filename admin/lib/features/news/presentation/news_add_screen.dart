@@ -12226,13 +12226,13 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
       );
     }
 
-    var result = await _mediaService.uploadRemoteImage(
-      imageUrl: image.url,
-      languageCode: widget.languageCode,
+    var result = await _uploadSourceImageViaProxy(
+      image,
       onTransferProgress: onTransferProgress,
     );
-    result ??= await _uploadSourceImageViaProxy(
-      image,
+    result ??= await _mediaService.uploadRemoteImage(
+      imageUrl: image.url,
+      languageCode: widget.languageCode,
       onTransferProgress: onTransferProgress,
     );
     if (result == null) return null;
@@ -12280,9 +12280,19 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
     if (response.statusCode < 200 || response.statusCode >= 300) return null;
     final contentType = response.headers['content-type'] ?? '';
     if (!contentType.toLowerCase().startsWith('image/')) return null;
-    return _mediaService.uploadFile(
+    final uploadSettings = await _mediaService.fetchUploadSettings(
+      languageCode: widget.languageCode,
+    );
+    final prepared = await prepareMediaUploadForStorage(
       fileName: _sourceImageUploadFileName(image.url, contentType),
       bytes: response.bodyBytes,
+      type: 'image',
+      imageFileFormat: uploadSettings.imageFileFormat,
+      forceImageEncoding: true,
+    );
+    return _mediaService.uploadFile(
+      fileName: prepared.fileName,
+      bytes: prepared.bytes,
       type: 'image',
       languageCode: widget.languageCode,
       onTransferProgress: onTransferProgress,
