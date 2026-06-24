@@ -135,6 +135,39 @@ function imageConversionUnavailableError(outputFormat: ImageOutputFormat) {
   return error;
 }
 
+function imageBytesMatchOutputFormat(
+  body: ArrayBuffer | Uint8Array,
+  outputFormat: ImageOutputFormat,
+) {
+  const bytes = body instanceof Uint8Array ? body : new Uint8Array(body);
+  if (outputFormat === 'jpeg') {
+    return bytes.length >= 3 &&
+      bytes[0] === 0xff &&
+      bytes[1] === 0xd8 &&
+      bytes[2] === 0xff;
+  }
+  if (outputFormat === 'png') {
+    return bytes.length >= 8 &&
+      bytes[0] === 0x89 &&
+      bytes[1] === 0x50 &&
+      bytes[2] === 0x4e &&
+      bytes[3] === 0x47 &&
+      bytes[4] === 0x0d &&
+      bytes[5] === 0x0a &&
+      bytes[6] === 0x1a &&
+      bytes[7] === 0x0a;
+  }
+  return bytes.length >= 12 &&
+    bytes[0] === 0x52 &&
+    bytes[1] === 0x49 &&
+    bytes[2] === 0x46 &&
+    bytes[3] === 0x46 &&
+    bytes[8] === 0x57 &&
+    bytes[9] === 0x45 &&
+    bytes[10] === 0x42 &&
+    bytes[11] === 0x50;
+}
+
 function shouldOptimizeImage(type: StorageType, id: string, contentType: string) {
   return OPTIMIZED_IMAGE_STORAGE_TYPES.has(type) &&
     (
@@ -185,7 +218,8 @@ export async function uploadOriginalFileDirectlyToRemoteStorage({
       file.type || contentTypeForFilename(file.name),
     );
     if (!imageUploadMatchesOutputFormat(file.name, fileContentType, outputFormat) &&
-        !imageUploadMatchesOutputFormat(id, contentType, outputFormat)) {
+        !imageUploadMatchesOutputFormat(id, contentType, outputFormat) &&
+        !imageBytesMatchOutputFormat(body, outputFormat)) {
       throw imageConversionUnavailableError(outputFormat);
     }
     id = withImageOutputExtension(id, outputFormat);

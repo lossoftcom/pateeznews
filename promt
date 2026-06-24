@@ -27,13 +27,41 @@ git push -u origin main
 dart run lib/servisler/veritabani_reset_servisi.dart
 
 
-git reset --hard origin/main
 
 git fetch origin && git reset --hard origin/main
 
 
 
 flutter run -d emulator-5554 --dart-define=PATEEZNEWS_API_BASE_URL=http://10.0.2.2:4321
+
+
+
+$gsap-core
+$gsap-frameworks
+$gsap-performance
+$gsap-plugins
+$gsap-react
+$gsap-scrolltrigger
+$gsap-timeline
+$gsap-utils
+$motion-design
+$frontend-design
+$flutter-ai-ui-skill
+$flutter-build-responsive-layout
+$flutter-fix-layout-issues
+$flutter-apply-architecture-best-practices
+$flutter-add-widget-test
+$flutter-add-integration-test
+$flutter-add-widget-preview
+$flutter-implement-json-serialization
+$flutter-setup-declarative-routing
+$flutter-setup-localization
+$flutter-use-http-package
+$astro-framework
+$tailwind-4-docs
+$web-design-guidelines
+
+
 
 
 
