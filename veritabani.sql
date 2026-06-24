@@ -248,6 +248,8 @@ CREATE TABLE public.site_settings (
   dark_logo_url text,
   email_logo_url text,
   favicon_url text,
+  contact_email_social text,
+  contact_email_social_password_encrypted text,
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
   home_title text,

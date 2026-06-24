@@ -463,6 +463,7 @@ class _GeneralSettingsForm {
   final contactEmailSupport = TextEditingController();
   final contactEmailNews = TextEditingController();
   final contactEmailAds = TextEditingController();
+  final contactEmailSocial = TextEditingController();
   final twitterUsername = TextEditingController();
   final fbAppId = TextEditingController();
   final socialWhatsappUrl = TextEditingController();
@@ -534,6 +535,7 @@ class _GeneralSettingsForm {
     contactEmailSupport.text = settings.contactEmailSupport;
     contactEmailNews.text = settings.contactEmailNews;
     contactEmailAds.text = settings.contactEmailAds;
+    contactEmailSocial.text = settings.contactEmailSocial;
     twitterUsername.text = settings.twitterUsername;
     fbAppId.text = settings.fbAppId;
     socialWhatsappUrl.text = settings.socialWhatsappUrl;
@@ -635,6 +637,7 @@ class _GeneralSettingsForm {
       contactEmailSupport: contactEmailSupport.text,
       contactEmailNews: contactEmailNews.text,
       contactEmailAds: contactEmailAds.text,
+      contactEmailSocial: contactEmailSocial.text,
       twitterUsername: twitterUsername.text,
       fbAppId: fbAppId.text,
       socialWhatsappUrl: socialWhatsappUrl.text,
@@ -708,6 +711,7 @@ class _GeneralSettingsForm {
     contactEmailSupport.dispose();
     contactEmailNews.dispose();
     contactEmailAds.dispose();
+    contactEmailSocial.dispose();
     twitterUsername.dispose();
     fbAppId.dispose();
     socialWhatsappUrl.dispose();
@@ -2303,6 +2307,32 @@ class _ContactSettings extends StatelessWidget {
                   ContactEmailPasswordField.ads,
               onTogglePassword: onRevealContactEmailPassword,
             ),
+          ],
+        ),
+        const SizedBox(height: 18),
+        _ResponsiveFieldRow(
+          children: [
+            _ContactEmailCredentialInput(
+              label: 'Sosyal Medya',
+              emailController: form.contactEmailSocial,
+              hintText: 'sosyal@pateez.com',
+              passwordController: form.contactEmailPasswordController(
+                ContactEmailPasswordField.social,
+              ),
+              passwordField: ContactEmailPasswordField.social,
+              showPasswordInput: canManageContactEmailPasswords,
+              hasPassword: contactEmailPasswordStatus.has(
+                ContactEmailPasswordField.social,
+              ),
+              passwordVisible: visibleContactEmailPasswordFields.contains(
+                ContactEmailPasswordField.social,
+              ),
+              revealing:
+                  revealingContactEmailPasswordField ==
+                  ContactEmailPasswordField.social,
+              onTogglePassword: onRevealContactEmailPassword,
+            ),
+            const SizedBox(), // Empty space for alignment
           ],
         ),
         const _FormDivider(),
