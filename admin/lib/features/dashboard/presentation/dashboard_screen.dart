@@ -503,6 +503,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
         imageDisplayUrl: seed.imageDisplayUrl,
         imageAlt: seed.imageAlt,
         imageRequestHeaders: seed.imageRequestHeaders,
+        sourceImages: [
+          for (final image in seed.sourceImages)
+            NewsAddInitialAiSourceImage(
+              url: image.url,
+              displayUrl: image.displayUrl,
+              displayHeaders: image.displayHeaders,
+            ),
+        ],
         addImageItem: seed.imageUrl.trim().isNotEmpty,
       );
       _selectedPage = _DashboardPage.newsAdd;

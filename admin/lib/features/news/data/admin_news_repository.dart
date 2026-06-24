@@ -511,16 +511,10 @@ class SupabaseAdminNewsRepository implements AdminNewsRepository {
 
   Uri _resolveUri(String path) {
     final configured = (apiBaseUrl ?? _apiBaseUrl).trim();
-    if (configured.isNotEmpty) {
+    if (configured.isNotEmpty && !isLocalAdminApiBaseUrl(configured)) {
       return Uri.parse(configured).resolve(path);
     }
-    if (!kIsWeb) {
-      final host = defaultTargetPlatform == TargetPlatform.android
-          ? 'https://pateez.com'
-          : 'https://pateez.com';
-      return Uri.parse(host).resolve(path);
-    }
-    return Uri.base.resolve(path);
+    return Uri.parse('https://pateez.com').resolve(path);
   }
 
   Map<String, Object?> _eqFilter(String column, Object? value) {

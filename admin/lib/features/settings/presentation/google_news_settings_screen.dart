@@ -177,9 +177,7 @@ class _GoogleNewsSettingsScreenState extends State<GoogleNewsSettingsScreen> {
   String get _newsSitemapUrl => _absoluteUrl('/news-sitemap.xml');
 
   String _absoluteUrl(String path, [Map<String, String>? query]) {
-    final uri = Uri.base.resolve(path).replace(queryParameters: query);
-    if (uri.hasScheme && uri.host.isNotEmpty) return uri.toString();
-    return Uri.https('www.pateez.com', path, query).toString();
+    return Uri.https('pateez.com', path, query).toString();
   }
 
   String _languageOptionForCode(String code) {

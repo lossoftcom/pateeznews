@@ -166,15 +166,10 @@ class _SocialNewsSourcePickerState extends State<SocialNewsSourcePicker> {
       // Build the API URL the same way SupabaseAdminNewsRepository does.
       const apiBase = String.fromEnvironment('PATEEZNEWS_API_BASE_URL');
       Uri uri;
-      if (apiBase.isNotEmpty) {
+      if (apiBase.isNotEmpty && !isLocalAdminApiBaseUrl(apiBase)) {
         uri = Uri.parse(apiBase).resolve('/api/admin/query');
-      } else if (!kIsWeb) {
-        final host = defaultTargetPlatform == TargetPlatform.android
-            ? 'https://pateez.com'
-            : 'https://pateez.com';
-        uri = Uri.parse(host).resolve('/api/admin/query');
       } else {
-        uri = Uri.base.resolve('/api/admin/query');
+        uri = Uri.parse('https://pateez.com').resolve('/api/admin/query');
       }
 
       final response = await adminHttpClient

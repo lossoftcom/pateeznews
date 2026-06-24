@@ -225,6 +225,7 @@ class NewsAddInitialAiContent {
     this.imageDisplayUrl = '',
     required this.imageAlt,
     this.imageRequestHeaders = const <String, String>{},
+    this.sourceImages = const <NewsAddInitialAiSourceImage>[],
     required this.addImageItem,
   });
 
@@ -234,7 +235,20 @@ class NewsAddInitialAiContent {
   final String imageDisplayUrl;
   final String imageAlt;
   final Map<String, String> imageRequestHeaders;
+  final List<NewsAddInitialAiSourceImage> sourceImages;
   final bool addImageItem;
+}
+
+class NewsAddInitialAiSourceImage {
+  const NewsAddInitialAiSourceImage({
+    required this.url,
+    required this.displayUrl,
+    this.displayHeaders = const <String, String>{},
+  });
+
+  final String url;
+  final String displayUrl;
+  final Map<String, String> displayHeaders;
 }
 
 class NewsAddScreen extends StatefulWidget {
@@ -4988,6 +5002,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     final initialTopic = seed?.topic.trim().isNotEmpty == true
         ? seed!.topic
         : _currentAiContentSeed();
+    final initialSourceImages = _initialAiSourceImages(seed);
     final targetTab = _activeTab;
     final result = await showDialog<_AiContentGeneratorResult>(
       context: context,
@@ -5001,16 +5016,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
           initialTopic: initialTopic,
           initialNotes: '',
           initialSourceUrl: '',
-          initialSourceImages: seed?.imageUrl.trim().isNotEmpty == true
-              ? [
-                  AdminNewsSourceImage(
-                    url: seed!.imageUrl.trim(),
-                    alt: seed.imageAlt,
-                    displayUrl: seed.imageDisplayUrl,
-                    displayHeaders: seed.imageRequestHeaders,
-                  ),
-                ]
-              : const <AdminNewsSourceImage>[],
+          initialSourceImages: initialSourceImages,
           initialImageItemCount: seed?.addImageItem == true ? 1 : 0,
           revisionMode: initialTopic.trim().isNotEmpty,
           onGenerate: _aiRepository.generateDraft,
@@ -5025,6 +5031,34 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
       eventImages: result.eventImages,
     );
     _showEditorMessage(context.t('newsAdd.aiModal.generated'));
+  }
+
+  List<AdminNewsSourceImage> _initialAiSourceImages(
+    NewsAddInitialAiContent? seed,
+  ) {
+    if (seed == null) return const <AdminNewsSourceImage>[];
+    if (seed.sourceImages.isNotEmpty) {
+      return [
+        for (final image in seed.sourceImages)
+          if (image.url.trim().isNotEmpty)
+            AdminNewsSourceImage(
+              url: image.url.trim(),
+              alt: seed.imageAlt,
+              displayUrl: image.displayUrl,
+              displayHeaders: image.displayHeaders,
+            ),
+      ];
+    }
+    return seed.imageUrl.trim().isNotEmpty
+        ? [
+            AdminNewsSourceImage(
+              url: seed.imageUrl.trim(),
+              alt: seed.imageAlt,
+              displayUrl: seed.imageDisplayUrl,
+              displayHeaders: seed.imageRequestHeaders,
+            ),
+          ]
+        : const <AdminNewsSourceImage>[];
   }
 
   Future<void> _openFullNewsTextPreview() async {
@@ -12792,7 +12826,7 @@ class _SourceImagePreview extends StatelessWidget {
             child: AdminCachedImage(
               url: previewUrl,
               httpHeaders: previewHeaders,
-              fit: BoxFit.cover,
+              fit: BoxFit.contain,
               memCacheWidth: 360,
               errorWidget: const _SourceImageFallback(),
             ),
@@ -12834,7 +12868,7 @@ class _SourceImagePreview extends StatelessWidget {
             child: AdminCachedImage(
               url: previewUrl,
               httpHeaders: previewHeaders,
-              fit: BoxFit.cover,
+              fit: BoxFit.contain,
               memCacheWidth: 360,
               errorWidget: const _SourceImageFallback(),
             ),
@@ -13577,7 +13611,7 @@ class _SourceImageTile extends StatelessWidget {
                     AdminCachedImage(
                       url: _sourceImageDisplayUrl(image),
                       httpHeaders: _sourceImageDisplayHeaders(image),
-                      fit: BoxFit.cover,
+                      fit: BoxFit.contain,
                       memCacheWidth: 360,
                       errorWidget: const _SourceImageFallback(),
                     ),

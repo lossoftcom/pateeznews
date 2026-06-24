@@ -915,15 +915,9 @@ class SupabaseAdminWhatsappRepository implements AdminWhatsappRepository {
 
   Uri _uri(String path, [Map<String, String>? query]) {
     final configured = (apiBaseUrl ?? _apiBaseUrl).trim();
-    final base = configured.isNotEmpty
+    final base = configured.isNotEmpty && !isLocalAdminApiBaseUrl(configured)
         ? Uri.parse(configured)
-        : !kIsWeb
-        ? Uri.parse(
-            defaultTargetPlatform == TargetPlatform.android
-                ? 'https://pateez.com'
-                : 'https://pateez.com',
-          )
-        : Uri.base;
+        : Uri.parse('https://pateez.com');
     final uri = base.resolve(path);
     return query == null || query.isEmpty
         ? uri

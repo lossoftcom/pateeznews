@@ -472,6 +472,7 @@ class MediaService {
     String? customPath,
     String? customFilename,
     String? replaceId,
+    String? languageCode,
     ValueChanged<double>? onUploadProgress,
     VoidCallback? onProcessing,
     ValueChanged<MediaTransferProgress>? onTransferProgress,
@@ -490,6 +491,7 @@ class MediaService {
     _addMultipartField(request, 'customPath', customPath);
     _addMultipartField(request, 'customFilename', customFilename);
     _addMultipartField(request, 'replaceId', replaceId);
+    _addMultipartField(request, 'languageCode', languageCode);
     request.files.add(
       http.MultipartFile.fromBytes('file', bytes, filename: fileName),
     );
@@ -566,12 +568,14 @@ class MediaService {
     required String fileName,
     required List<int> bytes,
     String type = 'image',
+    String? languageCode,
   }) {
     return uploadFile(
       fileName: fileName,
       bytes: bytes,
       type: type,
       replaceId: fileId,
+      languageCode: languageCode,
     );
   }
 
@@ -927,14 +931,10 @@ class MediaService {
 
   Uri _resolve(String path) {
     final configured = (apiBaseUrl ?? _apiBaseUrl).trim();
-    if (configured.isNotEmpty) return Uri.parse(configured).resolve(path);
-    if (!kIsWeb) {
-      final host = defaultTargetPlatform == TargetPlatform.android
-          ? 'https://pateez.com'
-          : 'https://pateez.com';
-      return Uri.parse(host).resolve(path);
+    if (configured.isNotEmpty && !isLocalAdminApiBaseUrl(configured)) {
+      return Uri.parse(configured).resolve(path);
     }
-    return Uri.base.resolve(path);
+    return Uri.parse('https://pateez.com').resolve(path);
   }
 
   Future<http.Response> _get(Uri uri, {Map<String, String>? headers}) async {

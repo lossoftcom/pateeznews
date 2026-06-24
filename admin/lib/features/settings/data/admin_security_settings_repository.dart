@@ -249,12 +249,9 @@ class SupabaseAdminSecuritySettingsRepository
 
   Uri _uri(String path) {
     final baseUrl = (apiBaseUrl ?? _apiBaseUrl).trim();
-    if (baseUrl.isNotEmpty) return Uri.parse(baseUrl).resolve(path);
-    if (kIsWeb) return Uri.base.resolve(path);
-    return switch (defaultTargetPlatform) {
-      TargetPlatform.android => Uri.parse('https://pateez.com').resolve(path),
-      _ => Uri.parse('https://pateez.com').resolve(path),
-    };
+    if (baseUrl.isNotEmpty && !isLocalAdminApiBaseUrl(baseUrl))
+      return Uri.parse(baseUrl).resolve(path);
+    return Uri.parse('https://pateez.com').resolve(path);
   }
 }
 

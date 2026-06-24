@@ -11,6 +11,7 @@ import 'package:pateeznews_admin/features/news/presentation/widgets/news_link_op
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
 import 'package:quill_native_bridge/quill_native_bridge.dart';
 import 'package:share_plus/share_plus.dart' hide XFile;
+import 'package:video_player/video_player.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
@@ -31,6 +32,7 @@ class AutomaticNewsAiDraftSeed {
     required this.imageDisplayUrl,
     required this.imageAlt,
     this.imageRequestHeaders = const <String, String>{},
+    this.sourceImages = const <AutomaticNewsAiSourceImage>[],
   });
 
   final String topic;
@@ -39,6 +41,19 @@ class AutomaticNewsAiDraftSeed {
   final String imageDisplayUrl;
   final String imageAlt;
   final Map<String, String> imageRequestHeaders;
+  final List<AutomaticNewsAiSourceImage> sourceImages;
+}
+
+class AutomaticNewsAiSourceImage {
+  const AutomaticNewsAiSourceImage({
+    required this.url,
+    required this.displayUrl,
+    this.displayHeaders = const <String, String>{},
+  });
+
+  final String url;
+  final String displayUrl;
+  final Map<String, String> displayHeaders;
 }
 
 class AutomaticNewsScreen extends StatefulWidget {
@@ -374,6 +389,26 @@ class _AutomaticNewsScreenState extends State<AutomaticNewsScreen> {
         ? _automaticNewsImageHttpHeaders(_imageRequestHeaders) ??
               const <String, String>{}
         : const <String, String>{};
+    final sourceImages = _automaticNewsDraftImageUrls(draft);
+    final primaryDisplayUrl = draft.imageUrl.trim().isEmpty
+        ? ''
+        : _automaticNewsImageDisplayUrl(
+            draft,
+            width: 960,
+            imageRequestHeaders: _imageRequestHeaders,
+          );
+    final sourceImageSeeds = <AutomaticNewsAiSourceImage>[
+      for (var index = 0; index < sourceImages.length; index++)
+        AutomaticNewsAiSourceImage(
+          url: sourceImages[index],
+          displayUrl: index == 0 && primaryDisplayUrl.isNotEmpty
+              ? primaryDisplayUrl
+              : sourceImages[index],
+          displayHeaders: index == 0 && primaryDisplayUrl.isNotEmpty
+              ? imageHeaders
+              : const <String, String>{},
+        ),
+    ];
     widget.onEditDraft?.call(
       draft.toAiDraftSeed(
         imageDisplayUrl: _automaticNewsImageDisplayUrl(
@@ -382,6 +417,7 @@ class _AutomaticNewsScreenState extends State<AutomaticNewsScreen> {
           imageRequestHeaders: _imageRequestHeaders,
         ),
         imageRequestHeaders: imageHeaders,
+        sourceImages: sourceImageSeeds,
       ),
     );
   }
@@ -3081,9 +3117,28 @@ String _automaticNewsPreviewImageDisplayUrl(
     final query = mediaLoaded
         ? {'id': draft.recordId, 'image': '$imageIndex', 'w': '$width'}
         : {'id': draft.recordId, 'disposition': 'inline', 'w': '$width'};
-    return Uri.base.resolve(path).replace(queryParameters: query).toString();
+    return Uri.parse(
+      'https://pateez.com',
+    ).resolve(path).replace(queryParameters: query).toString();
   }
   return adminImageUrl(imageUrl, width: width);
+}
+
+String _automaticNewsPreviewVideoDisplayUrl(
+  _AutomaticNewsDraft draft,
+  String videoUrl, {
+  required int videoIndex,
+  required bool mediaLoaded,
+}) {
+  if (mediaLoaded && draft.recordId.trim().isNotEmpty) {
+    return Uri.parse('https://pateez.com')
+        .resolve('/api/admin/automatic-news/media')
+        .replace(
+          queryParameters: {'id': draft.recordId, 'video': '$videoIndex'},
+        )
+        .toString();
+  }
+  return adminImageUrl(videoUrl);
 }
 
 Map<String, String>? _automaticNewsImageHttpHeaders(
@@ -3975,9 +4030,10 @@ List<String> _previewMediaImages(
   AutomaticNewsMediaResult? media,
 ) {
   final images = <String>[];
-  void add(String value) {
+  void add(String value, {bool primary = false}) {
     final url = value.trim();
     if (url.isEmpty) return;
+    if (!primary && !_automaticNewsLooksLikeImageUrl(url)) return;
     final key = url.replaceFirst(RegExp(r'[?#].*$'), '');
     final exists = images.any(
       (item) => item.replaceFirst(RegExp(r'[?#].*$'), '') == key,
@@ -3985,10 +4041,17 @@ List<String> _previewMediaImages(
     if (!exists) images.add(url);
   }
 
+  add(draft.imageUrl, primary: true);
+  add(media?.primaryImageUrl ?? '', primary: true);
+  for (final image in draft.allMediaUrls) {
+    add(image);
+  }
   for (final image in media?.images ?? const <String>[]) {
     add(image);
   }
-  add(draft.imageUrl);
+  for (final image in media?.mediaUrls ?? const <String>[]) {
+    add(image);
+  }
   return images;
 }
 
@@ -3997,9 +4060,10 @@ List<String> _previewMediaVideos(
   AutomaticNewsMediaResult? media,
 ) {
   final videos = <String>[];
-  void add(String value) {
+  void add(String value, {bool primary = false}) {
     final url = value.trim();
     if (url.isEmpty) return;
+    if (!primary && !_automaticNewsLooksLikeVideoUrl(url)) return;
     final key = url.replaceFirst(RegExp(r'[?#].*$'), '');
     final exists = videos.any(
       (item) => item.replaceFirst(RegExp(r'[?#].*$'), '') == key,
@@ -4007,11 +4071,15 @@ List<String> _previewMediaVideos(
     if (!exists) videos.add(url);
   }
 
-  add(draft.videoUrl);
+  add(draft.videoUrl, primary: true);
+  add(media?.primaryVideoUrl ?? '', primary: true);
   for (final video in draft.videoUrls) {
     add(video);
   }
   for (final video in media?.videos ?? const <String>[]) {
+    add(video);
+  }
+  for (final video in media?.mediaUrls ?? const <String>[]) {
     add(video);
   }
   return videos;
@@ -4124,6 +4192,31 @@ class _AutomaticNewsPreviewHeader extends StatelessWidget {
   }
 }
 
+enum _AutomaticNewsPreviewMediaType { image, video }
+
+class _AutomaticNewsPreviewMediaItem {
+  const _AutomaticNewsPreviewMediaItem.image({
+    required this.url,
+    required this.imageIndex,
+  }) : type = _AutomaticNewsPreviewMediaType.image,
+       videoIndex = null,
+       assert(imageIndex != null);
+
+  const _AutomaticNewsPreviewMediaItem.videoAt({
+    required this.url,
+    required this.videoIndex,
+  }) : type = _AutomaticNewsPreviewMediaType.video,
+       imageIndex = null;
+
+  final _AutomaticNewsPreviewMediaType type;
+  final String url;
+  final int? imageIndex;
+  final int? videoIndex;
+
+  bool get isImage => type == _AutomaticNewsPreviewMediaType.image;
+  bool get isVideo => type == _AutomaticNewsPreviewMediaType.video;
+}
+
 class _AutomaticNewsPreviewMedia extends StatefulWidget {
   const _AutomaticNewsPreviewMedia({
     required this.draft,
@@ -4164,9 +4257,7 @@ class _AutomaticNewsPreviewMediaState
   @override
   void didUpdateWidget(covariant _AutomaticNewsPreviewMedia oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final lastIndex = widget.mediaImages.isEmpty
-        ? 0
-        : widget.mediaImages.length - 1;
+    final lastIndex = _mediaItemCount == 0 ? 0 : _mediaItemCount - 1;
     if (_index > lastIndex) {
       _index = lastIndex;
       if (_controller.hasClients) {
@@ -4181,8 +4272,11 @@ class _AutomaticNewsPreviewMediaState
     super.dispose();
   }
 
+  int get _mediaItemCount =>
+      widget.mediaImages.length + widget.mediaVideos.length;
+
   void _goTo(int delta) {
-    final count = widget.mediaImages.length;
+    final count = _mediaItemCount;
     if (count < 2) return;
     final next = (_index + delta).clamp(0, count - 1).toInt();
     if (next == _index) return;
@@ -4196,10 +4290,23 @@ class _AutomaticNewsPreviewMediaState
   @override
   Widget build(BuildContext context) {
     final images = widget.mediaImages;
-    final hasImage = images.isNotEmpty;
     final videoUrls = widget.mediaVideos;
     final hasVideo = videoUrls.isNotEmpty;
-    final selectedUrl = hasImage ? images[_index] : '';
+    final mediaItems = <_AutomaticNewsPreviewMediaItem>[
+      for (var index = 0; index < images.length; index++)
+        _AutomaticNewsPreviewMediaItem.image(
+          url: images[index],
+          imageIndex: index,
+        ),
+      for (var index = 0; index < videoUrls.length; index++)
+        _AutomaticNewsPreviewMediaItem.videoAt(
+          url: videoUrls[index],
+          videoIndex: index,
+        ),
+    ];
+    final hasMedia = mediaItems.isNotEmpty;
+    final selectedItem = hasMedia ? mediaItems[_index] : null;
+    final selectedUrl = selectedItem?.url ?? '';
     final mediaUrl = selectedUrl.isNotEmpty
         ? selectedUrl
         : widget.draft.mediaUrl;
@@ -4212,7 +4319,7 @@ class _AutomaticNewsPreviewMediaState
         )
         .take(8)
         .toList(growable: false);
-    final hasMultipleImages = images.length > 1;
+    final hasMultipleMedia = mediaItems.length > 1;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -4225,16 +4332,33 @@ class _AutomaticNewsPreviewMediaState
             border: Border.all(color: AppColors.line.withValues(alpha: 0.82)),
           ),
           clipBehavior: Clip.antiAlias,
-          child: hasImage
+          child: hasMedia
               ? Stack(
                   fit: StackFit.expand,
                   children: [
                     PageView.builder(
                       controller: _controller,
-                      itemCount: images.length,
+                      itemCount: mediaItems.length,
                       onPageChanged: (value) => setState(() => _index = value),
                       itemBuilder: (context, index) {
-                        final imageUrl = images[index];
+                        final item = mediaItems[index];
+                        if (item.isVideo) {
+                          return _AutomaticNewsPreviewVideoPlayer(
+                            url: _automaticNewsPreviewVideoDisplayUrl(
+                              widget.draft,
+                              item.url,
+                              videoIndex: item.videoIndex ?? 0,
+                              mediaLoaded: widget.mediaLoaded,
+                            ),
+                            fallbackUrl: item.url,
+                            httpHeaders:
+                                _automaticNewsImageHttpHeaders(
+                                  widget.imageRequestHeaders,
+                                ) ??
+                                const <String, String>{},
+                          );
+                        }
+                        final imageIndex = item.imageIndex ?? 0;
                         final useProxy = _automaticNewsPreviewImageUsesProxy(
                           widget.draft,
                           widget.imageRequestHeaders,
@@ -4242,8 +4366,8 @@ class _AutomaticNewsPreviewMediaState
                         return AdminCachedImage(
                           url: _automaticNewsPreviewImageDisplayUrl(
                             widget.draft,
-                            imageUrl,
-                            imageIndex: index,
+                            item.url,
+                            imageIndex: imageIndex,
                             width: widget.compact ? 720 : 920,
                             mediaLoaded: widget.mediaLoaded,
                             imageRequestHeaders: widget.imageRequestHeaders,
@@ -4253,10 +4377,10 @@ class _AutomaticNewsPreviewMediaState
                                   widget.imageRequestHeaders,
                                 )
                               : null,
-                          fit: BoxFit.cover,
+                          fit: BoxFit.contain,
                           memCacheWidth: widget.compact ? 720 : 920,
-                          errorWidget: _AutomaticNewsMediaFallback(
-                            hasVideo: hasVideo,
+                          errorWidget: const _AutomaticNewsMediaFallback(
+                            hasVideo: false,
                           ),
                         );
                       },
@@ -4270,48 +4394,43 @@ class _AutomaticNewsPreviewMediaState
                           color: AppColors.actionRed,
                         ),
                       ),
-                    if (hasMultipleImages)
+                    if (hasMultipleMedia)
                       Positioned(
                         top: 12,
                         right: 12,
                         child: _PreviewImageCounter(
                           current: _index + 1,
-                          total: images.length,
+                          total: mediaItems.length,
                         ),
                       ),
-                    if (hasMultipleImages)
+                    if (hasMultipleMedia)
                       Align(
                         alignment: Alignment.centerLeft,
                         child: _PreviewSliderArrow(
                           icon: Symbols.chevron_left_rounded,
-                          tooltip: 'Önceki görsel',
+                          tooltip: 'Önceki medya',
                           onPressed: _index == 0 ? null : () => _goTo(-1),
                         ),
                       ),
-                    if (hasMultipleImages)
+                    if (hasMultipleMedia)
                       Align(
                         alignment: Alignment.centerRight,
                         child: _PreviewSliderArrow(
                           icon: Symbols.chevron_right,
-                          tooltip: 'Sonraki görsel',
-                          onPressed: _index == images.length - 1
+                          tooltip: 'Sonraki medya',
+                          onPressed: _index == mediaItems.length - 1
                               ? null
                               : () => _goTo(1),
                         ),
-                      ),
-                    if (hasVideo)
-                      const Align(
-                        alignment: Alignment.center,
-                        child: _VideoOverlayBadge(),
                       ),
                   ],
                 )
               : _AutomaticNewsMediaFallback(hasVideo: hasVideo),
         ),
-        if (hasMultipleImages) ...[
+        if (hasMultipleMedia) ...[
           const SizedBox(height: 10),
-          _PreviewImageThumbStrip(
-            images: images,
+          _PreviewMediaThumbStrip(
+            items: mediaItems,
             selectedIndex: _index,
             draft: widget.draft,
             mediaLoaded: widget.mediaLoaded,
@@ -4333,8 +4452,10 @@ class _AutomaticNewsPreviewMediaState
         if (mediaUrl.isNotEmpty) ...[
           const SizedBox(height: 10),
           _PreviewInfoBlock(
-            label: hasMultipleImages
-                ? 'Seçili Görsel Linki'
+            label: hasMultipleMedia
+                ? (selectedItem?.isVideo ?? false)
+                      ? 'Seçili Video Linki'
+                      : 'Seçili Görsel Linki'
                 : hasVideo
                 ? 'Medya / Video Linki'
                 : 'Medya Linki',
@@ -4434,9 +4555,9 @@ class _PreviewSliderArrow extends StatelessWidget {
   }
 }
 
-class _PreviewImageThumbStrip extends StatelessWidget {
-  const _PreviewImageThumbStrip({
-    required this.images,
+class _PreviewMediaThumbStrip extends StatelessWidget {
+  const _PreviewMediaThumbStrip({
+    required this.items,
     required this.selectedIndex,
     required this.draft,
     required this.mediaLoaded,
@@ -4444,7 +4565,7 @@ class _PreviewImageThumbStrip extends StatelessWidget {
     required this.onSelected,
   });
 
-  final List<String> images;
+  final List<_AutomaticNewsPreviewMediaItem> items;
   final int selectedIndex;
   final _AutomaticNewsDraft draft;
   final bool mediaLoaded;
@@ -4458,22 +4579,25 @@ class _PreviewImageThumbStrip extends StatelessWidget {
       imageRequestHeaders,
     );
     return SizedBox(
-      height: 58,
+      height: 66,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        itemCount: images.length,
+        itemCount: items.length,
         separatorBuilder: (context, index) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
+          final item = items[index];
           final selected = index == selectedIndex;
           return Tooltip(
-            message: 'Görsel ${index + 1}',
+            message: item.isVideo
+                ? 'Video'
+                : 'Görsel ${(item.imageIndex ?? index) + 1}',
             child: InkWell(
               borderRadius: BorderRadius.circular(AppRadius.value),
               onTap: () => onSelected(index),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 160),
-                width: 76,
-                height: 58,
+                width: 64,
+                height: 64,
                 padding: const EdgeInsets.all(3),
                 decoration: BoxDecoration(
                   color: selected ? AppColors.deepOcean : AppColors.surface,
@@ -4486,32 +4610,45 @@ class _PreviewImageThumbStrip extends StatelessWidget {
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(AppRadius.value - 2),
-                  child: AdminCachedImage(
-                    url: _automaticNewsPreviewImageDisplayUrl(
-                      draft,
-                      images[index],
-                      imageIndex: index,
-                      width: 180,
-                      mediaLoaded: mediaLoaded,
-                      imageRequestHeaders: imageRequestHeaders,
-                    ),
-                    httpHeaders: useProxy
-                        ? _automaticNewsImageHttpHeaders(imageRequestHeaders)
-                        : null,
-                    fit: BoxFit.cover,
-                    memCacheWidth: 180,
-                    fadeIn: false,
-                    errorWidget: const ColoredBox(
-                      color: AppColors.surface,
-                      child: Center(
-                        child: SymbolIcon(
-                          Symbols.image_outlined,
-                          color: AppColors.iconMuted,
-                          size: 18,
+                  child: item.isVideo
+                      ? ColoredBox(
+                          color: AppColors.deepOcean.withValues(alpha: 0.12),
+                          child: const Center(
+                            child: SymbolIcon(
+                              Symbols.videocam_outlined,
+                              color: AppColors.deepOcean,
+                              size: 22,
+                            ),
+                          ),
+                        )
+                      : AdminCachedImage(
+                          url: _automaticNewsPreviewImageDisplayUrl(
+                            draft,
+                            item.url,
+                            imageIndex: item.imageIndex ?? index,
+                            width: 180,
+                            mediaLoaded: mediaLoaded,
+                            imageRequestHeaders: imageRequestHeaders,
+                          ),
+                          httpHeaders: useProxy
+                              ? _automaticNewsImageHttpHeaders(
+                                  imageRequestHeaders,
+                                )
+                              : null,
+                          fit: BoxFit.contain,
+                          memCacheWidth: 180,
+                          fadeIn: false,
+                          errorWidget: const ColoredBox(
+                            color: AppColors.surface,
+                            child: Center(
+                              child: SymbolIcon(
+                                Symbols.image_outlined,
+                                color: AppColors.iconMuted,
+                                size: 18,
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                  ),
                 ),
               ),
             ),
@@ -4629,27 +4766,290 @@ class _AutomaticNewsMediaFallback extends StatelessWidget {
   }
 }
 
-class _VideoOverlayBadge extends StatelessWidget {
-  const _VideoOverlayBadge();
+class _AutomaticNewsPreviewVideoPlayer extends StatefulWidget {
+  const _AutomaticNewsPreviewVideoPlayer({
+    required this.url,
+    required this.fallbackUrl,
+    required this.httpHeaders,
+  });
+
+  final String url;
+  final String fallbackUrl;
+  final Map<String, String> httpHeaders;
+
+  @override
+  State<_AutomaticNewsPreviewVideoPlayer> createState() =>
+      _AutomaticNewsPreviewVideoPlayerState();
+}
+
+class _AutomaticNewsPreviewVideoPlayerState
+    extends State<_AutomaticNewsPreviewVideoPlayer> {
+  VideoPlayerController? _controller;
+  var _failed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant _AutomaticNewsPreviewVideoPlayer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.url != widget.url) {
+      _disposeController();
+      _failed = false;
+      _load();
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposeController();
+    super.dispose();
+  }
+
+  void _disposeController() {
+    final controller = _controller;
+    _controller = null;
+    controller?.removeListener(_refresh);
+    controller?.dispose();
+  }
+
+  Future<void> _load() async {
+    final resolved = adminImageUrl(widget.url.trim());
+    final uri = Uri.tryParse(resolved);
+    if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
+      if (mounted) setState(() => _failed = true);
+      return;
+    }
+
+    final controller = VideoPlayerController.networkUrl(
+      uri,
+      httpHeaders: widget.httpHeaders,
+      videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+    );
+    _controller = controller;
+    try {
+      await controller.initialize().timeout(const Duration(seconds: 12));
+      await controller.setVolume(1);
+      controller.addListener(_refresh);
+      if (!mounted || _controller != controller) return;
+      setState(() {});
+      unawaited(controller.play().catchError((_) {}));
+    } catch (_) {
+      if (!mounted || _controller != controller) return;
+      _controller = null;
+      await controller.dispose();
+      setState(() => _failed = true);
+    }
+  }
+
+  void _refresh() {
+    if (mounted) setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 54,
-      height: 54,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: AppColors.deepOcean.withValues(alpha: 0.86),
-        borderRadius: BorderRadius.circular(27),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.72)),
-      ),
-      child: const SymbolIcon(
-        Symbols.videocam_outlined,
-        color: Colors.white,
-        size: 24,
+    final controller = _controller;
+    if (_failed) {
+      return _AutomaticNewsPreviewVideoStatus(
+        icon: Symbols.error_outline_rounded,
+        title: 'Video oynatılamadı',
+        subtitle: _compactUrl(widget.fallbackUrl),
+        linkUrl: widget.fallbackUrl,
+      );
+    }
+    if (controller == null || !controller.value.isInitialized) {
+      return _AutomaticNewsPreviewVideoStatus(
+        icon: Symbols.hourglass_top_rounded,
+        title: 'Video yükleniyor',
+        subtitle: _compactUrl(widget.fallbackUrl),
+      );
+    }
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        _AutomaticNewsPreviewVideoFrame(controller: controller),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: _AutomaticNewsPreviewVideoControls(controller: controller),
+        ),
+      ],
+    );
+  }
+}
+
+class _AutomaticNewsPreviewVideoFrame extends StatelessWidget {
+  const _AutomaticNewsPreviewVideoFrame({required this.controller});
+
+  final VideoPlayerController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = controller.value.size;
+    if (size.width <= 0 || size.height <= 0) {
+      return Center(child: VideoPlayer(controller));
+    }
+    return Center(
+      child: FittedBox(
+        fit: BoxFit.contain,
+        child: SizedBox(
+          width: size.width,
+          height: size.height,
+          child: VideoPlayer(controller),
+        ),
       ),
     );
   }
+}
+
+class _AutomaticNewsPreviewVideoControls extends StatelessWidget {
+  const _AutomaticNewsPreviewVideoControls({required this.controller});
+
+  final VideoPlayerController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final value = controller.value;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(10, 18, 10, 10),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Colors.transparent, Colors.black.withValues(alpha: 0.72)],
+        ),
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            onPressed: () {
+              value.isPlaying ? controller.pause() : controller.play();
+            },
+            icon: Icon(
+              value.isPlaying
+                  ? Symbols.pause_rounded
+                  : Symbols.play_arrow_rounded,
+              color: Colors.white,
+            ),
+          ),
+          Expanded(
+            child: VideoProgressIndicator(
+              controller,
+              allowScrubbing: true,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+              colors: const VideoProgressColors(
+                playedColor: AppColors.actionRed,
+                bufferedColor: Color(0x80FFFFFF),
+                backgroundColor: Color(0x33FFFFFF),
+              ),
+            ),
+          ),
+          Text(
+            _formatPreviewVideoPosition(value.position, value.duration),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0,
+            ),
+          ),
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            onPressed: () => controller.setVolume(value.volume > 0 ? 0 : 1),
+            icon: Icon(
+              value.volume > 0
+                  ? Symbols.volume_up_rounded
+                  : Symbols.volume_off_rounded,
+              color: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AutomaticNewsPreviewVideoStatus extends StatelessWidget {
+  const _AutomaticNewsPreviewVideoStatus({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    this.linkUrl,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final String? linkUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final url = linkUrl?.trim() ?? '';
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SymbolIcon(icon, color: AppColors.iconMuted, size: 42),
+            const SizedBox(height: 10),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppColors.deepOcean,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0,
+              ),
+            ),
+            if (subtitle.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                subtitle,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppColors.inkSoft,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0,
+                ),
+              ),
+            ],
+            if (url.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              TextButton.icon(
+                onPressed: () => unawaited(openNewsLink(url)),
+                icon: const SymbolIcon(Symbols.open_in_new, size: 16),
+                label: const Text('Bağlantıyı aç'),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String _formatPreviewVideoPosition(Duration position, Duration duration) {
+  String twoDigits(int value) => value.toString().padLeft(2, '0');
+  String format(Duration value) {
+    final hours = value.inHours;
+    final minutes = value.inMinutes.remainder(60);
+    final seconds = value.inSeconds.remainder(60);
+    if (hours > 0) {
+      return '$hours:${twoDigits(minutes)}:${twoDigits(seconds)}';
+    }
+    return '$minutes:${twoDigits(seconds)}';
+  }
+
+  return '${format(position)} / ${format(duration)}';
 }
 
 class _AutomaticNewsPreviewDetails extends StatelessWidget {
@@ -6356,6 +6756,8 @@ class _AutomaticNewsDraft {
   AutomaticNewsAiDraftSeed toAiDraftSeed({
     String imageDisplayUrl = '',
     Map<String, String> imageRequestHeaders = const <String, String>{},
+    List<AutomaticNewsAiSourceImage> sourceImages =
+        const <AutomaticNewsAiSourceImage>[],
   }) {
     final source = sourceUrl.trim();
     final rawImageUrl = imageUrl.trim();
@@ -6394,8 +6796,53 @@ class _AutomaticNewsDraft {
       imageRequestHeaders: rawImageUrl.isEmpty
           ? const <String, String>{}
           : Map.unmodifiable(imageRequestHeaders),
+      sourceImages: List.unmodifiable(sourceImages),
     );
   }
+}
+
+List<String> _automaticNewsDraftImageUrls(_AutomaticNewsDraft draft) {
+  final images = <String>[];
+  void add(String value) {
+    final url = value.trim();
+    if (url.isEmpty || !_automaticNewsLooksLikeImageUrl(url)) return;
+    final key = url.replaceFirst(RegExp(r'[?#].*$'), '');
+    if (!images.any(
+      (item) => item.replaceFirst(RegExp(r'[?#].*$'), '') == key,
+    )) {
+      images.add(url);
+    }
+  }
+
+  add(draft.imageUrl);
+  for (final url in draft.mediaUrls) {
+    add(url);
+  }
+  return images;
+}
+
+bool _automaticNewsLooksLikeImageUrl(String value) {
+  final url = value.trim();
+  if (url.isEmpty) return false;
+  return RegExp(
+    r'\.(avif|webp|jpe?g|png|gif)(\?|$)',
+    caseSensitive: false,
+  ).hasMatch(url);
+}
+
+bool _automaticNewsLooksLikeVideoUrl(String value) {
+  final url = value.trim();
+  if (url.isEmpty || _automaticNewsLooksLikeImageUrl(url)) return false;
+  return RegExp(
+        r'\.(m3u8|mp4|mov|m4v|webm)(\?|$)',
+        caseSensitive: false,
+      ).hasMatch(url) ||
+      RegExp(
+        r'(video|reel|player|stream|instagram\.com/(p|reel))',
+        caseSensitive: false,
+      ).hasMatch(url) ||
+      (RegExp(r'cdninstagram\.com', caseSensitive: false).hasMatch(url) &&
+          RegExp(r'/o1/v/', caseSensitive: false).hasMatch(url));
 }
 
 String _seedField(String label, String value) {

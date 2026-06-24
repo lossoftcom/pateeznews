@@ -330,9 +330,9 @@ class SupabaseAdminUsersRepository implements AdminUsersRepository {
 
   Uri _uri(String path) {
     final baseUrl = (apiBaseUrl ?? _apiBaseUrl).trim();
-    if (baseUrl.isNotEmpty) return Uri.parse(baseUrl).resolve(path);
-    if (!kIsWeb) return _defaultLocalApiBaseUrl().resolve(path);
-    return Uri.base.resolve(path);
+    if (baseUrl.isNotEmpty && !isLocalAdminApiBaseUrl(baseUrl))
+      return Uri.parse(baseUrl).resolve(path);
+    return _defaultLocalApiBaseUrl().resolve(path);
   }
 
   Uri _defaultLocalApiBaseUrl() {

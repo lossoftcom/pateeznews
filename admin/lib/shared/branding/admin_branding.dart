@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:pateeznews_admin/core/network/admin_api_base_url.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Admin panelinin marka bilgisi (genel ayarlardan): site adı + logo/favicon.
@@ -143,14 +144,9 @@ class AdminBrandingStore {
 
   static Uri _resolveApiUri(String path) {
     final base = _apiBaseUrl.trim();
-    if (base.isNotEmpty) return Uri.parse(base).resolve(path);
-    if (!kIsWeb) {
-      final host = defaultTargetPlatform == TargetPlatform.android
-          ? 'https://pateez.com'
-          : 'https://pateez.com';
-      return Uri.parse(host).resolve(path);
-    }
-    return Uri.base.resolve(path);
+    if (base.isNotEmpty && !isLocalAdminApiBaseUrl(base))
+      return Uri.parse(base).resolve(path);
+    return Uri.parse('https://pateez.com').resolve(path);
   }
 
   /// Göreli logo yolunu (örn. `/local-upload/logo/...`) gösterilebilir tam

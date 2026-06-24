@@ -111,61 +111,36 @@ function withImageOutputExtension(id: string, format: ImageOutputFormat) {
   );
 }
 
+function imageUploadMatchesOutputFormat(
+  id: string,
+  contentType: string,
+  outputFormat: ImageOutputFormat,
+) {
+  const extension = path.posix.extname(id).toLowerCase().replace(/^\./, '');
+  if (outputFormat === 'jpeg' && (extension === 'jpg' || extension === 'jpeg')) {
+    return true;
+  }
+  if (extension === extensionForImageOutputFormat(outputFormat)) {
+    return true;
+  }
+  const normalizedContentType = String(contentType || '').split(';')[0].trim().toLowerCase();
+  return normalizedContentType === contentTypeForImageOutputFormat(outputFormat);
+}
+
+function imageConversionUnavailableError(outputFormat: ImageOutputFormat) {
+  const error = new Error(
+    `Image conversion to ${extensionForImageOutputFormat(outputFormat).toUpperCase()} requires the local upload processor.`,
+  ) as Error & { status?: number };
+  error.status = 503;
+  return error;
+}
+
 function shouldOptimizeImage(type: StorageType, id: string, contentType: string) {
   return OPTIMIZED_IMAGE_STORAGE_TYPES.has(type) &&
     (
       String(contentType || '').startsWith('image/') ||
       IMAGE_EXTENSIONS.has(path.posix.extname(id).toLowerCase())
     );
-}
-
-async function optimizeImageForRemoteFallback(
-  input: ArrayBuffer | Uint8Array,
-  outputFormat: ImageOutputFormat,
-) {
-  const { default: sharp } = await import('sharp');
-  const image = sharp(input, { animated: true });
-  const metadata = await image.metadata();
-  const preset = metadata.hasAlpha ? 'picture' : 'photo';
-  const pipeline = sharp(input, { animated: Boolean(metadata.pages && metadata.pages > 1) })
-    .rotate()
-    .resize({
-      width: 7680,
-      height: 7680,
-      fit: 'inside',
-      withoutEnlargement: true,
-      kernel: 'lanczos3',
-    });
-
-  if (outputFormat === 'jpeg') {
-    return pipeline
-      .flatten({ background: '#ffffff' })
-      .jpeg({
-        quality: 92,
-        mozjpeg: true,
-      })
-      .toBuffer();
-  }
-
-  if (outputFormat === 'png') {
-    return pipeline
-      .png({
-        compressionLevel: 9,
-        adaptiveFiltering: true,
-      })
-      .toBuffer();
-  }
-
-  return pipeline
-    .webp({
-      quality: 92,
-      alphaQuality: 95,
-      effort: 6,
-      smartSubsample: true,
-      smartDeblock: true,
-      preset,
-    })
-    .toBuffer();
 }
 
 function remoteId(file: UploadInput, formData: FormData) {
@@ -205,7 +180,14 @@ export async function uploadOriginalFileDirectlyToRemoteStorage({
 
   if (shouldOptimizeImage(type, id, contentType)) {
     const outputFormat = normalizeImageOutputFormat(field(formData, 'imageOutputFormat'));
-    body = await optimizeImageForRemoteFallback(body, outputFormat);
+    const fileContentType = contentTypeForUpload(
+      file.name,
+      file.type || contentTypeForFilename(file.name),
+    );
+    if (!imageUploadMatchesOutputFormat(file.name, fileContentType, outputFormat) &&
+        !imageUploadMatchesOutputFormat(id, contentType, outputFormat)) {
+      throw imageConversionUnavailableError(outputFormat);
+    }
     id = withImageOutputExtension(id, outputFormat);
     contentType = contentTypeForImageOutputFormat(outputFormat);
   }

@@ -11,6 +11,7 @@ import 'package:video_player/video_player.dart';
 import '../../core/localization/admin_language_controller.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_radius.dart';
+import '../data/media_upload_transformer.dart';
 import '../data/media_service.dart';
 import 'admin_cached_image.dart';
 import 'app_confirmation_dialog.dart';
@@ -350,12 +351,19 @@ class _MediaLibraryDialogState extends State<_MediaLibraryDialog> {
         });
 
         final bytes = await file.readAsBytes();
+        final prepared = await prepareMediaUploadForStorage(
+          fileName: file.name,
+          bytes: bytes,
+          type: widget.type,
+          imageFileFormat: _uploadSettings.imageFileFormat,
+        );
         MediaItem? result;
         try {
           result = await widget.mediaService.uploadFile(
-            fileName: file.name,
-            bytes: bytes,
+            fileName: prepared.fileName,
+            bytes: prepared.bytes,
             type: widget.type,
+            languageCode: _uploadSettingsLanguageCode ?? 'tr',
             onTransferProgress: (progress) {
               if (!mounted) return;
               final fileProgress = progress.progress;
@@ -760,11 +768,19 @@ class _MediaLibraryDialogState extends State<_MediaLibraryDialog> {
                 onImageEditingComplete: (bytes) async {
                   if (mounted) setState(() => _busyFileId = file.id);
                   try {
-                    final result = await widget.mediaService.replaceFile(
-                      fileId: file.id,
+                    final prepared = await prepareMediaUploadForStorage(
                       fileName: file.value,
                       bytes: bytes,
                       type: file.type,
+                      imageFileFormat: _uploadSettings.imageFileFormat,
+                      forceImageEncoding: true,
+                    );
+                    final result = await widget.mediaService.replaceFile(
+                      fileId: file.id,
+                      fileName: prepared.fileName,
+                      bytes: prepared.bytes,
+                      type: file.type,
+                      languageCode: _uploadSettingsLanguageCode ?? 'tr',
                     );
                     if (result != null && mounted) {
                       final version = DateTime.now().millisecondsSinceEpoch;

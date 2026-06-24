@@ -50,7 +50,10 @@ function isUsefulImage(url: string, context = '') {
 
 function isUsefulVideo(url: string, context = '') {
   if (!url) return false;
-  return VIDEO_RE.test(url) || /(video|reel|player|stream|cdninstagram|instagram\.com\/(?:p|reel)\b)/i.test(`${url} ${context}`);
+  const haystack = `${url} ${context}`;
+  return VIDEO_RE.test(url)
+    || /(video|reel|player|stream|instagram\.com\/(?:p|reel)\b)/i.test(haystack)
+    || (/cdninstagram\.com/i.test(url) && /\/o1\/v\//i.test(url));
 }
 
 function payloadImages(payload: unknown) {
@@ -252,10 +255,13 @@ async function loadMedia(id: string) {
   const images: string[] = [];
   const videos: string[] = [];
   const mediaUrls: string[] = [];
+  addUnique(images, primary);
   for (const image of payloadImages(row.raw_payload)) addUnique(images, image);
   for (const video of payloadVideos(row.raw_payload)) addUnique(videos, video);
   for (const url of payloadMediaUrls(row.raw_payload, row.media_urls)) addUnique(mediaUrls, url);
-  addUnique(images, primary);
+  for (const url of mediaUrls) {
+    if (isUsefulImage(url)) addUnique(images, url);
+  }
   addUnique(videos, primaryVideo);
   for (const mediaUrl of [primary, primaryVideo]) addUnique(mediaUrls, mediaUrl);
   const pageMedia = await fetchPageMedia(pageUrl, primary, primaryVideo).catch(() => ({ images: [], videos: [] }));
@@ -294,6 +300,42 @@ export const GET: APIRoute = async ({ request, url }) => {
           'X-Pateez-Image-Proxy': '1',
           ...adminSecurityHeaders(),
         },
+      });
+    }
+
+    const videoIndex = Number(url.searchParams.get('video'));
+    if (Number.isInteger(videoIndex) && videoIndex >= 0) {
+      const target = videos[videoIndex];
+      if (!target) return adminJson({ data: null, error: { message: 'Video bulunamadı' } }, 404);
+      assertSafeFetchUrl(target);
+      const range = clean(request.headers.get('range'));
+      const headers: Record<string, string> = {
+        Accept: 'video/*,*/*;q=0.8',
+        'User-Agent': USER_AGENT,
+      };
+      if (/^bytes=/i.test(range)) headers.Range = range;
+      const videoResponse = await fetch(target, {
+        signal: AbortSignal.timeout(30000),
+        headers,
+      });
+      assertSafeFetchUrl(videoResponse.url || target);
+      if (!videoResponse.ok && videoResponse.status !== 206) {
+        throw Object.assign(new Error('Video alınamadı'), { status: videoResponse.status });
+      }
+      const responseHeaders = new Headers({
+        'Content-Type': videoResponse.headers.get('content-type') || 'video/mp4',
+        'Cache-Control': 'private, max-age=120',
+        'Accept-Ranges': videoResponse.headers.get('accept-ranges') || 'bytes',
+        'X-Pateez-Video-Proxy': '1',
+        ...adminSecurityHeaders(),
+      });
+      const contentLength = videoResponse.headers.get('content-length');
+      const contentRange = videoResponse.headers.get('content-range');
+      if (contentLength) responseHeaders.set('Content-Length', contentLength);
+      if (contentRange) responseHeaders.set('Content-Range', contentRange);
+      return new Response(videoResponse.body, {
+        status: videoResponse.status,
+        headers: responseHeaders,
       });
     }
 
