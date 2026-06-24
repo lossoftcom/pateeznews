@@ -11,6 +11,7 @@ const CONTACT_PASSWORD_COLUMNS = {
   support: 'contact_email_support_password_encrypted',
   news: 'contact_email_news_password_encrypted',
   ads: 'contact_email_ads_password_encrypted',
+  social: 'contact_email_social_password_encrypted',
 } as const;
 
 type ContactPasswordField = keyof typeof CONTACT_PASSWORD_COLUMNS;

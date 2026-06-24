@@ -658,41 +658,76 @@ Kesin çıktı:
       if (prompt.isActive && text.isNotEmpty) activePrompts.add(prompt);
     }
     if (_isQuizFormat(formatType)) {
+      final purposePrompt = _promptForPurpose(
+        activePrompts,
+        adminAiPromptPurposeQuiz,
+      );
+      if (purposePrompt != null) return purposePrompt;
       for (final prompt in activePrompts) {
         if (_isQuizPromptTitle(prompt.title)) return prompt.prompt.trim();
       }
       return adminQuizAiDefaultSystemPrompt;
     }
     if (_isPollFormat(formatType)) {
+      final purposePrompt = _promptForPurpose(
+        activePrompts,
+        adminAiPromptPurposePoll,
+      );
+      if (purposePrompt != null) return purposePrompt;
       for (final prompt in activePrompts) {
         if (_isPollPromptTitle(prompt.title)) return prompt.prompt.trim();
       }
       return adminPollAiDefaultSystemPrompt;
     }
     if (_isVideoFormat(formatType)) {
+      final purposePrompt = _promptForPurpose(
+        activePrompts,
+        adminAiPromptPurposeVideo,
+      );
+      if (purposePrompt != null) return purposePrompt;
       for (final prompt in activePrompts) {
         if (_isVideoPromptTitle(prompt.title)) return prompt.prompt.trim();
       }
       return adminVideoAiDefaultSystemPrompt;
     }
     if (_isContentsFormat(formatType)) {
+      final purposePrompt = _promptForPurpose(
+        activePrompts,
+        adminAiPromptPurposeContents,
+      );
+      if (purposePrompt != null) return purposePrompt;
       for (final prompt in activePrompts) {
         if (_isContentsPromptTitle(prompt.title)) return prompt.prompt.trim();
       }
       return adminContentsAiDefaultSystemPrompt;
     }
     if (_isRecipeFormat(formatType)) {
+      final purposePrompt = _promptForPurpose(
+        activePrompts,
+        adminAiPromptPurposeRecipe,
+      );
+      if (purposePrompt != null) return purposePrompt;
       for (final prompt in activePrompts) {
         if (_isRecipePromptTitle(prompt.title)) return prompt.prompt.trim();
       }
       return adminRecipeAiDefaultSystemPrompt;
     }
     if (_isEventFormat(formatType)) {
+      final purposePrompt = _promptForPurpose(
+        activePrompts,
+        adminAiPromptPurposeEvent,
+      );
+      if (purposePrompt != null) return purposePrompt;
       for (final prompt in activePrompts) {
         if (_isEventPromptTitle(prompt.title)) return prompt.prompt.trim();
       }
       return adminEventAiDefaultSystemPrompt;
     }
+    final contentPrompt = _promptForPurpose(
+      activePrompts,
+      adminAiPromptPurposeContent,
+    );
+    if (contentPrompt != null) return contentPrompt;
     for (final prompt in activePrompts) {
       if (!_isDedicatedFormatPromptTitle(prompt.title)) {
         return prompt.prompt.trim();
@@ -701,6 +736,13 @@ Kesin çıktı:
     if (activePrompts.isNotEmpty) return activePrompts.first.prompt.trim();
     return adminNewsAiDefaultSystemPrompt;
   }
+}
+
+String? _promptForPurpose(List<AdminAiPrompt> prompts, String purpose) {
+  for (final prompt in prompts) {
+    if (prompt.purpose == purpose) return prompt.prompt.trim();
+  }
+  return null;
 }
 
 String _systemPromptWithCompactStructureRule(String systemPrompt) {

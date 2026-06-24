@@ -99,3 +99,17 @@ export async function deleteLocalStorageFile(body: unknown) {
   }
   return data;
 }
+
+export async function renderLocalStorageHeadlineImage(body: unknown) {
+  const response = await fetch(localStorageUrl('/api/local-storage/headline-render'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body || {}),
+  });
+  const text = await response.text();
+  const data = text ? JSON.parse(text) : null;
+  if (!response.ok) {
+    throw new Error(data?.error || text || 'Headline image render failed');
+  }
+  return data;
+}

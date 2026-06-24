@@ -8,6 +8,7 @@ import { spawn } from 'node:child_process';
 import multiparty from 'multiparty';
 import sharp from 'sharp';
 import ffmpegStaticPath from 'ffmpeg-static';
+import { renderHeadlineImage } from './headline-renderer.mjs';
 
 const PORT = Number(process.env.PATEEZ_LOCAL_STORAGE_PORT || 4322);
 const PROJECT_ROOT = process.env.PATEEZNEWS_PROJECT_ROOT ||
@@ -710,6 +711,20 @@ function field(fields, name) {
   return fields[name]?.[0] ? String(fields[name][0]) : '';
 }
 
+async function readJsonBody(req) {
+  const chunks = [];
+  for await (const chunk of req) chunks.push(chunk);
+  const text = Buffer.concat(chunks).toString('utf8').trim();
+  if (!text) return {};
+  return JSON.parse(text);
+}
+
+async function renderHeadline(req, res) {
+  const body = await readJsonBody(req);
+  const result = await renderHeadlineImage(body, { projectRoot: PROJECT_ROOT });
+  return json(res, 200, result);
+}
+
 async function upload(req, res) {
   const { fields, files } = await parseMultipart(req);
   const type = storageType(field(fields, 'type'));
@@ -964,6 +979,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'GET' && url.pathname === '/api/local-storage/file') return readStoredFile(req, res, url);
     if (req.method === 'POST' && url.pathname === '/api/local-storage/upload') return upload(req, res);
+    if (req.method === 'POST' && url.pathname === '/api/local-storage/headline-render') return renderHeadline(req, res);
     if (req.method === 'POST' && url.pathname === '/api/local-storage/video-thumb') return resolveVideoThumb(req, res);
     if (req.method === 'POST' && url.pathname === '/api/local-storage/rename') return renameStoredFile(req, res);
     if (req.method === 'DELETE' && url.pathname === '/api/local-storage/delete') return remove(req, res);

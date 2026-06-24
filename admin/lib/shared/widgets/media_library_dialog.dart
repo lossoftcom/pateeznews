@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:file_selector/file_selector.dart';
@@ -209,6 +210,7 @@ class _MediaLibraryDialogState extends State<_MediaLibraryDialog> {
   final _selectedSrcs = ValueNotifier<Set<String>>(<String>{});
   final _searchTerm = ValueNotifier<String>('');
   String? _lastSelectedSrc;
+  String? _selectionAnchorSrc;
 
   var _loading = true;
   var _uploading = false;
@@ -224,6 +226,7 @@ class _MediaLibraryDialogState extends State<_MediaLibraryDialog> {
   @override
   void initState() {
     super.initState();
+    HardwareKeyboard.instance.addHandler(_handleKeyboardSelection);
     _loadFiles();
   }
 
@@ -244,6 +247,7 @@ class _MediaLibraryDialogState extends State<_MediaLibraryDialog> {
 
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_handleKeyboardSelection);
     _selectedSrcs.dispose();
     _searchTerm.dispose();
     super.dispose();
@@ -579,7 +583,8 @@ class _MediaLibraryDialogState extends State<_MediaLibraryDialog> {
         if (_selectedSrcs.value.contains(file.src)) {
           final next = Set<String>.of(_selectedSrcs.value)..remove(file.src);
           _selectedSrcs.value = next;
-          _lastSelectedSrc = next.lastOrNull;
+          if (_lastSelectedSrc == file.src) _lastSelectedSrc = next.lastOrNull;
+          if (_selectionAnchorSrc == file.src) _selectionAnchorSrc = next.lastOrNull;
         }
       }
     } on MediaDeleteUsageException catch (error) {
@@ -832,23 +837,71 @@ class _MediaLibraryDialogState extends State<_MediaLibraryDialog> {
   void _clearSelection() {
     if (_selectedSrcs.value.isEmpty) return;
     _lastSelectedSrc = null;
+    _selectionAnchorSrc = null;
     _selectedSrcs.value = <String>{};
   }
 
+  bool get _isTextInputFocused {
+    final focusedContext = FocusManager.instance.primaryFocus?.context;
+    return focusedContext != null && focusedContext.widget is EditableText;
+  }
+
+  void _selectAllFiltered() {
+    final filtered = _filteredFiles;
+    if (filtered.isEmpty) return;
+    _selectedSrcs.value = {for (final file in filtered) file.src};
+    _selectionAnchorSrc = filtered.first.src;
+    _lastSelectedSrc = filtered.last.src;
+  }
+
+  bool _handleKeyboardSelection(KeyEvent event) {
+    if (event is! KeyDownEvent || _isTextInputFocused) return false;
+    final selectAll = event.logicalKey == LogicalKeyboardKey.keyA &&
+        (HardwareKeyboard.instance.isControlPressed ||
+            HardwareKeyboard.instance.isMetaPressed);
+    if (!selectAll) return false;
+    _selectAllFiltered();
+    return true;
+  }
+
   void _toggleSelection(MediaItem file) {
+    FocusManager.instance.primaryFocus?.unfocus();
     final selected = Set<String>.of(_selectedSrcs.value);
-    if (HardwareKeyboard.instance.isShiftPressed) {
-      if (!selected.remove(file.src)) {
+    final shiftPressed = HardwareKeyboard.instance.isShiftPressed;
+    final togglePressed = HardwareKeyboard.instance.isControlPressed ||
+        HardwareKeyboard.instance.isMetaPressed;
+
+    if (shiftPressed) {
+      final filtered = _filteredFiles;
+      final anchorSrc = _selectionAnchorSrc ?? _lastSelectedSrc;
+      final anchorIndex = filtered.indexWhere((item) => item.src == anchorSrc);
+      final currentIndex = filtered.indexWhere((item) => item.src == file.src);
+      if (anchorIndex >= 0 && currentIndex >= 0) {
+        final start = math.min(anchorIndex, currentIndex);
+        final end = math.max(anchorIndex, currentIndex);
+        for (var index = start; index <= end; index += 1) {
+          selected.add(filtered[index].src);
+        }
+      } else {
+        selected.add(file.src);
+      }
+      _selectionAnchorSrc ??= file.src;
+      _lastSelectedSrc = file.src;
+    } else if (togglePressed) {
+      if (selected.contains(file.src)) {
+        selected.remove(file.src);
+        if (_lastSelectedSrc == file.src) _lastSelectedSrc = selected.lastOrNull;
+      } else {
         selected.add(file.src);
         _lastSelectedSrc = file.src;
-      } else if (_lastSelectedSrc == file.src) {
-        _lastSelectedSrc = selected.lastOrNull;
       }
+      _selectionAnchorSrc = file.src;
     } else {
       selected
         ..clear()
         ..add(file.src);
       _lastSelectedSrc = file.src;
+      _selectionAnchorSrc = file.src;
     }
     _selectedSrcs.value = selected;
   }

@@ -65,6 +65,7 @@ const ALLOWED_COLUMNS = new Set([
   'contact_email_support',
   'contact_email_news',
   'contact_email_ads',
+  'contact_email_social',
   'robots_txt',
   'header_custom_codes',
   'footer_custom_codes',

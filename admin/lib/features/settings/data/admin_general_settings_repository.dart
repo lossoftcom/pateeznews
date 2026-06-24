@@ -1082,7 +1082,7 @@ const _settingsSelect =
     'organization_address,contact_phone,contact_city,contact_address,'
     'contact_location_url,contact_whatsapp_url,contact_telegram_url,'
     'contact_email_info,contact_email_support,contact_email_news,'
-    'contact_email_ads,twitter_username,fb_app_id,google_analytics_id,'
+    'contact_email_ads,contact_email_social,twitter_username,fb_app_id,google_analytics_id,'
     'social_whatsapp_url,social_telegram_url,social_instagram_url,'
     'social_facebook_url,social_x_url,social_youtube_url,'
     'social_tiktok_url,social_linkedin_url,social_pinterest_url,'

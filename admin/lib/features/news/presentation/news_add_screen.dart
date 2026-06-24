@@ -13,6 +13,7 @@ import '../../../core/theme/app_radius.dart';
 import '../../auth/data/admin_auth_models.dart';
 import '../../settings/data/admin_content_settings_repository.dart';
 import '../data/admin_news_ai_repository.dart';
+import '../data/admin_news_headline_repository.dart';
 import '../data/admin_news_source_reader.dart';
 import '../data/admin_news_repository.dart';
 import '../data/admin_video_metadata_reader.dart';
@@ -45,6 +46,7 @@ import 'widgets/article_table_of_contents_block.dart';
 import 'widgets/article_text_block.dart';
 import 'widgets/article_vs_block.dart';
 import 'widgets/article_video_block.dart';
+import 'widgets/news_headline_generator_dialog.dart';
 import 'widgets/poll_question_block.dart';
 import 'widgets/quiz_question_block.dart';
 import 'widgets/quiz_result_block.dart';
@@ -5020,6 +5022,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
           initialImageItemCount: seed?.addImageItem == true ? 1 : 0,
           revisionMode: initialTopic.trim().isNotEmpty,
           onGenerate: _aiRepository.generateDraft,
+          onHeadlineGenerated: _applyHeadlineGeneratorResult,
         );
       },
     );
@@ -5031,6 +5034,56 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
       eventImages: result.eventImages,
     );
     _showEditorMessage(context.t('newsAdd.aiModal.generated'));
+  }
+
+  Future<void> _applyHeadlineGeneratorResult(
+    NewsHeadlineGeneratorResult result,
+  ) async {
+    final src = result.mediaItem.src.trim();
+    if (src.isEmpty || !mounted) return;
+    setState(() {
+      if (result.assignToCover) {
+        _applyCoverImageValue(src);
+        if (_coverAltController.text.trim().isEmpty) {
+          _coverAltController.text = result.altText;
+        }
+      }
+      if (result.assignToManset) {
+        _mansetImageUrl = src;
+        _mansetImageFollowsCover = false;
+        _mansetSlider = true;
+      }
+      if (result.assignToArticleImageBlock) {
+        _applyHeadlineMediaToArticleBlock(src, result.altText);
+      }
+    });
+    _showEditorMessage(context.t('newsAdd.headlineGenerator.saved'));
+  }
+
+  void _applyHeadlineMediaToArticleBlock(String src, String altText) {
+    for (final block in _articleBlocks.whereType<ArticleImageBlockEntry>()) {
+      if ((block.imageUrl ?? '').trim().isNotEmpty) continue;
+      block.imageUrl = src;
+      if (block.altTextController.text.trim().isEmpty) {
+        block.altTextController.text = altText;
+      }
+      if (block.titleController.text.trim().isEmpty) {
+        block.titleController.text = altText;
+      }
+      return;
+    }
+
+    final block = ArticleImageBlockEntry();
+    block.imageUrl = src;
+    block.altTextController.text = altText;
+    block.titleController.text = altText;
+    final firstTextIndex = _articleBlocks.indexWhere(
+      (item) => item is ArticleTextBlockEntry,
+    );
+    _articleBlocks.insert(
+      firstTextIndex < 0 ? _articleBlocks.length : firstTextIndex + 1,
+      block,
+    );
   }
 
   List<AdminNewsSourceImage> _initialAiSourceImages(
@@ -11592,6 +11645,7 @@ class _AiContentGeneratorDialog extends StatefulWidget {
     required this.initialImageItemCount,
     required this.revisionMode,
     required this.onGenerate,
+    required this.onHeadlineGenerated,
   });
 
   final String languageCode;
@@ -11606,6 +11660,8 @@ class _AiContentGeneratorDialog extends StatefulWidget {
   final bool revisionMode;
   final Future<AdminNewsAiDraft> Function(AdminNewsAiDraftRequest request)
   onGenerate;
+  final Future<void> Function(NewsHeadlineGeneratorResult result)
+  onHeadlineGenerated;
 
   @override
   State<_AiContentGeneratorDialog> createState() =>
@@ -11894,12 +11950,7 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
   Future<void> _handleOpenSourceImages() async {
     final images = _currentSourceImages;
     if (images.isEmpty || _sourceImageUploading) return;
-    if (_manualSourceImages.isNotEmpty && images.length == 1) {
-      if (_selectedSourceImage != null) return;
-      await _uploadSelectedSourceImage(images.first);
-      return;
-    }
-    final selected = await showDialog<AdminNewsSourceImage>(
+    final result = await showDialog<_SourceImagesPickerResult>(
       context: context,
       barrierColor: AppColors.deepOcean.withValues(alpha: 0.58),
       builder: (_) => _SourceImagesPickerDialog(
@@ -11907,8 +11958,62 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
         selectedUrl: _selectedSourceImage?.originalUrl,
       ),
     );
-    if (selected == null || !mounted) return;
-    await _uploadSelectedSourceImage(selected);
+    if (result == null || !mounted) return;
+    switch (result.action) {
+      case _SourceImagesPickerAction.useImage:
+        await _uploadSelectedSourceImage(result.image);
+      case _SourceImagesPickerAction.generateHeadline:
+        await _handleOpenHeadlineGenerator(result.image);
+    }
+  }
+
+  Future<void> _handleOpenHeadlineGenerator(AdminNewsSourceImage image) async {
+    if (_sourceImageUploading || _generating || _readingSource) return;
+    final selected = _selectedSourceImage?.originalUrl == image.url
+        ? _selectedSourceImage
+        : await _uploadSelectedSourceImage(image);
+    if (!mounted || selected == null) return;
+    final result = await showDialog<NewsHeadlineGeneratorResult>(
+      context: context,
+      barrierColor: AppColors.deepOcean.withValues(alpha: 0.58),
+      builder: (_) => NewsHeadlineGeneratorDialog(
+        languageCode: widget.languageCode,
+        contextData: AdminNewsHeadlineContext(
+          title: _headlineContextTitle(),
+          summary: _headlineContextSummary(),
+          categoryPath: widget.category,
+          publishedAt: _sourceArticle?.publishedAt ?? '',
+          slug: '',
+          editorNotes: _notesController.text.trim(),
+        ),
+        source: AdminNewsHeadlineSource(
+          mediaSrc: selected.mediaSrc,
+          originalUrl: selected.originalUrl,
+          altText: selected.altText,
+        ),
+        displayImageUrl: _sourceImageDisplayUrl(image),
+        mediaService: _mediaService,
+      ),
+    );
+    if (result == null || !mounted) return;
+    await widget.onHeadlineGenerated(result);
+  }
+
+  String _headlineContextTitle() {
+    final articleTitle = _sourceArticle?.title.trim() ?? '';
+    if (articleTitle.isNotEmpty) return articleTitle;
+    final topic = _topicController.text.trim();
+    if (topic.isEmpty) return '';
+    return topic
+        .split('\n')
+        .map((line) => line.trim())
+        .firstWhere((line) => line.isNotEmpty, orElse: () => '');
+  }
+
+  String _headlineContextSummary() {
+    final articleDescription = _sourceArticle?.description.trim() ?? '';
+    if (articleDescription.isNotEmpty) return articleDescription;
+    return _sourceNotesForGenerate();
   }
 
   Future<void> _handleOpenEventImages() async {
@@ -13372,6 +13477,15 @@ class _SourceImagesPickerDialog extends StatefulWidget {
       _SourceImagesPickerDialogState();
 }
 
+enum _SourceImagesPickerAction { useImage, generateHeadline }
+
+class _SourceImagesPickerResult {
+  const _SourceImagesPickerResult({required this.action, required this.image});
+
+  final _SourceImagesPickerAction action;
+  final AdminNewsSourceImage image;
+}
+
 class _SourceImagesPickerDialogState extends State<_SourceImagesPickerDialog> {
   String? _selectedUrl;
 
@@ -13380,6 +13494,8 @@ class _SourceImagesPickerDialogState extends State<_SourceImagesPickerDialog> {
     super.initState();
     _selectedUrl = widget.selectedUrl?.trim().isNotEmpty == true
         ? widget.selectedUrl!.trim()
+        : widget.images.length == 1
+        ? widget.images.first.url
         : null;
   }
 
@@ -13456,19 +13572,38 @@ class _SourceImagesPickerDialogState extends State<_SourceImagesPickerDialog> {
             ),
             _SourceImagesDialogFooter(
               onClose: () => Navigator.pop(context),
-              onUse: _selectedUrl == null
+              onGenerateHeadline: _selectedImage == null
                   ? null
-                  : () {
-                      final selected = widget.images.firstWhere(
-                        (image) => image.url == _selectedUrl,
-                      );
-                      Navigator.pop(context, selected);
-                    },
+                  : () => Navigator.pop(
+                      context,
+                      _SourceImagesPickerResult(
+                        action: _SourceImagesPickerAction.generateHeadline,
+                        image: _selectedImage!,
+                      ),
+                    ),
+              onUse: _selectedImage == null
+                  ? null
+                  : () => Navigator.pop(
+                      context,
+                      _SourceImagesPickerResult(
+                        action: _SourceImagesPickerAction.useImage,
+                        image: _selectedImage!,
+                      ),
+                    ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  AdminNewsSourceImage? get _selectedImage {
+    final selectedUrl = _selectedUrl;
+    if (selectedUrl == null) return null;
+    for (final image in widget.images) {
+      if (image.url == selectedUrl) return image;
+    }
+    return null;
   }
 }
 
@@ -13528,9 +13663,14 @@ class _SourceImagesDialogHeader extends StatelessWidget {
 }
 
 class _SourceImagesDialogFooter extends StatelessWidget {
-  const _SourceImagesDialogFooter({required this.onClose, required this.onUse});
+  const _SourceImagesDialogFooter({
+    required this.onClose,
+    required this.onGenerateHeadline,
+    required this.onUse,
+  });
 
   final VoidCallback onClose;
+  final VoidCallback? onGenerateHeadline;
   final VoidCallback? onUse;
 
   @override
@@ -13541,28 +13681,40 @@ class _SourceImagesDialogFooter extends StatelessWidget {
         color: AppColors.surface,
         border: Border(top: BorderSide(color: _newsAddSoftLine)),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          _PillButton(
-            icon: Symbols.close,
-            label: 'newsAdd.aiModal.close',
-            onTap: onClose,
-            background: Colors.white,
-            foreground: AppColors.inkSoft,
-            borderColor: _newsAddStrongLine,
-            height: 38,
-          ),
-          const SizedBox(width: 10),
-          _PillButton(
-            icon: Symbols.check_circle_outline,
-            label: 'newsAdd.aiModal.sourceImageUse',
-            onTap: onUse,
-            background: AppColors.deepOcean,
-            foreground: Colors.white,
-            height: 38,
-          ),
-        ],
+      child: Align(
+        alignment: Alignment.centerRight,
+        child: Wrap(
+          alignment: WrapAlignment.end,
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            _PillButton(
+              icon: Symbols.close,
+              label: 'newsAdd.aiModal.close',
+              onTap: onClose,
+              background: Colors.white,
+              foreground: AppColors.inkSoft,
+              borderColor: _newsAddStrongLine,
+              height: 38,
+            ),
+            _PillButton(
+              icon: Symbols.auto_awesome,
+              label: 'newsAdd.headlineGenerator.open',
+              onTap: onGenerateHeadline,
+              background: AppColors.actionRed,
+              foreground: Colors.white,
+              height: 38,
+            ),
+            _PillButton(
+              icon: Symbols.check_circle_outline,
+              label: 'newsAdd.aiModal.sourceImageUse',
+              onTap: onUse,
+              background: AppColors.deepOcean,
+              foreground: Colors.white,
+              height: 38,
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -1057,6 +1057,7 @@ class _AiPromptCard extends StatelessWidget {
                         letterSpacing: 0,
                       ),
                     ),
+                    _AiPromptPurposeBadge(purpose: item.purpose),
                     if (item.isBuiltin) const _AiPromptBadge(),
                   ],
                 ),
@@ -1084,6 +1085,32 @@ class _AiPromptCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _AiPromptPurposeBadge extends StatelessWidget {
+  const _AiPromptPurposeBadge({required this.purpose});
+
+  final String purpose;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.actionRed.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: AppColors.actionRed.withValues(alpha: 0.22)),
+      ),
+      child: Text(
+        context.t(_promptPurposeLabelKey(purpose)),
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: AppColors.actionRed,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0,
+        ),
       ),
     );
   }
@@ -1305,12 +1332,14 @@ class _AiPromptDialog extends StatefulWidget {
 class _AiPromptDialogState extends State<_AiPromptDialog> {
   late final TextEditingController _titleController;
   late final TextEditingController _promptController;
+  late String _purpose;
 
   @override
   void initState() {
     super.initState();
     _titleController = TextEditingController(text: widget.item?.title ?? '');
     _promptController = TextEditingController(text: widget.item?.prompt ?? '');
+    _purpose = normalizeAdminAiPromptPurpose(widget.item?.purpose);
   }
 
   @override
@@ -1324,7 +1353,9 @@ class _AiPromptDialogState extends State<_AiPromptDialog> {
     final title = _titleController.text.trim();
     final prompt = _promptController.text.trim();
     if (title.isEmpty || prompt.isEmpty) return;
-    Navigator.of(context).pop(AiPromptFormData(title: title, prompt: prompt));
+    Navigator.of(
+      context,
+    ).pop(AiPromptFormData(title: title, prompt: prompt, purpose: _purpose));
   }
 
   @override
@@ -1343,6 +1374,13 @@ class _AiPromptDialogState extends State<_AiPromptDialog> {
             controller: _titleController,
             label: 'Prompt Title',
             hintText: 'Prepare News, Create Summary, etc...',
+          ),
+          const SizedBox(height: 22),
+          _PromptPurposeDropdown(
+            value: _purpose,
+            onChanged: (value) {
+              setState(() => _purpose = normalizeAdminAiPromptPurpose(value));
+            },
           ),
           const SizedBox(height: 22),
           _TextAreaField(
@@ -1473,6 +1511,78 @@ class _DialogFooter extends StatelessWidget {
       ),
     );
   }
+}
+
+class _PromptPurposeDropdown extends StatelessWidget {
+  const _PromptPurposeDropdown({required this.value, required this.onChanged});
+
+  final String value;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _FieldLabel('aiSettings.promptPurpose.label'),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 42,
+          child: DropdownButtonFormField<String>(
+            initialValue: normalizeAdminAiPromptPurpose(value),
+            items: [
+              for (final purpose in _promptPurposeOptions)
+                DropdownMenuItem<String>(
+                  value: purpose,
+                  child: Text(context.t(_promptPurposeLabelKey(purpose))),
+                ),
+            ],
+            onChanged: onChanged,
+            icon: const SymbolIcon(
+              Symbols.keyboard_arrow_down,
+              color: AppColors.inkSoft,
+              size: 18,
+            ),
+            decoration: _inputDecoration(context, modal: true),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: AppColors.deepOcean,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0,
+            ),
+            dropdownColor: Colors.white,
+            borderRadius: BorderRadius.circular(AppRadius.value),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+const _promptPurposeOptions = <String>[
+  adminAiPromptPurposeContent,
+  adminAiPromptPurposeQuiz,
+  adminAiPromptPurposePoll,
+  adminAiPromptPurposeVideo,
+  adminAiPromptPurposeContents,
+  adminAiPromptPurposeRecipe,
+  adminAiPromptPurposeEvent,
+  adminAiPromptPurposeMediaSeo,
+  adminAiPromptPurposeHeadlineImage,
+];
+
+String _promptPurposeLabelKey(String purpose) {
+  return switch (normalizeAdminAiPromptPurpose(purpose)) {
+    adminAiPromptPurposeQuiz => 'aiSettings.promptPurpose.quiz',
+    adminAiPromptPurposePoll => 'aiSettings.promptPurpose.poll',
+    adminAiPromptPurposeVideo => 'aiSettings.promptPurpose.video',
+    adminAiPromptPurposeContents => 'aiSettings.promptPurpose.contents',
+    adminAiPromptPurposeRecipe => 'aiSettings.promptPurpose.recipe',
+    adminAiPromptPurposeEvent => 'aiSettings.promptPurpose.event',
+    adminAiPromptPurposeMediaSeo => 'aiSettings.promptPurpose.mediaSeo',
+    adminAiPromptPurposeHeadlineImage =>
+      'aiSettings.promptPurpose.headlineImage',
+    _ => 'aiSettings.promptPurpose.content',
+  };
 }
 
 class _TextInputField extends StatelessWidget {

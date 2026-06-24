@@ -27,3 +27,4 @@ migration/*.sql
 !migration/2026-06-14-social-bundle-settings.sql
 !migration/2026-06-17-notifications-fcm.sql
 !migration/2026-06-23-automatic-news-instagram-telemetry.sql
+!migration/2026-06-24-ai-ready-formats-purpose.sql
