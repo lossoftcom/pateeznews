@@ -19,6 +19,7 @@ import '../data/admin_news_source_reader.dart';
 import '../data/admin_news_repository.dart';
 import '../data/admin_video_metadata_reader.dart';
 import '../../../shared/icons/symbols.dart';
+import '../../../shared/data/media_download_saver.dart';
 import '../../../shared/data/media_service.dart';
 import '../../../shared/data/media_upload_transformer.dart';
 import '../../../shared/widgets/admin_cached_image.dart';
@@ -16111,6 +16112,7 @@ class _CoverCard extends StatefulWidget {
 
 class _CoverCardState extends State<_CoverCard> {
   var _coverHover = false;
+  var _coverDownloading = false;
 
   static const _turkishSlugMap = {
     'ç': 'c',
@@ -16472,6 +16474,93 @@ class _CoverCardState extends State<_CoverCard> {
     setState(() => _coverHover = false);
   }
 
+  Future<void> _downloadCoverImage() async {
+    final current = widget.imageUrl?.trim();
+    if (current == null || current.isEmpty || _coverDownloading) return;
+
+    setState(() => _coverDownloading = true);
+    final extension = _coverDownloadExtension(current);
+    final target = await selectMediaDownloadSaveTarget(
+      suggestedName: _coverDownloadFileName(extension),
+      mimeType: _coverDownloadMimeType(extension),
+      extension: extension,
+    );
+    if (target == null) {
+      if (mounted) setState(() => _coverDownloading = false);
+      return;
+    }
+
+    try {
+      final response = await adminHttpClient
+          .get(
+            Uri.parse(_resolvedCoverDownloadUrl(current)),
+            headers: const {
+              'Accept':
+                  'image/avif,image/webp,image/png,image/jpeg,image/*,*/*',
+            },
+          )
+          .timeout(const Duration(seconds: 35));
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw Exception('HTTP ${response.statusCode}');
+      }
+      final mimeType = _responseImageMimeType(response.headers);
+      await target.saveBytes(bytes: response.bodyBytes, mimeType: mimeType);
+      if (!mounted) return;
+      AdminToast.show(
+        context,
+        message: 'Kapak görseli indirildi',
+        tone: AdminToastTone.success,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      AdminToast.show(
+        context,
+        message: 'Kapak görseli indirilemedi: $error',
+        tone: AdminToastTone.error,
+      );
+    } finally {
+      if (mounted) setState(() => _coverDownloading = false);
+    }
+  }
+
+  String _resolvedCoverDownloadUrl(String value) {
+    if (value.startsWith('http')) return value;
+    return MediaService().resolveUrl(value);
+  }
+
+  String _coverDownloadFileName(String extension) {
+    final slug = _coverEditorSlug(widget.headlineText());
+    final base = slug.isEmpty ? 'haber-kapagi' : '$slug-haber-kapagi';
+    return '$base.$extension';
+  }
+
+  String _coverDownloadExtension(String value) {
+    final clean = value.split('?').first.split('#').first.toLowerCase();
+    final dotIndex = clean.lastIndexOf('.');
+    if (dotIndex >= 0 && dotIndex < clean.length - 1) {
+      final extension = clean.substring(dotIndex + 1);
+      if (RegExp(r'^[a-z0-9]{2,5}$').hasMatch(extension)) return extension;
+    }
+    return 'webp';
+  }
+
+  String _coverDownloadMimeType(String extension) {
+    return switch (extension) {
+      'jpg' || 'jpeg' => 'image/jpeg',
+      'png' => 'image/png',
+      'gif' => 'image/gif',
+      'avif' => 'image/avif',
+      'svg' => 'image/svg+xml',
+      _ => 'image/webp',
+    };
+  }
+
+  String _responseImageMimeType(Map<String, String> headers) {
+    final contentType =
+        headers['content-type']?.split(';').first.trim().toLowerCase() ?? '';
+    return contentType.startsWith('image/') ? contentType : 'image/webp';
+  }
+
   String _resolvedCoverImageUrl(String value) {
     if (value.startsWith('http')) return value;
     return MediaService().resolveImageUrl(value, width: 720, quality: 90);
@@ -16573,6 +16662,16 @@ class _CoverCardState extends State<_CoverCard> {
                                       onTap: _clearCoverImage,
                                     ),
                                   ],
+                                ),
+                              ),
+                            if (_coverHover)
+                              Positioned(
+                                right: 8,
+                                bottom: 8,
+                                child: _CoverImageActionButton(
+                                  icon: Symbols.download,
+                                  color: AppColors.deepOcean,
+                                  onTap: _downloadCoverImage,
                                 ),
                               ),
                           ],
