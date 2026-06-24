@@ -216,10 +216,12 @@ function applyMediaLibrarySelectionPatch(projectDir) {
     );
   }
 
-  next = next.replace(
-    "  final _searchTerm = ValueNotifier<String>('');\n  String? _lastSelectedSrc;",
-    "  final _searchTerm = ValueNotifier<String>('');\n  String? _lastSelectedSrc;\n  String? _selectionAnchorSrc;",
-  );
+  if (!next.includes("  String? _selectionAnchorSrc;")) {
+    next = next.replace(
+      "  final _searchTerm = ValueNotifier<String>('');\n  String? _lastSelectedSrc;",
+      "  final _searchTerm = ValueNotifier<String>('');\n  String? _lastSelectedSrc;\n  String? _selectionAnchorSrc;",
+    );
+  }
 
   next = next.replace(
     "  void initState() {\n    super.initState();\n    _loadFiles();\n  }",
