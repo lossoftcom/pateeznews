@@ -581,6 +581,7 @@ class MediaService {
 
   Future<MediaItem?> uploadRemoteImage({
     required String imageUrl,
+    String? languageCode,
     ValueChanged<double>? onUploadProgress,
     ValueChanged<MediaTransferProgress>? onTransferProgress,
   }) async {
@@ -598,6 +599,7 @@ class MediaService {
     request.headers.addAll(await adminAuthHeaders());
     request.fields['type'] = 'image';
     request.fields['remoteUrl'] = remoteUri.toString();
+    _addMultipartField(request, 'languageCode', languageCode);
 
     final client = httpClient ?? adminHttpClient;
     final closeClient = shouldCloseAdminHttpClient(client, httpClient);

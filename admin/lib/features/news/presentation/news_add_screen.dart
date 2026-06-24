@@ -15,7 +15,6 @@ import '../../../core/theme/app_radius.dart';
 import '../../auth/data/admin_auth_models.dart';
 import '../../settings/data/admin_content_settings_repository.dart';
 import '../data/admin_news_ai_repository.dart';
-import '../data/admin_news_headline_repository.dart';
 import '../data/admin_news_source_reader.dart';
 import '../data/admin_news_repository.dart';
 import '../data/admin_video_metadata_reader.dart';
@@ -2084,19 +2083,37 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
         );
         return;
       }
+      final savedDraft = await _saveEditorPost(
+        'draft',
+        resetOnCreate: false,
+        navigateOnDraft: false,
+      );
+      if (savedDraft == null || !mounted) return;
       await showNewsPublishShareDialog(
         context,
         session: widget.session,
         data: _collectShareData(),
-        onConfirmPublish: () => _saveEditorPost('published'),
+        onConfirmPublish: () async {
+          await _saveEditorPost(
+            'published',
+            showError: false,
+            throwOnError: true,
+          );
+        },
       );
       return;
     }
     await _saveEditorPost(status);
   }
 
-  Future<void> _saveEditorPost(String status) async {
-    if (_saving) return;
+  Future<AdminNewsEditorPost?> _saveEditorPost(
+    String status, {
+    bool resetOnCreate = true,
+    bool navigateOnDraft = true,
+    bool showError = true,
+    bool throwOnError = false,
+  }) async {
+    if (_saving) return null;
     setState(() => _saving = true);
     try {
       if (_pinToTop) {
@@ -2111,11 +2128,11 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
         postId: _editingPostId,
         payload: AdminNewsEditorSavePayload(values: _buildPostValues(status)),
       );
-      if (!mounted) return;
+      if (!mounted) return null;
       final isCreating = _editingPostId == null || _editingPostId!.isEmpty;
       setState(() {
         _saving = false;
-        if (isCreating) {
+        if (isCreating && resetOnCreate) {
           _resetEditorState();
           _applyBootstrapDefaults();
         } else {
@@ -2133,12 +2150,18 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
             : context.t('newsAdd.savedPublished'),
       );
       if (status == 'draft') {
-        widget.onBackToNews?.call();
+        if (navigateOnDraft) widget.onBackToNews?.call();
       }
+      return saved;
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted) {
+        if (throwOnError) rethrow;
+        return null;
+      }
       setState(() => _saving = false);
-      _showEditorMessage(error.toString(), isError: true);
+      if (showError) _showEditorMessage(error.toString(), isError: true);
+      if (throwOnError) rethrow;
+      return null;
     }
   }
 
@@ -5089,6 +5112,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
       result.draft,
       targetTab,
       sourceImage: result.sourceImage,
+      sourceImages: result.sourceImages,
       eventImages: result.eventImages,
     );
     _showEditorMessage(context.t('newsAdd.aiModal.generated'));
@@ -6589,6 +6613,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     AdminNewsAiDraft draft,
     NewsAddFormatTab targetTab, {
     _AiSelectedSourceImage? sourceImage,
+    List<_AiSelectedSourceImage> sourceImages = const [],
     List<_AiSelectedSourceImage> eventImages = const [],
   }) {
     if (!_isArticleContentTab(targetTab)) {
@@ -6596,11 +6621,16 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
         draft,
         targetTab,
         sourceImage: sourceImage,
+        sourceImages: sourceImages,
         eventImages: eventImages,
       );
       return;
     }
-    final blocks = _contentBlocksFromAiDraft(draft, sourceImage: sourceImage);
+    final blocks = _contentBlocksFromAiDraft(
+      draft,
+      sourceImage: sourceImage,
+      sourceImages: sourceImages,
+    );
     _hydrating = true;
     setState(() {
       _activeTab = targetTab;
@@ -6618,6 +6648,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     AdminNewsAiDraft draft,
     NewsAddFormatTab targetTab, {
     _AiSelectedSourceImage? sourceImage,
+    List<_AiSelectedSourceImage> sourceImages = const [],
     List<_AiSelectedSourceImage> eventImages = const [],
   }) {
     final item = targetTab == NewsAddFormatTab.poll
@@ -6631,7 +6662,9 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
       _activeTab = targetTab;
       _applyAiDraftCommonFields(draft);
       final coverSourceImage =
-          sourceImage ?? (eventImages.isNotEmpty ? eventImages.first : null);
+          sourceImage ??
+          (sourceImages.isNotEmpty ? sourceImages.first : null) ??
+          (eventImages.isNotEmpty ? eventImages.first : null);
       if (coverSourceImage != null) {
         _applySelectedSourceImageToCover(draft, coverSourceImage);
       }
@@ -7053,6 +7086,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
   List<Object> _contentBlocksFromAiDraft(
     AdminNewsAiDraft draft, {
     _AiSelectedSourceImage? sourceImage,
+    List<_AiSelectedSourceImage> sourceImages = const [],
   }) {
     final blocks = <Object>[];
     final sections = splitAdminNewsAiContentSections(
@@ -7070,32 +7104,54 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
       final block = _contentBlockFromAiItem(item);
       if (block != null) blocks.add(block);
     }
-    if (sourceImage != null) {
-      _applySelectedSourceImageToBlocks(blocks, draft, sourceImage);
+    final selectedSourceImages = _normalizedSelectedSourceImages(
+      sourceImage == null ? sourceImages : [...sourceImages, sourceImage],
+    );
+    if (selectedSourceImages.isNotEmpty) {
+      _applySelectedSourceImagesToBlocks(blocks, draft, selectedSourceImages);
     }
     return blocks;
   }
 
-  void _applySelectedSourceImageToBlocks(
+  void _applySelectedSourceImagesToBlocks(
     List<Object> blocks,
     AdminNewsAiDraft draft,
-    _AiSelectedSourceImage sourceImage,
+    List<_AiSelectedSourceImage> sourceImages,
   ) {
+    final images = _normalizedSelectedSourceImages(sourceImages);
+    if (images.isEmpty) return;
+    var nextImageIndex = 0;
     for (final block in blocks.whereType<ArticleImageBlockEntry>()) {
       if ((block.imageUrl ?? '').trim().isNotEmpty) continue;
-      _fillSelectedSourceImageBlock(block, draft, sourceImage);
-      return;
+      _fillSelectedSourceImageBlock(block, draft, images[nextImageIndex]);
+      nextImageIndex += 1;
+      if (nextImageIndex >= images.length) return;
     }
 
-    final block = ArticleImageBlockEntry();
-    _fillSelectedSourceImageBlock(block, draft, sourceImage);
     final firstTextIndex = blocks.indexWhere(
       (item) => item is ArticleTextBlockEntry,
     );
-    blocks.insert(
-      firstTextIndex < 0 ? blocks.length : firstTextIndex + 1,
-      block,
-    );
+    var insertIndex = firstTextIndex < 0 ? blocks.length : firstTextIndex + 1;
+    while (nextImageIndex < images.length) {
+      final block = ArticleImageBlockEntry();
+      _fillSelectedSourceImageBlock(block, draft, images[nextImageIndex]);
+      blocks.insert(insertIndex, block);
+      insertIndex += 1;
+      nextImageIndex += 1;
+    }
+  }
+
+  List<_AiSelectedSourceImage> _normalizedSelectedSourceImages(
+    Iterable<_AiSelectedSourceImage> sourceImages,
+  ) {
+    final seen = <String>{};
+    final images = <_AiSelectedSourceImage>[];
+    for (final image in sourceImages) {
+      final mediaSrc = image.mediaSrc.trim();
+      if (mediaSrc.isEmpty || !seen.add(mediaSrc)) continue;
+      images.add(image);
+    }
+    return images;
   }
 
   void _fillSelectedSourceImageBlock(
@@ -11674,11 +11730,13 @@ class _AiContentGeneratorResult {
   const _AiContentGeneratorResult({
     required this.draft,
     this.sourceImage,
+    this.sourceImages = const <_AiSelectedSourceImage>[],
     this.eventImages = const <_AiSelectedSourceImage>[],
   });
 
   final AdminNewsAiDraft draft;
   final _AiSelectedSourceImage? sourceImage;
+  final List<_AiSelectedSourceImage> sourceImages;
   final List<_AiSelectedSourceImage> eventImages;
 }
 
@@ -11752,6 +11810,7 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
   String? _sourceArticleUrl;
   var _manualSourceImages = const <AdminNewsSourceImage>[];
   _AiSelectedSourceImage? _selectedSourceImage;
+  final _selectedSourceImages = <_AiSelectedSourceImage>[];
   var _sourceImageUploading = false;
   double? _sourceImageUploadProgress;
   String? _sourceImageStatus;
@@ -11873,6 +11932,7 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
         _manualSourceImages = const <AdminNewsSourceImage>[];
       }
       _selectedSourceImage = null;
+      _selectedSourceImages.clear();
       _sourceImageStatus = null;
       _sourceImageStatusIsError = false;
       _sourceImageUploadProgress = null;
@@ -11920,6 +11980,7 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
         _AiContentGeneratorResult(
           draft: draft,
           sourceImage: sourceImage ?? _selectedSourceImage,
+          sourceImages: _selectedSourceImages.toList(growable: false),
           eventImages: _selectedEventImages.toList(growable: false),
         ),
       );
@@ -11933,6 +11994,9 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
   }
 
   Future<_AiSelectedSourceImage?> _ensureInitialSourceImageSelected() async {
+    if (_selectedSourceImages.isNotEmpty) {
+      return _selectedSourceImages.first;
+    }
     if (_selectedSourceImage != null || widget.initialImageItemCount <= 0) {
       return _selectedSourceImage;
     }
@@ -11966,6 +12030,7 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
       _sourceUrlStatus = null;
       _sourceUrlStatusIsError = false;
       _selectedSourceImage = null;
+      _selectedSourceImages.clear();
       _sourceImageStatus = null;
       _sourceImageStatusIsError = false;
       _sourceImageUploadProgress = null;
@@ -12017,69 +12082,16 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
       barrierColor: AppColors.deepOcean.withValues(alpha: 0.58),
       builder: (_) => _SourceImagesPickerDialog(
         images: images,
-        selectedUrl: _selectedSourceImage?.originalUrl,
+        selectedUrls: _selectedSourceImages.isNotEmpty
+            ? _selectedSourceImages.map((image) => image.originalUrl)
+            : [
+                if (_selectedSourceImage?.originalUrl.trim().isNotEmpty == true)
+                  _selectedSourceImage!.originalUrl,
+              ],
       ),
     );
     if (result == null || !mounted) return;
-    switch (result.action) {
-      case _SourceImagesPickerAction.useImage:
-        await _uploadSelectedSourceImage(result.image);
-      case _SourceImagesPickerAction.generateHeadline:
-        await _handleOpenHeadlineGenerator(result.image);
-    }
-  }
-
-  Future<void> _handleOpenHeadlineGenerator(AdminNewsSourceImage image) async {
-    if (_sourceImageUploading || _generating || _readingSource) return;
-    final selected = _selectedSourceImage?.originalUrl == image.url
-        ? _selectedSourceImage
-        : null;
-    setState(() {
-      _sourceImageStatus = null;
-      _sourceImageStatusIsError = false;
-      _sourceImageUploadProgress = null;
-    });
-    final result = await showDialog<NewsHeadlineGeneratorResult>(
-      context: context,
-      barrierColor: AppColors.deepOcean.withValues(alpha: 0.58),
-      builder: (_) => NewsHeadlineGeneratorDialog(
-        languageCode: widget.languageCode,
-        contextData: AdminNewsHeadlineContext(
-          title: _headlineContextTitle(),
-          summary: _headlineContextSummary(),
-          categoryPath: widget.category,
-          publishedAt: _sourceArticle?.publishedAt ?? '',
-          slug: '',
-          editorNotes: _notesController.text.trim(),
-        ),
-        source: AdminNewsHeadlineSource(
-          mediaSrc: selected?.mediaSrc ?? image.url,
-          originalUrl: selected?.originalUrl ?? image.url,
-          altText: selected?.altText ?? image.alt,
-        ),
-        displayImageUrl: _sourceImageDisplayUrl(image),
-        mediaService: _mediaService,
-      ),
-    );
-    if (result == null || !mounted) return;
-    await widget.onHeadlineGenerated(result);
-  }
-
-  String _headlineContextTitle() {
-    final articleTitle = _sourceArticle?.title.trim() ?? '';
-    if (articleTitle.isNotEmpty) return articleTitle;
-    final topic = _topicController.text.trim();
-    if (topic.isEmpty) return '';
-    return topic
-        .split('\n')
-        .map((line) => line.trim())
-        .firstWhere((line) => line.isNotEmpty, orElse: () => '');
-  }
-
-  String _headlineContextSummary() {
-    final articleDescription = _sourceArticle?.description.trim() ?? '';
-    if (articleDescription.isNotEmpty) return articleDescription;
-    return _sourceNotesForGenerate();
+    await _uploadSelectedSourceImages(result.images);
   }
 
   Future<void> _handleOpenEventImages() async {
@@ -12124,67 +12136,73 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
   Future<_AiSelectedSourceImage?> _uploadSelectedSourceImage(
     AdminNewsSourceImage image,
   ) async {
-    if (_sourceImageUploading) return null;
+    final uploaded = await _uploadSelectedSourceImages([image]);
+    return uploaded.isEmpty ? null : uploaded.first;
+  }
+
+  Future<List<_AiSelectedSourceImage>> _uploadSelectedSourceImages(
+    List<AdminNewsSourceImage> images,
+  ) async {
+    if (_sourceImageUploading) return const <_AiSelectedSourceImage>[];
+    final sourceImages = _uniqueSourceImages(images);
+    if (sourceImages.isEmpty) return const <_AiSelectedSourceImage>[];
     setState(() {
       _sourceImageUploading = true;
       _sourceImageUploadProgress = 0;
       _sourceImageStatus = context.t('newsAdd.aiModal.sourceImageUploading');
       _sourceImageStatusIsError = false;
     });
+    final uploaded = <_AiSelectedSourceImage>[];
     try {
-      final storedMediaSrc = _storedSourceImageMediaSrc(image.url);
-      if (storedMediaSrc != null) {
-        final selected = _AiSelectedSourceImage(
-          mediaSrc: storedMediaSrc,
-          originalUrl: image.url,
-          altText: image.alt,
+      for (var index = 0; index < sourceImages.length; index += 1) {
+        if (!mounted) return const <_AiSelectedSourceImage>[];
+        final image = sourceImages[index];
+        final selected = await _uploadSourceImageToMedia(
+          image,
+          onTransferProgress: (progress) {
+            if (!mounted) return;
+            final itemProgress = progress.progress;
+            final aggregateProgress = itemProgress == null
+                ? (index / sourceImages.length).clamp(0.0, 1.0)
+                : ((index + itemProgress) / sourceImages.length).clamp(
+                    0.0,
+                    1.0,
+                  );
+            setState(() {
+              _sourceImageUploadProgress = aggregateProgress;
+            });
+          },
         );
-        if (!mounted) return null;
-        setState(() {
-          _selectedSourceImage = selected;
-          _sourceImageStatus = context.t('newsAdd.aiModal.sourceImageReady');
-          _sourceImageStatusIsError = false;
-        });
-        return selected;
+        if (selected != null) uploaded.add(selected);
       }
-
-      var result = await _mediaService.uploadRemoteImage(
-        imageUrl: image.url,
-        onTransferProgress: (progress) {
-          if (!mounted) return;
-          setState(() {
-            _sourceImageUploadProgress = progress.progress;
-          });
-        },
-      );
-      result ??= await _uploadSourceImageViaProxy(image);
-      if (!mounted) return null;
-      if (result == null) {
+      if (!mounted) return const <_AiSelectedSourceImage>[];
+      if (uploaded.isEmpty) {
         setState(() {
           _sourceImageStatus = context.t('newsAdd.aiModal.sourceImageError');
           _sourceImageStatusIsError = true;
         });
-        return null;
+        return const <_AiSelectedSourceImage>[];
       }
-      final selected = _AiSelectedSourceImage(
-        mediaSrc: result.src,
-        originalUrl: image.url,
-        altText: image.alt,
-      );
       setState(() {
-        _selectedSourceImage = selected;
-        _sourceImageStatus = context.t('newsAdd.aiModal.sourceImageReady');
-        _sourceImageStatusIsError = false;
+        _selectedSourceImages
+          ..clear()
+          ..addAll(uploaded);
+        _selectedSourceImage = uploaded.first;
+        final partialFailure = uploaded.length != sourceImages.length;
+        _sourceImageStatus = partialFailure
+            ? context.t('newsAdd.aiModal.sourceImageError')
+            : context.t('newsAdd.aiModal.sourceImageReady');
+        _sourceImageStatusIsError = partialFailure;
       });
-      return selected;
+      return uploaded;
     } catch (error) {
-      if (!mounted) return null;
+      if (!mounted) return const <_AiSelectedSourceImage>[];
       setState(() {
         _sourceImageStatus =
             '${context.t('newsAdd.aiModal.sourceImageError')} $error';
         _sourceImageStatusIsError = true;
       });
-      return null;
+      return const <_AiSelectedSourceImage>[];
     } finally {
       if (mounted) {
         setState(() {
@@ -12195,15 +12213,69 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
     }
   }
 
+  Future<_AiSelectedSourceImage?> _uploadSourceImageToMedia(
+    AdminNewsSourceImage image, {
+    ValueChanged<MediaTransferProgress>? onTransferProgress,
+  }) async {
+    final storedMediaSrc = _storedSourceImageMediaSrc(image.url);
+    if (storedMediaSrc != null) {
+      return _AiSelectedSourceImage(
+        mediaSrc: storedMediaSrc,
+        originalUrl: image.url,
+        altText: image.alt,
+      );
+    }
+
+    var result = await _mediaService.uploadRemoteImage(
+      imageUrl: image.url,
+      languageCode: widget.languageCode,
+      onTransferProgress: onTransferProgress,
+    );
+    result ??= await _uploadSourceImageViaProxy(
+      image,
+      onTransferProgress: onTransferProgress,
+    );
+    if (result == null) return null;
+    return _AiSelectedSourceImage(
+      mediaSrc: result.src,
+      originalUrl: image.url,
+      altText: image.alt,
+    );
+  }
+
+  List<AdminNewsSourceImage> _uniqueSourceImages(
+    List<AdminNewsSourceImage> images,
+  ) {
+    final seen = <String>{};
+    final result = <AdminNewsSourceImage>[];
+    for (final image in images) {
+      final key = image.url.trim();
+      if (key.isEmpty || !seen.add(key)) continue;
+      result.add(image);
+    }
+    return result;
+  }
+
   Future<MediaItem?> _uploadSourceImageViaProxy(
-    AdminNewsSourceImage image,
-  ) async {
-    final proxyUrl = _sourceImageProxyDisplayUrl(image.url);
-    if (proxyUrl.trim() == image.url.trim()) return null;
+    AdminNewsSourceImage image, {
+    ValueChanged<MediaTransferProgress>? onTransferProgress,
+  }) async {
+    final proxyUrl = _sourceImageDisplayUrl(image);
+    if (proxyUrl.trim() == image.url.trim() &&
+        image.displayHeaders.isEmpty &&
+        !_needsAdminImageHeaders(proxyUrl)) {
+      return null;
+    }
     final proxyUri = Uri.tryParse(proxyUrl);
     if (proxyUri == null) return null;
+    final needsAdminHeaders = _needsAdminImageHeaders(proxyUrl);
+    final headers = needsAdminHeaders
+        ? {...await adminAuthHeaders(), ...image.displayHeaders}
+        : image.displayHeaders.isNotEmpty
+        ? image.displayHeaders
+        : null;
     final response = await adminHttpClient
-        .get(proxyUri, headers: await adminAuthHeaders())
+        .get(proxyUri, headers: headers)
         .timeout(const Duration(seconds: 30));
     if (response.statusCode < 200 || response.statusCode >= 300) return null;
     final contentType = response.headers['content-type'] ?? '';
@@ -12212,6 +12284,8 @@ class _AiContentGeneratorDialogState extends State<_AiContentGeneratorDialog> {
       fileName: _sourceImageUploadFileName(image.url, contentType),
       bytes: response.bodyBytes,
       type: 'image',
+      languageCode: widget.languageCode,
+      onTransferProgress: onTransferProgress,
     );
   }
 
@@ -13696,37 +13770,38 @@ class _EventAiImageThumb extends StatelessWidget {
 class _SourceImagesPickerDialog extends StatefulWidget {
   const _SourceImagesPickerDialog({
     required this.images,
-    required this.selectedUrl,
+    required this.selectedUrls,
   });
 
   final List<AdminNewsSourceImage> images;
-  final String? selectedUrl;
+  final Iterable<String> selectedUrls;
 
   @override
   State<_SourceImagesPickerDialog> createState() =>
       _SourceImagesPickerDialogState();
 }
 
-enum _SourceImagesPickerAction { useImage, generateHeadline }
-
 class _SourceImagesPickerResult {
-  const _SourceImagesPickerResult({required this.action, required this.image});
+  const _SourceImagesPickerResult({required this.images});
 
-  final _SourceImagesPickerAction action;
-  final AdminNewsSourceImage image;
+  final List<AdminNewsSourceImage> images;
 }
 
 class _SourceImagesPickerDialogState extends State<_SourceImagesPickerDialog> {
-  String? _selectedUrl;
+  final _selectedUrls = <String>{};
 
   @override
   void initState() {
     super.initState();
-    _selectedUrl = widget.selectedUrl?.trim().isNotEmpty == true
-        ? widget.selectedUrl!.trim()
-        : widget.images.length == 1
-        ? widget.images.first.url
-        : null;
+    _selectedUrls.addAll(
+      widget.selectedUrls.map((url) => url.trim()).where((url) {
+        if (url.isEmpty) return false;
+        return widget.images.any((image) => image.url == url);
+      }),
+    );
+    if (_selectedUrls.isEmpty && widget.images.length == 1) {
+      _selectedUrls.add(widget.images.first.url);
+    }
   }
 
   @override
@@ -13791,8 +13866,12 @@ class _SourceImagesPickerDialogState extends State<_SourceImagesPickerDialog> {
                         final image = widget.images[index];
                         return _SourceImageTile(
                           image: image,
-                          selected: image.url == _selectedUrl,
-                          onTap: () => setState(() => _selectedUrl = image.url),
+                          selected: _selectedUrls.contains(image.url),
+                          onTap: () => setState(() {
+                            if (!_selectedUrls.remove(image.url)) {
+                              _selectedUrls.add(image.url);
+                            }
+                          }),
                         );
                       },
                     );
@@ -13802,23 +13881,11 @@ class _SourceImagesPickerDialogState extends State<_SourceImagesPickerDialog> {
             ),
             _SourceImagesDialogFooter(
               onClose: () => Navigator.pop(context),
-              onGenerateHeadline: _selectedImage == null
+              onUse: _selectedImages.isEmpty
                   ? null
                   : () => Navigator.pop(
                       context,
-                      _SourceImagesPickerResult(
-                        action: _SourceImagesPickerAction.generateHeadline,
-                        image: _selectedImage!,
-                      ),
-                    ),
-              onUse: _selectedImage == null
-                  ? null
-                  : () => Navigator.pop(
-                      context,
-                      _SourceImagesPickerResult(
-                        action: _SourceImagesPickerAction.useImage,
-                        image: _selectedImage!,
-                      ),
+                      _SourceImagesPickerResult(images: _selectedImages),
                     ),
             ),
           ],
@@ -13827,14 +13894,10 @@ class _SourceImagesPickerDialogState extends State<_SourceImagesPickerDialog> {
     );
   }
 
-  AdminNewsSourceImage? get _selectedImage {
-    final selectedUrl = _selectedUrl;
-    if (selectedUrl == null) return null;
-    for (final image in widget.images) {
-      if (image.url == selectedUrl) return image;
-    }
-    return null;
-  }
+  List<AdminNewsSourceImage> get _selectedImages => [
+    for (final image in widget.images)
+      if (_selectedUrls.contains(image.url)) image,
+  ];
 }
 
 class _SourceImagesDialogHeader extends StatelessWidget {
@@ -13893,14 +13956,9 @@ class _SourceImagesDialogHeader extends StatelessWidget {
 }
 
 class _SourceImagesDialogFooter extends StatelessWidget {
-  const _SourceImagesDialogFooter({
-    required this.onClose,
-    required this.onGenerateHeadline,
-    required this.onUse,
-  });
+  const _SourceImagesDialogFooter({required this.onClose, required this.onUse});
 
   final VoidCallback onClose;
-  final VoidCallback? onGenerateHeadline;
   final VoidCallback? onUse;
 
   @override
@@ -13925,14 +13983,6 @@ class _SourceImagesDialogFooter extends StatelessWidget {
               background: Colors.white,
               foreground: AppColors.inkSoft,
               borderColor: _newsAddStrongLine,
-              height: 38,
-            ),
-            _PillButton(
-              icon: Symbols.auto_awesome,
-              label: 'newsAdd.headlineGenerator.open',
-              onTap: onGenerateHeadline,
-              background: AppColors.actionRed,
-              foreground: Colors.white,
               height: 38,
             ),
             _PillButton(
