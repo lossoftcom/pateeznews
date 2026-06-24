@@ -1,7 +1,14 @@
 import type { APIRoute } from 'astro';
-import { adminError, adminJson, requireAdminRequest } from '@/lib/server/adminAuth';
+import {
+  adminError,
+  adminJson,
+  requireAdminRequest,
+  requireAnyAdminPermission,
+  type AdminContext,
+} from '@/lib/server/adminAuth';
 import { executeQuerySpec, executeRpc, type QuerySpec } from '@/lib/server/supabaseQuery';
 import { submitIndexNowForPosts } from '@/lib/server/indexNow';
+import { dbQuery } from '@/lib/server/supabaseDb';
 import { invalidateDataCache, invalidateNewsDataCache, invalidateSiteSettingsCache } from '@/services/dataService';
 import { invalidateServerDataCache, invalidateServerNewsDataCache, invalidateServerSiteSettingsCache } from '@/services/dataService.server';
 
@@ -307,6 +314,108 @@ function permissionForRpc(name: string) {
   return permission;
 }
 
+function isSuperAdminContext(context: AdminContext) {
+  const role = String(context.profile.role || '').trim().toLowerCase();
+  return role === 'admin' || role === 'super_admin';
+}
+
+function mutationRows(values: unknown): Record<string, any>[] {
+  const rows = Array.isArray(values) ? values : [values];
+  return rows.filter((row): row is Record<string, any> => (
+    !!row && typeof row === 'object' && !Array.isArray(row)
+  ));
+}
+
+function hasOwn(row: Record<string, any>, key: string) {
+  return Object.prototype.hasOwnProperty.call(row, key);
+}
+
+function cleanStatus(value: unknown) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function isEmptyPublishedAt(value: unknown) {
+  return value == null || String(value).trim() === '';
+}
+
+function isDraftOnlyPostMutation(spec: QuerySpec) {
+  const method = String(spec.method);
+  if (spec.table !== 'posts' || !['insert', 'update'].includes(method)) return false;
+  const rows = mutationRows(spec.values);
+  if (!rows.length) return false;
+  return rows.every((row) => (
+    cleanStatus(row.status) === 'draft' &&
+    (!hasOwn(row, 'published_at') || isEmptyPublishedAt(row.published_at))
+  ));
+}
+
+function postIdsFromFilters(filters: QuerySpec['filters']) {
+  const ids = new Set<number>();
+  for (const filter of filters || []) {
+    if (filter.type !== 'comparison' || filter.column !== 'id') continue;
+    if (filter.op === 'eq') {
+      const id = Number(filter.value);
+      if (Number.isFinite(id)) ids.add(id);
+    }
+    if (filter.op === 'in' && Array.isArray(filter.value)) {
+      for (const value of filter.value) {
+        const id = Number(value);
+        if (Number.isFinite(id)) ids.add(id);
+      }
+    }
+  }
+  return [...ids];
+}
+
+function rowRequestsPublication(row: Record<string, any>) {
+  if (hasOwn(row, 'status') && cleanStatus(row.status) !== 'draft') return true;
+  if (hasOwn(row, 'published_at') && !isEmptyPublishedAt(row.published_at)) return true;
+  return false;
+}
+
+function rowTouchesPublicationState(row: Record<string, any>) {
+  return hasOwn(row, 'status') || hasOwn(row, 'published_at');
+}
+
+async function updateTargetsPublishedPost(spec: QuerySpec) {
+  const ids = postIdsFromFilters(spec.filters);
+  if (!ids.length) return true;
+  const result = await dbQuery<{ status: string | null; published_at: string | null }>(
+    `SELECT status, published_at
+     FROM public.posts
+     WHERE id = ANY($1::bigint[])`,
+    [ids]
+  );
+  return result.rows.some((row) => (
+    cleanStatus(row.status) === 'published' || row.published_at != null
+  ));
+}
+
+async function assertPostPublicationAllowed(context: AdminContext, spec: QuerySpec) {
+  if (spec.table !== 'posts') return;
+  const method = String(spec.method);
+  if (!['insert', 'update', 'upsert'].includes(method)) return;
+  if (isSuperAdminContext(context)) return;
+
+  const rows = mutationRows(spec.values);
+  if (rows.some(rowRequestsPublication)) {
+    throw Object.assign(
+      new Error('Haber yayınlama yetkisi sadece Süper Yöneticiye aittir.'),
+      { status: 403 }
+    );
+  }
+
+  if (method === 'update' && rows.some(rowTouchesPublicationState)) {
+    const touchesPublished = await updateTargetsPublishedPost(spec);
+    if (touchesPublished) {
+      throw Object.assign(
+        new Error('Haber yayından kaldırma yetkisi sadece Süper Yöneticiye aittir.'),
+        { status: 403 }
+      );
+    }
+  }
+}
+
 export const POST: APIRoute = async ({ request }) => {
   try {
     const body = await request.json();
@@ -315,7 +424,12 @@ export const POST: APIRoute = async ({ request }) => {
       ? permissionForRpc(body.name)
       : permissionForSpec(body as QuerySpec);
 
-    await requireAdminRequest(request, permission);
+    const context = body?.kind !== 'rpc' && isDraftOnlyPostMutation(body as QuerySpec)
+      ? await requireAnyAdminPermission(request, ['manage_content', 'posts_access'])
+      : await requireAdminRequest(request, permission);
+    if (body?.kind !== 'rpc') {
+      await assertPostPublicationAllowed(context, body as QuerySpec);
+    }
 
     const result = body?.kind === 'rpc'
       ? await executeRpc(body.name, body.args || {})

@@ -7,7 +7,14 @@ import { invalidateServerNewsDataCache } from '@/services/dataService.server';
 
 export const POST: APIRoute = async ({ request }) => {
   try {
-    await requireAdminRequest(request, 'manage_content');
+    const context = await requireAdminRequest(request, 'manage_content');
+    const role = String(context.profile.role || '').trim().toLowerCase();
+    if (role !== 'admin' && role !== 'super_admin') {
+      return adminJson(
+        { data: null, error: { message: 'Haber yayınlama yetkisi sadece Süper Yöneticiye aittir.' } },
+        403
+      );
+    }
     const body = await request.json();
     const id = Number(body?.id);
     if (!Number.isFinite(id)) return adminJson({ data: null, error: { message: 'Valid post id is required' } }, 400);

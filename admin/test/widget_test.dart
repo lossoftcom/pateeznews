@@ -4539,6 +4539,7 @@ void main() {
                 sortState: const TableSortState(key: 'date', ascending: false),
                 trashMode: true,
                 videoOnly: false,
+                canManagePublication: true,
                 onPageSizeChanged: (_) {},
                 onSearchChanged: (_) {},
                 onLanguageChanged: (_) {},

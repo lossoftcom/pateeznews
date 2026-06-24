@@ -49,6 +49,7 @@ Future<void> showNewsPublishShareDialog(
   BuildContext context, {
   required AdminSession session,
   required NewsPublishShareData data,
+  Future<void> Function()? onConfirmPublish,
 }) {
   return showGeneralDialog<void>(
     context: context,
@@ -56,8 +57,11 @@ Future<void> showNewsPublishShareDialog(
     barrierLabel: 'Paylaşım',
     barrierColor: Colors.black.withValues(alpha: 0.45),
     transitionDuration: const Duration(milliseconds: 240),
-    pageBuilder: (_, _, _) =>
-        _NewsPublishShareDialog(session: session, data: data),
+    pageBuilder: (_, _, _) => _NewsPublishShareDialog(
+      session: session,
+      data: data,
+      onConfirmPublish: onConfirmPublish,
+    ),
     transitionBuilder: (ctx, anim, _, child) {
       final mobile = MediaQuery.of(ctx).size.width < 720;
       final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic);
@@ -125,15 +129,16 @@ _PlatformMeta _platformMeta(SocialPlatform platform) {
     case 'twitter':
       return const _PlatformMeta('X', null, Color(0xFF111111), letter: '𝕏');
     case 'linkedin':
-      return const _PlatformMeta(
-        'LinkedIn',
-        Symbols.public,
-        Color(0xFF0A66C2),
-      );
+      return const _PlatformMeta('LinkedIn', Symbols.public, Color(0xFF0A66C2));
     case 'youtube':
       return const _PlatformMeta('YouTube', Symbols.public, Color(0xFFFF0000));
     case 'tiktok':
-      return const _PlatformMeta('TikTok', null, Color(0xFF111111), letter: '♪');
+      return const _PlatformMeta(
+        'TikTok',
+        null,
+        Color(0xFF111111),
+        letter: '♪',
+      );
     case 'pinterest':
       return const _PlatformMeta(
         'Pinterest',
@@ -152,10 +157,15 @@ _PlatformMeta _platformMeta(SocialPlatform platform) {
 enum _Step { intro, social, notif, done }
 
 class _NewsPublishShareDialog extends StatefulWidget {
-  const _NewsPublishShareDialog({required this.session, required this.data});
+  const _NewsPublishShareDialog({
+    required this.session,
+    required this.data,
+    required this.onConfirmPublish,
+  });
 
   final AdminSession session;
   final NewsPublishShareData data;
+  final Future<void> Function()? onConfirmPublish;
 
   @override
   State<_NewsPublishShareDialog> createState() =>
@@ -181,6 +191,8 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
   final List<String> _tags = [];
   bool _hashtagsInFirstComment = false;
   bool _utm = true;
+  bool _publishing = false;
+  bool _published = false;
 
   SocialPlatform _previewPlatform = SocialPlatform.instagram;
   String _format = 'feed';
@@ -331,6 +343,12 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
     return _images[index].trim() == manset;
   }
 
+  bool get _isLastBeforeDone {
+    final flow = _stepFlow;
+    final i = flow.indexOf(_step);
+    return i >= 0 && i == flow.length - 2;
+  }
+
   void _goNext() {
     final flow = _stepFlow;
     final i = flow.indexOf(_step);
@@ -356,10 +374,33 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
   void _finish() {
     AdminToast.show(
       context,
-      message: 'Paylaşım ve bildirim hazırlandı.',
+      message: 'Haber yayına alındı.',
       tone: AdminToastTone.success,
     );
     Navigator.of(context).maybePop();
+  }
+
+  Future<void> _confirmPublish() async {
+    if (_publishing || _published) return;
+    setState(() => _publishing = true);
+    try {
+      await widget.onConfirmPublish?.call();
+      if (!mounted) return;
+      setState(() {
+        _publishing = false;
+        _published = true;
+        _step = _Step.done;
+        _mobileView = 'edit';
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _publishing = false);
+      AdminToast.show(
+        context,
+        message: error.toString(),
+        tone: AdminToastTone.error,
+      );
+    }
   }
 
   void _close() => Navigator.of(context).maybePop();
@@ -410,10 +451,7 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: 660,
-            maxHeight: screenH * 0.88,
-          ),
+          constraints: BoxConstraints(maxWidth: 660, maxHeight: screenH * 0.88),
           child: shell,
         ),
       ),
@@ -422,7 +460,10 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
 
   Widget _topBar() {
     final titles = switch (_step) {
-      _Step.intro => ('Haber yayınlandı', 'Sırada paylaşım ve bildirim var'),
+      _Step.intro => (
+        'Haber yayına hazırlanıyor',
+        'Sırada paylaşım ve bildirim var',
+      ),
       _Step.social => (
         'Sosyal medya paylaşımı',
         'Üst sekmeden platform önizlemesini seç',
@@ -528,7 +569,7 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
               ),
               const SizedBox(height: 12),
               const Text(
-                'Haber yayına alındı',
+                'Haber yayına hazır',
                 style: TextStyle(
                   color: _ink,
                   fontWeight: FontWeight.w700,
@@ -538,8 +579,8 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
               const SizedBox(height: 4),
               Text(
                 d.title.trim().isEmpty
-                    ? 'Haber yayında. Şimdi okuyuculara ulaştıralım.'
-                    : '“${d.title.trim()}” artık yayında. Şimdi okuyuculara ulaştıralım.',
+                    ? 'Haber hazır. Şimdi okuyuculara ulaştıralım.'
+                    : '“${d.title.trim()}” yayına hazır. Şimdi okuyuculara ulaştıralım.',
                 style: const TextStyle(color: _soft, fontSize: 13, height: 1.5),
               ),
               const SizedBox(height: 14),
@@ -571,8 +612,11 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
                           ),
                           const SizedBox(height: 3),
                           Text(
-                            'Yayında · Az önce · ${_images.length} görsel',
-                            style: const TextStyle(color: _muted, fontSize: 11.5),
+                            'Yayına hazır · ${_images.length} görsel',
+                            style: const TextStyle(
+                              color: _muted,
+                              fontSize: 11.5,
+                            ),
                           ),
                         ],
                       ),
@@ -645,7 +689,11 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _Label(icon: Symbols.image_outlined, text: 'Görseller', trailing: '$_selectedImageCount / ${_images.length} seçili'),
+        _Label(
+          icon: Symbols.image_outlined,
+          text: 'Görseller',
+          trailing: '$_selectedImageCount / ${_images.length} seçili',
+        ),
         const SizedBox(height: 8),
         _SwitchRow(
           title: 'Haberdeki tüm görselleri kullan',
@@ -665,7 +713,11 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
         const SizedBox(height: 11),
         _imageGrid(),
         const SizedBox(height: 18),
-        _Label(icon: Symbols.public, text: 'Paylaşılacak hesaplar', trailing: 'aktif olanlar'),
+        _Label(
+          icon: Symbols.public,
+          text: 'Paylaşılacak hesaplar',
+          trailing: 'aktif olanlar',
+        ),
         const SizedBox(height: 8),
         _accountList(),
         const SizedBox(height: 18),
@@ -749,7 +801,8 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
             runSpacing: 7,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              for (final tag in _tags) _tagChip('#$tag', onRemove: () => _removeTag(tag)),
+              for (final tag in _tags)
+                _tagChip('#$tag', onRemove: () => _removeTag(tag)),
               SizedBox(
                 width: 130,
                 child: TextField(
@@ -803,7 +856,11 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
     );
   }
 
-  Widget _tagChip(String label, {bool suggestion = false, VoidCallback? onRemove}) {
+  Widget _tagChip(
+    String label, {
+    bool suggestion = false,
+    VoidCallback? onRemove,
+  }) {
     return Container(
       padding: EdgeInsets.fromLTRB(10, 5, onRemove != null ? 5 : 10, 5),
       decoration: BoxDecoration(
@@ -852,7 +909,9 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
           minLines: 2,
           maxLines: 3,
           style: const TextStyle(fontSize: 13, color: _ink, height: 1.4),
-          decoration: _fieldDecoration('Görseli tanımla — erişilebilirlik ve keşfedilebilirlik'),
+          decoration: _fieldDecoration(
+            'Görseli tanımla — erişilebilirlik ve keşfedilebilirlik',
+          ),
         ),
       ],
     );
@@ -869,7 +928,9 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
           minLines: 2,
           maxLines: 3,
           style: const TextStyle(fontSize: 13, color: _ink, height: 1.4),
-          decoration: _fieldDecoration('Paylaşımdan hemen sonra eklenecek ilk yorum'),
+          decoration: _fieldDecoration(
+            'Paylaşımdan hemen sonra eklenecek ilk yorum',
+          ),
         ),
       ],
     );
@@ -945,12 +1006,7 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
             fit: StackFit.expand,
             children: [
               AdminCachedImage(url: _images[i]),
-              if (manset)
-                Positioned(
-                  left: 5,
-                  top: 5,
-                  child: _badge('Manşet'),
-                ),
+              if (manset) Positioned(left: 5, top: 5, child: _badge('Manşet')),
               Positioned(
                 right: 5,
                 top: 5,
@@ -1034,10 +1090,7 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
         decoration: BoxDecoration(
           color: selected ? _redTintSoft : Colors.white,
           borderRadius: BorderRadius.circular(_rInput),
-          border: Border.all(
-            color: selected ? _red : _line,
-            width: 1.5,
-          ),
+          border: Border.all(color: selected ? _red : _line, width: 1.5),
         ),
         child: Row(
           children: [
@@ -1067,7 +1120,9 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
               decoration: BoxDecoration(
                 color: selected ? _redTint : Colors.white,
                 borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: selected ? const Color(0xFFFBD9D4) : _line),
+                border: Border.all(
+                  color: selected ? const Color(0xFFFBD9D4) : _line,
+                ),
               ),
               child: Text(
                 selected ? 'Seçili' : 'Seç',
@@ -1348,7 +1403,9 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
                   Positioned(
                     left: 7,
                     top: 7,
-                    child: _badge(_isManset(idx) ? 'Manşet' : 'Görsel ${idx + 1}'),
+                    child: _badge(
+                      _isManset(idx) ? 'Manşet' : 'Görsel ${idx + 1}',
+                    ),
                   ),
               ],
             ),
@@ -1716,7 +1773,7 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
         const SizedBox(height: 4),
         const Center(
           child: Text(
-            'Haber yayında. İşlemler sıraya alındı.',
+            'Haber yayında. Paylaşım ve bildirim adımları hazır.',
             style: TextStyle(color: _soft, fontSize: 13),
           ),
         ),
@@ -1725,7 +1782,8 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
           _recapRow(
             icon: Symbols.send_rounded,
             title: 'Sosyal medya paylaşımı',
-            subtitle: '$accountCount hesapta · $_selectedImageCount görsel sıraya alındı',
+            subtitle:
+                '$accountCount hesapta · $_selectedImageCount görsel sıraya alındı',
           ),
         if (_notify)
           _recapRow(
@@ -1870,50 +1928,63 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
     switch (_step) {
       case _Step.intro:
         children.add(
-          _Btn(
-            label: 'Şimdilik geç',
-            icon: Symbols.schedule,
-            onTap: _close,
-          ),
+          _Btn(label: 'Şimdilik geç', icon: Symbols.schedule, onTap: _close),
         );
         children.add(const Spacer());
+        final hasSteps = _shareSocial || _notify;
         children.add(
           _Btn(
-            label: 'Devam et',
-            icon: Symbols.arrow_forward,
+            label: hasSteps ? 'Devam et' : 'Şimdi gönder',
+            icon: hasSteps ? Symbols.arrow_forward : Symbols.send_rounded,
             primary: true,
-            trailingIcon: true,
-            onTap: (_shareSocial || _notify) ? _goNext : null,
+            trailingIcon: hasSteps,
+            loading: _publishing,
+            onTap: hasSteps ? _goNext : _confirmPublish,
           ),
         );
       case _Step.social:
-        children.add(_Btn(label: 'Geri', icon: Symbols.arrow_back, onTap: _goPrev));
+        children.add(
+          _Btn(label: 'Geri', icon: Symbols.arrow_back, onTap: _goPrev),
+        );
         children.add(const Spacer());
         children.add(
           _Btn(
-            label: 'Devam',
-            icon: Symbols.arrow_forward,
+            label: _isLastBeforeDone ? 'Şimdi gönder' : 'Devam',
+            icon: _isLastBeforeDone
+                ? Symbols.send_rounded
+                : Symbols.arrow_forward,
             primary: true,
-            trailingIcon: true,
-            onTap: _goNext,
+            trailingIcon: !_isLastBeforeDone,
+            loading: _publishing,
+            onTap: _isLastBeforeDone ? _confirmPublish : _goNext,
           ),
         );
       case _Step.notif:
-        children.add(_Btn(label: 'Geri', icon: Symbols.arrow_back, onTap: _goPrev));
+        children.add(
+          _Btn(label: 'Geri', icon: Symbols.arrow_back, onTap: _goPrev),
+        );
         children.add(const Spacer());
         children.add(
           _Btn(
             label: 'Şimdi gönder',
             icon: Symbols.send_rounded,
             primary: true,
-            onTap: _goNext,
+            loading: _publishing,
+            onTap: _confirmPublish,
           ),
         );
       case _Step.done:
-        children.add(_Btn(label: 'Yeni haber', icon: Symbols.add, onTap: _close));
+        children.add(
+          _Btn(label: 'Yeni haber', icon: Symbols.add, onTap: _close),
+        );
         children.add(const Spacer());
         children.add(
-          _Btn(label: 'Bitir', icon: Symbols.check, primary: true, onTap: _finish),
+          _Btn(
+            label: 'Bitir',
+            icon: Symbols.check,
+            primary: true,
+            onTap: _finish,
+          ),
         );
     }
     return Container(
@@ -2183,11 +2254,7 @@ class _ActionCard extends StatelessWidget {
                 color: value ? _redTint : _surface,
                 borderRadius: BorderRadius.circular(11),
               ),
-              child: SymbolIcon(
-                icon,
-                color: value ? _red : _soft,
-                size: 21,
-              ),
+              child: SymbolIcon(icon, color: value ? _red : _soft, size: 21),
             ),
             const SizedBox(width: 13),
             Expanded(
@@ -2328,6 +2395,7 @@ class _Btn extends StatelessWidget {
     this.onTap,
     this.primary = false,
     this.trailingIcon = false,
+    this.loading = false,
   });
 
   final String label;
@@ -2335,16 +2403,27 @@ class _Btn extends StatelessWidget {
   final VoidCallback? onTap;
   final bool primary;
   final bool trailingIcon;
+  final bool loading;
 
   @override
   Widget build(BuildContext context) {
-    final disabled = onTap == null;
+    final disabled = onTap == null || loading;
     final bg = primary
         ? (disabled ? const Color(0xFFF2B4AE) : _red)
         : Colors.white;
     final fg = primary ? Colors.white : _ink;
     final children = <Widget>[
-      if (!trailingIcon) ...[SymbolIcon(icon, color: fg, size: 16), const SizedBox(width: 7)],
+      if (loading) ...[
+        SizedBox(
+          width: 16,
+          height: 16,
+          child: CircularProgressIndicator(strokeWidth: 2, color: fg),
+        ),
+        const SizedBox(width: 7),
+      ] else if (!trailingIcon) ...[
+        SymbolIcon(icon, color: fg, size: 16),
+        const SizedBox(width: 7),
+      ],
       Text(
         label,
         style: TextStyle(
@@ -2353,7 +2432,10 @@ class _Btn extends StatelessWidget {
           fontSize: 13.5,
         ),
       ),
-      if (trailingIcon) ...[const SizedBox(width: 7), SymbolIcon(icon, color: fg, size: 16)],
+      if (!loading && trailingIcon) ...[
+        const SizedBox(width: 7),
+        SymbolIcon(icon, color: fg, size: 16),
+      ],
     ];
     return Opacity(
       opacity: disabled ? 0.9 : 1,

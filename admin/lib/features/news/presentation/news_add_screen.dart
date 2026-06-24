@@ -2076,6 +2076,27 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
       _showEditorMessage(validationError, isError: true);
       return;
     }
+    if (status == 'published') {
+      if (!_isSuperAdminUser) {
+        _showEditorMessage(
+          'Haber yayınlama yetkisi sadece Süper Yöneticiye aittir.',
+          isError: true,
+        );
+        return;
+      }
+      await showNewsPublishShareDialog(
+        context,
+        session: widget.session,
+        data: _collectShareData(),
+        onConfirmPublish: () => _saveEditorPost('published'),
+      );
+      return;
+    }
+    await _saveEditorPost(status);
+  }
+
+  Future<void> _saveEditorPost(String status) async {
+    if (_saving) return;
     setState(() => _saving = true);
     try {
       if (_pinToTop) {
@@ -2091,7 +2112,6 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
         payload: AdminNewsEditorSavePayload(values: _buildPostValues(status)),
       );
       if (!mounted) return;
-      final shareData = status == 'draft' ? null : _collectShareData();
       final isCreating = _editingPostId == null || _editingPostId!.isEmpty;
       setState(() {
         _saving = false;
@@ -2114,14 +2134,6 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
       );
       if (status == 'draft') {
         widget.onBackToNews?.call();
-      } else if (shareData != null && mounted) {
-        unawaited(
-          showNewsPublishShareDialog(
-            context,
-            session: widget.session,
-            data: shareData,
-          ),
-        );
       }
     } catch (error) {
       if (!mounted) return;
@@ -4954,6 +4966,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
             bottom: 0,
             child: _MobileActionBar(
               saving: _saving,
+              canPublish: _isSuperAdminUser,
               onSaveDraft: () => unawaited(_handleSave('draft')),
               onPublish: () => unawaited(_handleSave('published')),
               onSchedule: () => unawaited(_handleSave('published')),
@@ -8133,6 +8146,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
   Widget _buildPublishCard({bool showActions = true}) {
     return _PublishCard(
       showActions: showActions,
+      canPublish: _isSuperAdminUser,
       factCheck: _factCheck,
       factClaimController: _factClaimController,
       factClaimAuthorController: _factClaimAuthorController,
@@ -16112,7 +16126,8 @@ class _CoverCardState extends State<_CoverCard> {
                       'Kapak görseli hazırlanıyor, R2 ve yerel depoya yükleniyor...',
                   various: I18nVarious(
                     loadingDialogMsg: 'Lütfen bekleyin...',
-                    closeEditorWarningTitle: 'Görsel düzenleyici kapatılsın mı?',
+                    closeEditorWarningTitle:
+                        'Görsel düzenleyici kapatılsın mı?',
                     closeEditorWarningMessage:
                         'Görsel düzenleyiciyi kapatmak istediğinize emin '
                         'misiniz? Yaptığınız değişiklikler kaydedilmeyecek.',
@@ -17844,63 +17859,171 @@ class _CoverTemplateMiniPreview extends StatelessWidget {
     switch (preset.id) {
       case _CoverTemplatePresetId.posterStack:
         return [
-          _previewTextBlock(left: 14, top: 38, width: 76, height: 18, color: red),
-          _previewTextBlock(left: 24, top: 60, width: 56, height: 9, color: yellow),
+          _previewTextBlock(
+            left: 14,
+            top: 38,
+            width: 76,
+            height: 18,
+            color: red,
+          ),
+          _previewTextBlock(
+            left: 24,
+            top: 60,
+            width: 56,
+            height: 9,
+            color: yellow,
+          ),
         ];
       case _CoverTemplatePresetId.lowerThird:
         return [
-          _previewTextBlock(left: 24, bottom: 30, width: 50, height: 8, color: yellow),
-          _previewTextBlock(left: 10, bottom: 12, width: 84, height: 14, color: navy),
+          _previewTextBlock(
+            left: 24,
+            bottom: 30,
+            width: 50,
+            height: 8,
+            color: yellow,
+          ),
+          _previewTextBlock(
+            left: 10,
+            bottom: 12,
+            width: 84,
+            height: 14,
+            color: navy,
+          ),
         ];
       case _CoverTemplatePresetId.editorialRight:
         return [
-          _previewTextBlock(right: 12, top: 18, width: 44, height: 8, color: yellow),
+          _previewTextBlock(
+            right: 12,
+            top: 18,
+            width: 44,
+            height: 8,
+            color: yellow,
+          ),
           _previewTextBlock(right: 8, top: 30, width: 56, height: 16),
         ];
       case _CoverTemplatePresetId.redSash:
         return [
-          _previewTextBlock(left: 26, top: 24, width: 52, height: 8, color: yellow),
-          _previewTextBlock(left: 8, top: 36, width: 88, height: 16, color: red),
+          _previewTextBlock(
+            left: 26,
+            top: 24,
+            width: 52,
+            height: 8,
+            color: yellow,
+          ),
+          _previewTextBlock(
+            left: 8,
+            top: 36,
+            width: 88,
+            height: 16,
+            color: red,
+          ),
         ];
       case _CoverTemplatePresetId.breakingBand:
         return [
-          _previewTextBlock(left: 12, top: 10, width: 34, height: 7, color: red),
+          _previewTextBlock(
+            left: 12,
+            top: 10,
+            width: 34,
+            height: 7,
+            color: red,
+          ),
           _previewTextBlock(left: 16, top: 24, width: 72, height: 16),
         ];
       case _CoverTemplatePresetId.boldImpact:
         return [
-          _previewTextBlock(left: 10, top: 38, width: 84, height: 18, color: navy),
-          _previewTextBlock(left: 26, top: 60, width: 52, height: 8, color: yellow),
+          _previewTextBlock(
+            left: 10,
+            top: 38,
+            width: 84,
+            height: 18,
+            color: navy,
+          ),
+          _previewTextBlock(
+            left: 26,
+            top: 60,
+            width: 52,
+            height: 8,
+            color: yellow,
+          ),
         ];
       case _CoverTemplatePresetId.leftLead:
         return [
-          _previewTextBlock(left: 12, top: 16, width: 34, height: 7, color: red),
+          _previewTextBlock(
+            left: 12,
+            top: 16,
+            width: 34,
+            height: 7,
+            color: red,
+          ),
           _previewTextBlock(left: 12, top: 28, width: 50, height: 20),
         ];
       case _CoverTemplatePresetId.yellowTag:
         return [
-          _previewTextBlock(right: 12, bottom: 26, width: 56, height: 13, color: yellow),
-          _previewTextBlock(right: 18, bottom: 12, width: 42, height: 7, color: navy),
+          _previewTextBlock(
+            right: 12,
+            bottom: 26,
+            width: 56,
+            height: 13,
+            color: yellow,
+          ),
+          _previewTextBlock(
+            right: 18,
+            bottom: 12,
+            width: 42,
+            height: 7,
+            color: navy,
+          ),
         ];
       case _CoverTemplatePresetId.centerPoster:
         return [
           _previewTextBlock(left: 18, top: 26, width: 68, height: 14),
-          _previewTextBlock(left: 30, top: 46, width: 44, height: 8, color: yellow),
+          _previewTextBlock(
+            left: 30,
+            top: 46,
+            width: 44,
+            height: 8,
+            color: yellow,
+          ),
         ];
       case _CoverTemplatePresetId.cleanLabel:
         return [
           _previewTextBlock(left: 22, top: 14, width: 60, height: 13),
-          _previewTextBlock(left: 30, top: 32, width: 44, height: 7, color: navy),
+          _previewTextBlock(
+            left: 30,
+            top: 32,
+            width: 44,
+            height: 7,
+            color: navy,
+          ),
         ];
       case _CoverTemplatePresetId.glassCard:
         return [
           _previewTextBlock(left: 16, bottom: 22, width: 72, height: 16),
-          _previewTextBlock(left: 28, bottom: 11, width: 48, height: 7, color: navy),
+          _previewTextBlock(
+            left: 28,
+            bottom: 11,
+            width: 48,
+            height: 7,
+            color: navy,
+          ),
         ];
       case _CoverTemplatePresetId.tealFresh:
         return [
-          _previewTextBlock(left: 12, top: 40, width: 80, height: 16, color: teal),
-          _previewTextBlock(left: 28, top: 60, width: 48, height: 8, color: yellow),
+          _previewTextBlock(
+            left: 12,
+            top: 40,
+            width: 80,
+            height: 16,
+            color: teal,
+          ),
+          _previewTextBlock(
+            left: 28,
+            top: 60,
+            width: 48,
+            height: 8,
+            color: yellow,
+          ),
         ];
     }
   }
@@ -18247,6 +18370,7 @@ class _CategorySettingsCard extends StatelessWidget {
 class _PublishCard extends StatelessWidget {
   const _PublishCard({
     required this.factCheck,
+    required this.canPublish,
     required this.factClaimController,
     required this.factClaimAuthorController,
     required this.factClaimAuthorUrlController,
@@ -18263,6 +18387,7 @@ class _PublishCard extends StatelessWidget {
   });
 
   final bool showActions;
+  final bool canPublish;
   final bool factCheck;
   final TextEditingController factClaimController;
   final TextEditingController factClaimAuthorController;
@@ -18401,26 +18526,30 @@ class _PublishCard extends StatelessWidget {
                     onTap: onSaveDraft,
                   ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _PublishActionButton(
-                    label: 'newsAdd.publish',
-                    icon: Symbols.upload,
-                    variant: _PublishVariant.primary,
-                    loading: saving,
-                    onTap: onPublish,
+                if (canPublish) ...[
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _PublishActionButton(
+                      label: 'newsAdd.publish',
+                      icon: Symbols.upload,
+                      variant: _PublishVariant.primary,
+                      loading: saving,
+                      onTap: onPublish,
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
-            const SizedBox(height: 10),
-            _PublishActionButton(
-              label: 'newsAdd.scheduleSave',
-              icon: Symbols.schedule_send,
-              variant: _PublishVariant.muted,
-              loading: saving,
-              onTap: onSchedule,
-            ),
+            if (canPublish) ...[
+              const SizedBox(height: 10),
+              _PublishActionButton(
+                label: 'newsAdd.scheduleSave',
+                icon: Symbols.schedule_send,
+                variant: _PublishVariant.muted,
+                loading: saving,
+                onTap: onSchedule,
+              ),
+            ],
           ],
         ],
       ),
@@ -18933,12 +19062,14 @@ class _MobileEmptyBlocks extends StatelessWidget {
 class _MobileActionBar extends StatelessWidget {
   const _MobileActionBar({
     required this.saving,
+    required this.canPublish,
     required this.onSaveDraft,
     required this.onPublish,
     required this.onSchedule,
   });
 
   final bool saving;
+  final bool canPublish;
   final VoidCallback onSaveDraft;
   final VoidCallback onPublish;
   final VoidCallback onSchedule;
@@ -18961,14 +19092,16 @@ class _MobileActionBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          _MobileGlyphButton(
-            icon: Symbols.schedule_send,
-            onTap: onSchedule,
-            background: AppColors.surface,
-            foreground: AppColors.deepOcean,
-            size: 42,
-          ),
-          const SizedBox(width: 10),
+          if (canPublish) ...[
+            _MobileGlyphButton(
+              icon: Symbols.schedule_send,
+              onTap: onSchedule,
+              background: AppColors.surface,
+              foreground: AppColors.deepOcean,
+              size: 42,
+            ),
+            const SizedBox(width: 10),
+          ],
           Expanded(
             child: _PublishActionButton(
               label: 'newsAdd.draft',
@@ -18978,17 +19111,19 @@ class _MobileActionBar extends StatelessWidget {
               onTap: onSaveDraft,
             ),
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            flex: 2,
-            child: _PublishActionButton(
-              label: 'newsAdd.publish',
-              icon: Symbols.upload,
-              variant: _PublishVariant.primary,
-              loading: saving,
-              onTap: onPublish,
+          if (canPublish) ...[
+            const SizedBox(width: 10),
+            Expanded(
+              flex: 2,
+              child: _PublishActionButton(
+                label: 'newsAdd.publish',
+                icon: Symbols.upload,
+                variant: _PublishVariant.primary,
+                loading: saving,
+                onTap: onPublish,
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );

@@ -84,6 +84,7 @@ class NewsTableCard extends StatelessWidget {
     required this.sortState,
     required this.trashMode,
     required this.videoOnly,
+    required this.canManagePublication,
     required this.onPageSizeChanged,
     required this.onSearchChanged,
     required this.onLanguageChanged,
@@ -122,6 +123,7 @@ class NewsTableCard extends StatelessWidget {
   final TableSortState sortState;
   final bool trashMode;
   final bool videoOnly;
+  final bool canManagePublication;
   final bool searching;
   final ValueChanged<int?> onPageSizeChanged;
   final ValueChanged<String> onSearchChanged;
@@ -171,6 +173,7 @@ class NewsTableCard extends StatelessWidget {
               selectedPostIds: selectedPostIds,
               trashMode: trashMode,
               videoOnly: videoOnly,
+              canManagePublication: canManagePublication,
               onPageSizeChanged: onPageSizeChanged,
               onSearchChanged: onSearchChanged,
               onLanguageChanged: onLanguageChanged,
@@ -243,6 +246,7 @@ class NewsTableCard extends StatelessWidget {
                               selectedPostIds: selectedPostIds,
                               sortState: sortState,
                               trashMode: trashMode,
+                              canManagePublication: canManagePublication,
                               onTogglePost: onTogglePost,
                               onToggleAllPosts: onToggleAllPosts,
                               onSort: onSort,
@@ -1013,6 +1017,7 @@ class _NewsDataTable extends StatefulWidget {
     required this.selectedPostIds,
     required this.sortState,
     required this.trashMode,
+    required this.canManagePublication,
     required this.onTogglePost,
     required this.onToggleAllPosts,
     required this.onSort,
@@ -1029,6 +1034,7 @@ class _NewsDataTable extends StatefulWidget {
   final Set<String> selectedPostIds;
   final TableSortState sortState;
   final bool trashMode;
+  final bool canManagePublication;
   final ValueChanged<String> onTogglePost;
   final VoidCallback onToggleAllPosts;
   final ValueChanged<String> onSort;
@@ -1150,6 +1156,8 @@ class _NewsDataTableState extends State<_NewsDataTable> {
                                     onToggleExpanded: () =>
                                         _toggleExpanded(post),
                                     trashMode: widget.trashMode,
+                                    canManagePublication:
+                                        widget.canManagePublication,
                                     onEditPost: widget.onEditPost,
                                     onToggleStatus: widget.onToggleStatus,
                                     onTogglePinned: widget.onTogglePinned,
@@ -1492,6 +1500,7 @@ class _NewsRow extends StatelessWidget {
     required this.onToggle,
     required this.onToggleExpanded,
     required this.trashMode,
+    required this.canManagePublication,
     required this.onEditPost,
     required this.onToggleStatus,
     required this.onTogglePinned,
@@ -1505,6 +1514,7 @@ class _NewsRow extends StatelessWidget {
   final VoidCallback onToggle;
   final VoidCallback onToggleExpanded;
   final bool trashMode;
+  final bool canManagePublication;
   final ValueChanged<AdminNewsPost> onEditPost;
   final ValueChanged<AdminNewsPost> onToggleStatus;
   final ValueChanged<AdminNewsPost> onTogglePinned;
@@ -1603,6 +1613,7 @@ class _NewsRow extends StatelessWidget {
                         )
                       : _NewsRowMenu(
                           post: post,
+                          canManagePublication: canManagePublication,
                           onEditPost: onEditPost,
                           onToggleStatus: onToggleStatus,
                           onTogglePinned: onTogglePinned,
@@ -4171,6 +4182,7 @@ class _DateCell extends StatelessWidget {
 class _NewsRowMenu extends StatefulWidget {
   const _NewsRowMenu({
     required this.post,
+    required this.canManagePublication,
     required this.onEditPost,
     required this.onToggleStatus,
     required this.onTogglePinned,
@@ -4178,6 +4190,7 @@ class _NewsRowMenu extends StatefulWidget {
   });
 
   final AdminNewsPost post;
+  final bool canManagePublication;
   final ValueChanged<AdminNewsPost> onEditPost;
   final ValueChanged<AdminNewsPost> onToggleStatus;
   final ValueChanged<AdminNewsPost> onTogglePinned;
@@ -4219,6 +4232,7 @@ class _NewsRowMenuState extends State<_NewsRowMenu> {
               offset: const Offset(0, 8),
               child: _NewsMenuCard(
                 post: widget.post,
+                canManagePublication: widget.canManagePublication,
                 onEdit: () =>
                     _runAndClose(() => widget.onEditPost(widget.post)),
                 onToggleStatus: () =>
@@ -4288,6 +4302,7 @@ class _NewsRowMenuState extends State<_NewsRowMenu> {
 class _NewsMenuCard extends StatelessWidget {
   const _NewsMenuCard({
     required this.post,
+    required this.canManagePublication,
     required this.onEdit,
     required this.onToggleStatus,
     required this.onTogglePinned,
@@ -4295,6 +4310,7 @@ class _NewsMenuCard extends StatelessWidget {
   });
 
   final AdminNewsPost post;
+  final bool canManagePublication;
   final VoidCallback onEdit;
   final VoidCallback onToggleStatus;
   final VoidCallback onTogglePinned;
@@ -4327,11 +4343,12 @@ class _NewsMenuCard extends StatelessWidget {
               label: 'Edit',
               onTap: onEdit,
             ),
-            _NewsMenuItem(
-              icon: post.published ? Symbols.visibility_off : Symbols.check,
-              label: post.published ? 'Unpublish' : 'Publish',
-              onTap: onToggleStatus,
-            ),
+            if (canManagePublication)
+              _NewsMenuItem(
+                icon: post.published ? Symbols.visibility_off : Symbols.check,
+                label: post.published ? 'Unpublish' : 'Publish',
+                onTap: onToggleStatus,
+              ),
             _NewsMenuItem(
               icon: post.isPinned ? Symbols.visibility_off : Symbols.verified,
               label: post.isPinned ? 'Unpin' : 'Pin',
@@ -4618,6 +4635,7 @@ class _NewsMobileView extends StatefulWidget {
     required this.selectedPostIds,
     required this.trashMode,
     required this.videoOnly,
+    required this.canManagePublication,
     required this.onPageSizeChanged,
     required this.onSearchChanged,
     required this.onLanguageChanged,
@@ -4653,6 +4671,7 @@ class _NewsMobileView extends StatefulWidget {
   final Set<String> selectedPostIds;
   final bool trashMode;
   final bool videoOnly;
+  final bool canManagePublication;
   final ValueChanged<int?> onPageSizeChanged;
   final ValueChanged<String> onSearchChanged;
   final ValueChanged<String?> onLanguageChanged;
@@ -4821,6 +4840,7 @@ class _NewsMobileViewState extends State<_NewsMobileView> {
                             selected: widget.selectedPostIds.contains(post.id),
                             onToggle: () => widget.onTogglePost(post.id),
                             trashMode: widget.trashMode,
+                            canManagePublication: widget.canManagePublication,
                             onEditPost: widget.onEditPost,
                             onToggleStatus: widget.onToggleStatus,
                             onTogglePinned: widget.onTogglePinned,
@@ -5521,6 +5541,7 @@ class _NewsMobileCard extends StatelessWidget {
     required this.selected,
     required this.onToggle,
     required this.trashMode,
+    required this.canManagePublication,
     required this.onEditPost,
     required this.onToggleStatus,
     required this.onTogglePinned,
@@ -5531,6 +5552,7 @@ class _NewsMobileCard extends StatelessWidget {
   final bool selected;
   final VoidCallback onToggle;
   final bool trashMode;
+  final bool canManagePublication;
   final ValueChanged<AdminNewsPost> onEditPost;
   final ValueChanged<AdminNewsPost> onToggleStatus;
   final ValueChanged<AdminNewsPost> onTogglePinned;
@@ -5634,15 +5656,16 @@ class _NewsMobileCard extends StatelessWidget {
                         label: context.t('Edit'),
                         onTap: () => onEditPost(post),
                       ),
-                      AdminMobileMenuAction(
-                        icon: post.published
-                            ? Symbols.visibility_off
-                            : Symbols.check,
-                        label: context.t(
-                          post.published ? 'Unpublish' : 'Publish',
+                      if (canManagePublication)
+                        AdminMobileMenuAction(
+                          icon: post.published
+                              ? Symbols.visibility_off
+                              : Symbols.check,
+                          label: context.t(
+                            post.published ? 'Unpublish' : 'Publish',
+                          ),
+                          onTap: () => onToggleStatus(post),
                         ),
-                        onTap: () => onToggleStatus(post),
-                      ),
                       AdminMobileMenuAction(
                         icon: post.isPinned
                             ? Symbols.visibility_off

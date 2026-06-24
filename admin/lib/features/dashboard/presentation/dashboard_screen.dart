@@ -1238,6 +1238,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   onBackToNews: _openNews,
                                 ),
                                 _DashboardPage.news => NewsScreen(
+                                  session: widget.session,
+                                  profile: widget.profile,
                                   repository: widget.newsRepository,
                                   onAddPost: _openNewsAdd,
                                   onEditPost: _openNewsEdit,

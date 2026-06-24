@@ -11,9 +11,11 @@ import '../../../shared/data/admin_memory_cache.dart';
 import '../../../shared/widgets/admin_toast.dart';
 import '../../../shared/widgets/highlighted_text.dart';
 import '../../../shared/widgets/sortable_table_header.dart';
+import '../../auth/data/admin_auth_models.dart';
 import '../data/admin_news_repository.dart';
 import 'news_models.dart';
 import 'widgets/news_link_opener.dart';
+import 'widgets/news_publish_share_dialog.dart';
 import 'widgets/news_table_card.dart';
 
 /// Oturum-içi kısa ömürlü cache'ler: News ekranına her dönüşte son veri anında
@@ -27,12 +29,16 @@ final AdminMemoryCache<AdminNewsPageResult> _newsPageCache =
 class NewsScreen extends StatefulWidget {
   const NewsScreen({
     super.key,
+    required this.session,
     this.repository = const SupabaseAdminNewsRepository(),
+    this.profile,
     this.onAddPost,
     this.onEditPost,
   });
 
+  final AdminSession session;
   final AdminNewsRepository repository;
+  final AdminProfile? profile;
   final VoidCallback? onAddPost;
   final ValueChanged<String>? onEditPost;
 
@@ -71,6 +77,21 @@ class _NewsScreenState extends State<NewsScreen> {
   var _videoOnly = false;
   var _searching = false;
   var _searchSeq = 0;
+
+  String get _currentRoleName {
+    final profileRole = widget.profile?.role?.trim();
+    if (profileRole != null && profileRole.isNotEmpty) return profileRole;
+    final metadataRole = widget.session.user.userMetadata['role']
+        ?.toString()
+        .trim();
+    if (metadataRole != null && metadataRole.isNotEmpty) return metadataRole;
+    return 'member';
+  }
+
+  bool get _isSuperAdminUser {
+    final role = _currentRoleName.toLowerCase();
+    return role == 'admin' || role == 'super_admin';
+  }
 
   @override
   void initState() {
@@ -380,7 +401,130 @@ class _NewsScreenState extends State<NewsScreen> {
   }
 
   Future<void> _toggleStatus(AdminNewsPost post) async {
-    await _runMutation(() => widget.repository.toggleStatus(post));
+    if (!_isSuperAdminUser) {
+      AdminToast.show(
+        context,
+        message: 'Haber yayınlama yetkisi sadece Süper Yöneticiye aittir.',
+        tone: AdminToastTone.error,
+      );
+      return;
+    }
+    if (post.published) {
+      await _runMutation(() => widget.repository.toggleStatus(post));
+      return;
+    }
+    try {
+      final editorPost = await widget.repository.fetchEditorPost(post.id);
+      if (!mounted) return;
+      await showNewsPublishShareDialog(
+        context,
+        session: widget.session,
+        data: _shareDataForPost(editorPost),
+        onConfirmPublish: () => _toggleStatusAndReload(post),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _errorText = error.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _toggleStatusAndReload(AdminNewsPost post) async {
+    setState(() {
+      _loadingMessageKey = 'news.loading.processing';
+      _loading = true;
+      _errorText = null;
+    });
+    try {
+      await widget.repository.toggleStatus(post);
+      if (!mounted) return;
+      _selectedPostIds.clear();
+      _newsPageCache.clear();
+      await _loadAll(
+        preferCache: false,
+        loadingMessageKey: 'news.loading.processing',
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _errorText = error.toString();
+        _loading = false;
+      });
+      rethrow;
+    }
+  }
+
+  NewsPublishShareData _shareDataForPost(AdminNewsEditorPost post) {
+    final images = <String>[];
+    final seen = <String>{};
+    void addImage(Object? value) {
+      final cleaned = value?.toString().trim() ?? '';
+      if (cleaned.isEmpty) return;
+      if (seen.add(cleaned)) images.add(cleaned);
+    }
+
+    void addImagesFromMap(Map<String, Object?> item) {
+      for (final key in const [
+        'mediaUrl',
+        'imageUrl',
+        'thumbnailUrl',
+        'thumbnail',
+        'image',
+        'productImage',
+        'mainImageUrl',
+      ]) {
+        addImage(item[key]);
+      }
+      final mediaUrls = item['mediaUrls'];
+      if (mediaUrls is List) {
+        for (final url in mediaUrls) {
+          addImage(url);
+        }
+      }
+      for (final key in const ['recipeData', 'product']) {
+        final nested = item[key];
+        if (nested is Map) {
+          addImagesFromMap(
+            nested.map((key, value) => MapEntry(key.toString(), value)),
+          );
+        }
+      }
+      for (final key in const [
+        'slides',
+        'images',
+        'options',
+        'answers',
+        'directions',
+        'items',
+      ]) {
+        final list = item[key];
+        if (list is! List) continue;
+        for (final nested in list) {
+          if (nested is Map) {
+            addImagesFromMap(
+              nested.map((key, value) => MapEntry(key.toString(), value)),
+            );
+          }
+        }
+      }
+    }
+
+    addImage(post.cardData['mansetImageUrl']);
+    addImage(post.thumbnailUrl);
+    for (final item in post.items) {
+      addImagesFromMap(item);
+    }
+    final slug = post.slug.trim();
+    return NewsPublishShareData(
+      title: post.title.trim(),
+      summary: post.summary.trim(),
+      link: slug.isEmpty ? '' : 'https://pateez.com/haber/$slug',
+      mansetImageUrl: images.isNotEmpty ? images.first : '',
+      imageUrls: images,
+      category: post.category.trim(),
+    );
   }
 
   Future<void> _togglePinned(AdminNewsPost post) async {
@@ -540,6 +684,7 @@ class _NewsScreenState extends State<NewsScreen> {
                 sortState: _sortState,
                 trashMode: _trashMode,
                 videoOnly: _videoOnly,
+                canManagePublication: _isSuperAdminUser,
                 onPageSizeChanged: _changePageSize,
                 onSearchChanged: _changeSearch,
                 onLanguageChanged: (value) => _changeFilter(language: value),
