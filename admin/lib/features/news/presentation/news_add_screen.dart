@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -48,6 +49,7 @@ import 'widgets/article_text_block.dart';
 import 'widgets/article_vs_block.dart';
 import 'widgets/article_video_block.dart';
 import 'widgets/news_headline_generator_dialog.dart';
+import 'widgets/news_publish_share_dialog.dart';
 import 'widgets/poll_question_block.dart';
 import 'widgets/quiz_question_block.dart';
 import 'widgets/quiz_result_block.dart';
@@ -2088,6 +2090,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
         payload: AdminNewsEditorSavePayload(values: _buildPostValues(status)),
       );
       if (!mounted) return;
+      final shareData = status == 'draft' ? null : _collectShareData();
       final isCreating = _editingPostId == null || _editingPostId!.isEmpty;
       setState(() {
         _saving = false;
@@ -2108,12 +2111,51 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
             ? context.t('newsAdd.savedDraft')
             : context.t('newsAdd.savedPublished'),
       );
-      if (status == 'draft') widget.onBackToNews?.call();
+      if (status == 'draft') {
+        widget.onBackToNews?.call();
+      } else if (shareData != null && mounted) {
+        unawaited(
+          showNewsPublishShareDialog(
+            context,
+            session: widget.session,
+            data: shareData,
+          ),
+        );
+      }
     } catch (error) {
       if (!mounted) return;
       setState(() => _saving = false);
       _showEditorMessage(error.toString(), isError: true);
     }
+  }
+
+  NewsPublishShareData _collectShareData() {
+    final manset = _effectiveMansetImageUrl.trim().isNotEmpty
+        ? _effectiveMansetImageUrl.trim()
+        : _cleanMediaUrl(_coverImageUrl);
+    final images = <String>[];
+    final seen = <String>{};
+    void addImage(String? url) {
+      final cleaned = _cleanMediaUrl(url);
+      if (cleaned.isEmpty) return;
+      if (seen.add(cleaned)) images.add(cleaned);
+    }
+
+    addImage(manset);
+    for (final reference in _collectAiMediaSeoReferences()) {
+      if (reference.type == 'image') addImage(reference.src);
+    }
+    final slug = _slugController.text.trim();
+    final link = slug.isEmpty ? '' : 'https://pateez.com/haber/$slug';
+    return NewsPublishShareData(
+      title: _titleController.text.trim(),
+      summary: _summaryController.text.trim(),
+      link: link,
+      mansetImageUrl: manset.isNotEmpty
+          ? manset
+          : (images.isNotEmpty ? images.first : ''),
+      imageUrls: images,
+    );
   }
 
   String? _validationError() {
@@ -8026,53 +8068,13 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     );
   }
 
-  Future<void> _openHeadlineGeneratorFromCover() async {
-    final coverSource = _coverImageUrl?.trim() ?? '';
-    if (coverSource.isEmpty) return;
-    final result = await showDialog<NewsHeadlineGeneratorResult>(
-      context: context,
-      barrierColor: AppColors.deepOcean.withValues(alpha: 0.58),
-      builder: (_) => NewsHeadlineGeneratorDialog(
-        languageCode: _languageCode,
-        contextData: AdminNewsHeadlineContext(
-          title: _titleController.text.trim(),
-          summary: _summaryController.text.trim(),
-          categoryPath: _selectedCategory,
-          publishedAt: _publishAtController.text.trim(),
-          slug: _slugController.text.trim(),
-          editorNotes: _metaDescriptionController.text.trim(),
-        ),
-        source: AdminNewsHeadlineSource(
-          mediaSrc: coverSource,
-          originalUrl: coverSource,
-          altText: _coverAltController.text.trim(),
-        ),
-        displayImageUrl: _coverHeadlineDisplayUrl(coverSource),
-        mediaService: _mediaService,
-        initialAssignToManset: true,
-        initialAssignToArticleImageBlock: false,
-        initialAssignToCover: true,
-      ),
-    );
-    if (result == null || !mounted) return;
-    await _applyHeadlineGeneratorResult(result);
-  }
-
-  String _coverHeadlineDisplayUrl(String value) {
-    final trimmed = value.trim();
-    if (trimmed.isEmpty) return '';
-    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-      return trimmed;
-    }
-    return _mediaService.resolveImageUrl(trimmed, width: 960, quality: 90);
-  }
-
   Widget _buildCoverCard() {
     return _CoverCard(
       imageUrl: _coverImageUrl,
       altController: _coverAltController,
       onImageChanged: _handleCoverImageChanged,
-      onHeadlineGenerate: _openHeadlineGeneratorFromCover,
+      headlineText: () => _titleController.text.trim(),
+      summaryText: () => _summaryController.text.trim(),
     );
   }
 
@@ -16014,13 +16016,15 @@ class _CoverCard extends StatefulWidget {
     required this.imageUrl,
     required this.altController,
     required this.onImageChanged,
-    required this.onHeadlineGenerate,
+    required this.headlineText,
+    required this.summaryText,
   });
 
   final String? imageUrl;
   final TextEditingController altController;
   final ValueChanged<String?> onImageChanged;
-  final VoidCallback onHeadlineGenerate;
+  final ValueGetter<String> headlineText;
+  final ValueGetter<String> summaryText;
 
   @override
   State<_CoverCard> createState() => _CoverCardState();
@@ -16054,6 +16058,7 @@ class _CoverCardState extends State<_CoverCard> {
     if (!mounted) return;
 
     final baseTheme = Theme.of(context);
+    final editorKey = GlobalKey<ProImageEditorState>();
     var editorClosing = false;
     await showDialog<void>(
       context: context,
@@ -16079,11 +16084,28 @@ class _CoverCardState extends State<_CoverCard> {
             height: height,
             child: ProImageEditor.network(
               imageUrl,
+              key: editorKey,
               configs: ProImageEditorConfigs(
                 theme: baseTheme.copyWith(
                   colorScheme: baseTheme.colorScheme.copyWith(
                     primary: AppColors.deepOcean,
                     secondary: AppColors.actionRed,
+                  ),
+                ),
+                mainEditor: MainEditorConfigs(
+                  widgets: MainEditorWidgets(
+                    bodyItems: (editor, rebuildStream) {
+                      return [
+                        ReactiveWidget(
+                          stream: rebuildStream,
+                          builder: (_) => _CoverTemplateLauncher(
+                            editor: editor,
+                            headlineText: widget.headlineText,
+                            summaryText: widget.summaryText,
+                          ),
+                        ),
+                      ];
+                    },
                   ),
                 ),
                 textEditor: const TextEditorConfigs(
@@ -16280,15 +16302,6 @@ class _CoverCardState extends State<_CoverCard> {
                                   ],
                                 ),
                               ),
-                            if (_coverHover)
-                              Positioned(
-                                left: 18,
-                                right: 18,
-                                bottom: 18,
-                                child: _CoverHeadlineGenerateButton(
-                                  onTap: widget.onHeadlineGenerate,
-                                ),
-                              ),
                           ],
                         )
                       : SizedBox(
@@ -16326,9 +16339,828 @@ class _CoverAltTextPanel extends StatelessWidget {
   }
 }
 
-class _CoverHeadlineGenerateButton extends StatelessWidget {
-  const _CoverHeadlineGenerateButton({required this.onTap});
+enum _CoverTemplatePresetId {
+  editorialRight,
+  lowerThird,
+  leftLead,
+  glassCard,
+  breakingBand,
+  cleanLabel,
+  yellowTag,
+  centerPoster,
+}
 
+class _CoverTemplatePreset {
+  const _CoverTemplatePreset({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.accent,
+  });
+
+  final _CoverTemplatePresetId id;
+  final String title;
+  final String description;
+  final Color accent;
+}
+
+const _coverTemplatePresets = [
+  _CoverTemplatePreset(
+    id: _CoverTemplatePresetId.editorialRight,
+    title: 'Sağ Manşet',
+    description: 'Büyük başlık, altında vurucu alt manşet',
+    accent: Color(0xFFFFD21A),
+  ),
+  _CoverTemplatePreset(
+    id: _CoverTemplatePresetId.lowerThird,
+    title: 'Alt Bant',
+    description: 'Haber kapağı için güvenli alt yerleşim',
+    accent: AppColors.deepOcean,
+  ),
+  _CoverTemplatePreset(
+    id: _CoverTemplatePresetId.leftLead,
+    title: 'Sol Dikey',
+    description: 'Fotoğraf odağı sağda kalıyorsa ideal',
+    accent: AppColors.actionRed,
+  ),
+  _CoverTemplatePreset(
+    id: _CoverTemplatePresetId.glassCard,
+    title: 'Cam Kart',
+    description: 'Okunurluğu yüksek yumuşak kart',
+    accent: Color(0xFFEAF2F6),
+  ),
+  _CoverTemplatePreset(
+    id: _CoverTemplatePresetId.breakingBand,
+    title: 'Son Dakika',
+    description: 'Üst bant ve güçlü ana başlık',
+    accent: AppColors.actionRed,
+  ),
+  _CoverTemplatePreset(
+    id: _CoverTemplatePresetId.cleanLabel,
+    title: 'Temiz Etiket',
+    description: 'Beyaz haber etiketi, sade tipografi',
+    accent: Colors.white,
+  ),
+  _CoverTemplatePreset(
+    id: _CoverTemplatePresetId.yellowTag,
+    title: 'Sarı Etiket',
+    description: 'Sosyal paylaşım için yüksek kontrast',
+    accent: Color(0xFFFFD21A),
+  ),
+  _CoverTemplatePreset(
+    id: _CoverTemplatePresetId.centerPoster,
+    title: 'Merkez Poster',
+    description: 'Ortalanmış afiş manşeti',
+    accent: Color(0xFF25C2A0),
+  ),
+];
+
+class _CoverTemplateLauncher extends StatelessWidget {
+  const _CoverTemplateLauncher({
+    required this.editor,
+    required this.headlineText,
+    required this.summaryText,
+  });
+
+  final ProImageEditorState editor;
+  final ValueGetter<String> headlineText;
+  final ValueGetter<String> summaryText;
+
+  Future<void> _openTemplates(BuildContext context) async {
+    editor.removeKeyEventListener();
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        backgroundColor: Colors.transparent,
+        barrierColor: Colors.black.withValues(alpha: 0.58),
+        isScrollControlled: true,
+        useSafeArea: true,
+        builder: (sheetContext) {
+          return GestureInterceptor(
+            behavior: HitTestBehavior.opaque,
+            child: _CoverTemplateSheet(
+              editor: editor,
+              headlineText: headlineText(),
+              summaryText: summaryText(),
+            ),
+          );
+        },
+      );
+    } finally {
+      if (editor.mounted) {
+        editor.initKeyEventListener();
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      left: 14,
+      right: 14,
+      bottom: 14,
+      child: SafeArea(
+        top: false,
+        child: Align(
+          alignment: Alignment.bottomRight,
+          child: GestureInterceptor(
+            child: Tooltip(
+              message: 'Hazır şablonlar',
+              child: Semantics(
+                button: true,
+                label: 'Hazır şablonlar',
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(999),
+                    onTap: () => _openTemplates(context),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      curve: Curves.easeOutCubic,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.82),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.22),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.22),
+                            blurRadius: 18,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SymbolIcon(
+                            Symbols.auto_fix_high_outlined,
+                            size: 18,
+                            color: Color(0xFFFFD21A),
+                          ),
+                          SizedBox(width: 8),
+                          Text(
+                            'Hazır Şablonlar',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CoverTemplateSheet extends StatefulWidget {
+  const _CoverTemplateSheet({
+    required this.editor,
+    required this.headlineText,
+    required this.summaryText,
+  });
+
+  final ProImageEditorState editor;
+  final String headlineText;
+  final String summaryText;
+
+  @override
+  State<_CoverTemplateSheet> createState() => _CoverTemplateSheetState();
+}
+
+class _CoverTemplateSheetState extends State<_CoverTemplateSheet> {
+  late final TextEditingController _headlineController;
+  late final TextEditingController _subheadController;
+  var _selectedPreset = _coverTemplatePresets.first;
+  var _includeHeadline = true;
+  var _includeSubhead = true;
+  var _showEmptyWarning = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _headlineController = TextEditingController(
+      text: widget.headlineText.trim().isNotEmpty
+          ? widget.headlineText.trim()
+          : 'Manşet metni',
+    );
+    _subheadController = TextEditingController(
+      text: widget.summaryText.trim().isNotEmpty
+          ? widget.summaryText.trim()
+          : 'Alt manşet metni',
+    );
+  }
+
+  @override
+  void dispose() {
+    _headlineController.dispose();
+    _subheadController.dispose();
+    super.dispose();
+  }
+
+  Size _editorBodySize() {
+    final bodySize = widget.editor.sizesManager.bodySize;
+    if (bodySize.width > 0 && bodySize.height > 0) return bodySize;
+    final window = MediaQuery.sizeOf(context);
+    return Size(window.width, window.height * 0.58);
+  }
+
+  Offset _point(Size size, double x, double y) {
+    return Offset(
+      size.width * x - size.width / 2,
+      size.height * y - size.height / 2,
+    );
+  }
+
+  double _scale(Size size, double factor) {
+    final shortest = math.max(260.0, math.min(size.width, size.height));
+    return ((shortest / 300) * factor).clamp(0.62, 3.05).toDouble();
+  }
+
+  double _textWidth(Size size, double factor) {
+    final maxWidth = math.max(180.0, size.width - 32);
+    return (size.width * factor).clamp(160.0, maxWidth).toDouble();
+  }
+
+  TextLayer _textLayer({
+    required String text,
+    required Size bodySize,
+    required Offset offset,
+    required double fontScale,
+    required double widthFactor,
+    required Color color,
+    required Color background,
+    required TextAlign align,
+    required FontWeight weight,
+    required LayerBackgroundMode colorMode,
+    List<Shadow>? shadows,
+  }) {
+    return TextLayer(
+      text: text,
+      offset: offset,
+      color: color,
+      background: background,
+      align: align,
+      fontScale: fontScale,
+      maxTextWidth: _textWidth(bodySize, widthFactor),
+      colorMode: colorMode,
+      textStyle: TextStyle(
+        fontFamily: 'PateezSans',
+        fontWeight: weight,
+        height: 1.04,
+        letterSpacing: 0,
+        shadows: shadows,
+      ),
+    );
+  }
+
+  List<TextLayer> _buildLayers(Size bodySize) {
+    final headline = _headlineController.text.trim();
+    final subhead = _subheadController.text.trim();
+    final layers = <TextLayer>[];
+    final textShadow = const [
+      Shadow(color: Color(0xB0000000), blurRadius: 16, offset: Offset(0, 4)),
+    ];
+
+    void addHeadline({
+      required Offset offset,
+      required double scale,
+      required double width,
+      required Color color,
+      required Color background,
+      required TextAlign align,
+      required FontWeight weight,
+      required LayerBackgroundMode colorMode,
+      List<Shadow>? shadows,
+    }) {
+      if (!_includeHeadline || headline.isEmpty) return;
+      layers.add(
+        _textLayer(
+          text: headline,
+          bodySize: bodySize,
+          offset: offset,
+          fontScale: _scale(bodySize, scale),
+          widthFactor: width,
+          color: color,
+          background: background,
+          align: align,
+          weight: weight,
+          colorMode: colorMode,
+          shadows: shadows,
+        ),
+      );
+    }
+
+    void addSubhead({
+      required Offset offset,
+      required double scale,
+      required double width,
+      required Color color,
+      required Color background,
+      required TextAlign align,
+      required FontWeight weight,
+      required LayerBackgroundMode colorMode,
+      List<Shadow>? shadows,
+    }) {
+      if (!_includeSubhead || subhead.isEmpty) return;
+      layers.add(
+        _textLayer(
+          text: subhead,
+          bodySize: bodySize,
+          offset: offset,
+          fontScale: _scale(bodySize, scale),
+          widthFactor: width,
+          color: color,
+          background: background,
+          align: align,
+          weight: weight,
+          colorMode: colorMode,
+          shadows: shadows,
+        ),
+      );
+    }
+
+    switch (_selectedPreset.id) {
+      case _CoverTemplatePresetId.editorialRight:
+        addHeadline(
+          offset: _point(bodySize, 0.68, 0.28),
+          scale: 1.28,
+          width: 0.54,
+          color: Colors.white,
+          background: Colors.transparent,
+          align: TextAlign.center,
+          weight: FontWeight.w900,
+          colorMode: LayerBackgroundMode.onlyColor,
+          shadows: textShadow,
+        );
+        addSubhead(
+          offset: _point(bodySize, 0.68, 0.48),
+          scale: 0.56,
+          width: 0.48,
+          color: AppColors.deepOcean,
+          background: const Color(0xFFFFD21A),
+          align: TextAlign.center,
+          weight: FontWeight.w900,
+          colorMode: LayerBackgroundMode.backgroundAndColor,
+        );
+      case _CoverTemplatePresetId.lowerThird:
+        addHeadline(
+          offset: _point(bodySize, 0.5, 0.78),
+          scale: 0.96,
+          width: 0.84,
+          color: Colors.white,
+          background: AppColors.deepOcean.withValues(alpha: 0.92),
+          align: TextAlign.center,
+          weight: FontWeight.w900,
+          colorMode: LayerBackgroundMode.backgroundAndColor,
+        );
+        addSubhead(
+          offset: _point(bodySize, 0.5, 0.62),
+          scale: 0.46,
+          width: 0.72,
+          color: AppColors.deepOcean,
+          background: const Color(0xFFFFD21A),
+          align: TextAlign.center,
+          weight: FontWeight.w800,
+          colorMode: LayerBackgroundMode.backgroundAndColor,
+        );
+      case _CoverTemplatePresetId.leftLead:
+        addSubhead(
+          offset: _point(bodySize, 0.28, 0.24),
+          scale: 0.44,
+          width: 0.36,
+          color: Colors.white,
+          background: AppColors.actionRed,
+          align: TextAlign.left,
+          weight: FontWeight.w800,
+          colorMode: LayerBackgroundMode.backgroundAndColor,
+        );
+        addHeadline(
+          offset: _point(bodySize, 0.30, 0.39),
+          scale: 1.06,
+          width: 0.42,
+          color: Colors.white,
+          background: Colors.transparent,
+          align: TextAlign.left,
+          weight: FontWeight.w900,
+          colorMode: LayerBackgroundMode.onlyColor,
+          shadows: textShadow,
+        );
+      case _CoverTemplatePresetId.glassCard:
+        addHeadline(
+          offset: _point(bodySize, 0.5, 0.68),
+          scale: 0.88,
+          width: 0.68,
+          color: AppColors.deepOcean,
+          background: Colors.white.withValues(alpha: 0.88),
+          align: TextAlign.center,
+          weight: FontWeight.w900,
+          colorMode: LayerBackgroundMode.backgroundAndColor,
+        );
+        addSubhead(
+          offset: _point(bodySize, 0.5, 0.82),
+          scale: 0.42,
+          width: 0.62,
+          color: Colors.white,
+          background: AppColors.deepOcean.withValues(alpha: 0.86),
+          align: TextAlign.center,
+          weight: FontWeight.w700,
+          colorMode: LayerBackgroundMode.backgroundAndColor,
+        );
+      case _CoverTemplatePresetId.breakingBand:
+        addSubhead(
+          offset: _point(bodySize, 0.26, 0.16),
+          scale: 0.46,
+          width: 0.38,
+          color: Colors.white,
+          background: AppColors.actionRed,
+          align: TextAlign.center,
+          weight: FontWeight.w900,
+          colorMode: LayerBackgroundMode.backgroundAndColor,
+        );
+        addHeadline(
+          offset: _point(bodySize, 0.56, 0.30),
+          scale: 1.10,
+          width: 0.72,
+          color: Colors.white,
+          background: Colors.transparent,
+          align: TextAlign.center,
+          weight: FontWeight.w900,
+          colorMode: LayerBackgroundMode.onlyColor,
+          shadows: textShadow,
+        );
+      case _CoverTemplatePresetId.cleanLabel:
+        addHeadline(
+          offset: _point(bodySize, 0.5, 0.25),
+          scale: 0.86,
+          width: 0.62,
+          color: AppColors.deepOcean,
+          background: Colors.white,
+          align: TextAlign.center,
+          weight: FontWeight.w900,
+          colorMode: LayerBackgroundMode.backgroundAndColor,
+        );
+        addSubhead(
+          offset: _point(bodySize, 0.5, 0.39),
+          scale: 0.42,
+          width: 0.56,
+          color: Colors.white,
+          background: AppColors.deepOcean,
+          align: TextAlign.center,
+          weight: FontWeight.w700,
+          colorMode: LayerBackgroundMode.backgroundAndColor,
+        );
+      case _CoverTemplatePresetId.yellowTag:
+        addHeadline(
+          offset: _point(bodySize, 0.62, 0.62),
+          scale: 0.94,
+          width: 0.56,
+          color: AppColors.deepOcean,
+          background: const Color(0xFFFFD21A),
+          align: TextAlign.center,
+          weight: FontWeight.w900,
+          colorMode: LayerBackgroundMode.backgroundAndColor,
+        );
+        addSubhead(
+          offset: _point(bodySize, 0.62, 0.76),
+          scale: 0.44,
+          width: 0.50,
+          color: Colors.white,
+          background: AppColors.deepOcean.withValues(alpha: 0.92),
+          align: TextAlign.center,
+          weight: FontWeight.w800,
+          colorMode: LayerBackgroundMode.backgroundAndColor,
+        );
+      case _CoverTemplatePresetId.centerPoster:
+        addHeadline(
+          offset: _point(bodySize, 0.5, 0.43),
+          scale: 1.18,
+          width: 0.74,
+          color: Colors.white,
+          background: Colors.transparent,
+          align: TextAlign.center,
+          weight: FontWeight.w900,
+          colorMode: LayerBackgroundMode.onlyColor,
+          shadows: textShadow,
+        );
+        addSubhead(
+          offset: _point(bodySize, 0.5, 0.58),
+          scale: 0.48,
+          width: 0.54,
+          color: AppColors.deepOcean,
+          background: const Color(0xFFFFD21A),
+          align: TextAlign.center,
+          weight: FontWeight.w900,
+          colorMode: LayerBackgroundMode.backgroundAndColor,
+        );
+    }
+
+    return layers;
+  }
+
+  void _applyTemplate() {
+    final layers = _buildLayers(_editorBodySize());
+    if (layers.isEmpty) {
+      setState(() => _showEmptyWarning = true);
+      return;
+    }
+
+    for (var i = 0; i < layers.length; i += 1) {
+      widget.editor.addLayer(
+        layers[i],
+        blockSelectLayer: i != layers.length - 1,
+      );
+    }
+    Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final viewInsets = MediaQuery.viewInsetsOf(context);
+    final screen = MediaQuery.sizeOf(context);
+    final heightFactor = screen.height < 720 ? 0.92 : 0.84;
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: viewInsets.bottom),
+      child: FractionallySizedBox(
+        heightFactor: heightFactor,
+        alignment: Alignment.bottomCenter,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 920),
+            child: ClipRRect(
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(22),
+              ),
+              child: Material(
+                color: const Color(0xFFF7FAFB),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final compact = constraints.maxWidth < 620;
+                    return Column(
+                      children: [
+                        _CoverTemplateSheetHeader(
+                          onClose: () => Navigator.of(context).pop(),
+                        ),
+                        Expanded(
+                          child: ListView(
+                            padding: EdgeInsets.fromLTRB(
+                              compact ? 14 : 22,
+                              16,
+                              compact ? 14 : 22,
+                              18,
+                            ),
+                            children: [
+                              _CoverTemplateTextField(
+                                controller: _headlineController,
+                                label: 'Manşet',
+                                icon: Symbols.title_outlined,
+                                maxLines: compact ? 3 : 2,
+                              ),
+                              const SizedBox(height: 12),
+                              _CoverTemplateTextField(
+                                controller: _subheadController,
+                                label: 'Alt manşet',
+                                icon: Symbols.text_fields,
+                                maxLines: compact ? 4 : 3,
+                              ),
+                              const SizedBox(height: 14),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  _CoverTemplateToggleChip(
+                                    label: 'Manşet',
+                                    selected: _includeHeadline,
+                                    onTap: () => setState(
+                                      () =>
+                                          _includeHeadline = !_includeHeadline,
+                                    ),
+                                  ),
+                                  _CoverTemplateToggleChip(
+                                    label: 'Alt manşet',
+                                    selected: _includeSubhead,
+                                    onTap: () => setState(
+                                      () => _includeSubhead = !_includeSubhead,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if (_showEmptyWarning) ...[
+                                const SizedBox(height: 10),
+                                const Text(
+                                  'Uygulamak için en az bir metin seçili ve dolu olmalı.',
+                                  style: TextStyle(
+                                    color: AppColors.actionRed,
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0,
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(height: 18),
+                              const Text(
+                                'Hazır şablon seç',
+                                style: TextStyle(
+                                  color: AppColors.deepOcean,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 0,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              GridView.builder(
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                itemCount: _coverTemplatePresets.length,
+                                gridDelegate:
+                                    SliverGridDelegateWithFixedCrossAxisCount(
+                                      crossAxisCount: compact ? 1 : 2,
+                                      mainAxisSpacing: 10,
+                                      crossAxisSpacing: 10,
+                                      childAspectRatio: compact ? 3.55 : 3.15,
+                                    ),
+                                itemBuilder: (context, index) {
+                                  final preset = _coverTemplatePresets[index];
+                                  return _CoverTemplatePresetCard(
+                                    preset: preset,
+                                    selected: preset.id == _selectedPreset.id,
+                                    onTap: () => setState(
+                                      () => _selectedPreset = preset,
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                        _CoverTemplateSheetFooter(
+                          selectedTitle: _selectedPreset.title,
+                          onApply: _applyTemplate,
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CoverTemplateSheetHeader extends StatelessWidget {
+  const _CoverTemplateSheetHeader({required this.onClose});
+
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 12, 14, 12),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(bottom: BorderSide(color: _newsAddSoftLine)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppColors.actionRed.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const SymbolIcon(
+              Symbols.auto_fix_high_outlined,
+              color: AppColors.actionRed,
+              size: 18,
+            ),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Hazır Şablonlar',
+                  style: TextStyle(
+                    color: AppColors.deepOcean,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0,
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'Metni seç, şablonu uygula, sonra layer olarak düzenle.',
+                  style: TextStyle(
+                    color: _newsAddTabMuted,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Kapat',
+            onPressed: onClose,
+            icon: const SymbolIcon(
+              Symbols.close,
+              color: AppColors.deepOcean,
+              size: 20,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CoverTemplateTextField extends StatelessWidget {
+  const _CoverTemplateTextField({
+    required this.controller,
+    required this.label,
+    required this.icon,
+    required this.maxLines,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final IconData icon;
+  final int maxLines;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      maxLines: maxLines,
+      minLines: 1,
+      textInputAction: TextInputAction.newline,
+      cursorColor: AppColors.deepOcean,
+      style: const TextStyle(
+        color: AppColors.deepOcean,
+        fontSize: 13.5,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 0,
+        height: 1.25,
+      ),
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon, size: 18, color: AppColors.deepOcean),
+        filled: true,
+        fillColor: Colors.white,
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 13,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadius.value),
+          borderSide: const BorderSide(color: _newsAddStrongLine),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadius.value),
+          borderSide: const BorderSide(color: _newsAddStrongLine),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadius.value),
+          borderSide: const BorderSide(color: AppColors.deepOcean, width: 1.2),
+        ),
+      ),
+    );
+  }
+}
+
+class _CoverTemplateToggleChip extends StatelessWidget {
+  const _CoverTemplateToggleChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
   final VoidCallback onTap;
 
   @override
@@ -16336,36 +17168,365 @@ class _CoverHeadlineGenerateButton extends StatelessWidget {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
-      child: Container(
-        height: 38,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        curve: Curves.easeOut,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: AppColors.deepOcean.withValues(alpha: 0.94),
-          borderRadius: BorderRadius.circular(AppRadius.value),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.deepOcean.withValues(alpha: 0.18),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
-            ),
-          ],
+          color: selected
+              ? AppColors.deepOcean
+              : AppColors.deepOcean.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: selected
+                ? AppColors.deepOcean
+                : AppColors.deepOcean.withValues(alpha: 0.12),
+          ),
         ),
-        alignment: Alignment.center,
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const SymbolIcon(
-              Symbols.auto_awesome,
-              color: AppColors.actionRed,
-              size: 17,
+            SymbolIcon(
+              selected ? Symbols.check : Symbols.add,
+              size: 14,
+              color: selected ? Colors.white : AppColors.deepOcean,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? Colors.white : AppColors.deepOcean,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CoverTemplatePresetCard extends StatelessWidget {
+  const _CoverTemplatePresetCard({
+    required this.preset,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final _CoverTemplatePreset preset;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(AppRadius.value),
+          border: Border.all(
+            color: selected ? AppColors.actionRed : _newsAddStrongLine,
+            width: selected ? 1.4 : 1,
+          ),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: AppColors.actionRed.withValues(alpha: 0.12),
+                    blurRadius: 14,
+                    offset: const Offset(0, 7),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          children: [
+            Expanded(child: _CoverTemplateMiniPreview(preset: preset)),
+            const SizedBox(width: 10),
+            Expanded(
+              flex: 2,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    preset.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.deepOcean,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    preset.description,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: _newsAddTabMuted,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0,
+                      height: 1.18,
+                    ),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(width: 8),
-            Text(
-              context.t('newsAdd.headlineGenerator.open'),
-              style: const TextStyle(
+            AnimatedOpacity(
+              duration: const Duration(milliseconds: 160),
+              opacity: selected ? 1 : 0,
+              child: const SymbolIcon(
+                Symbols.check,
+                color: AppColors.actionRed,
+                size: 18,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CoverTemplateMiniPreview extends StatelessWidget {
+  const _CoverTemplateMiniPreview({required this.preset});
+
+  final _CoverTemplatePreset preset;
+
+  @override
+  Widget build(BuildContext context) {
+    return AspectRatio(
+      aspectRatio: 4 / 3,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(7),
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF0E5AA8), Color(0xFF17202A)],
+          ),
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              left: 8,
+              top: 8,
+              bottom: 8,
+              child: Container(
+                width: 18,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF9B6B3F),
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+            ),
+            Positioned(
+              right: 8,
+              bottom: 9,
+              child: Container(
+                width: 48,
+                height: 18,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ),
+            ..._previewBlocks(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _previewBlocks() {
+    final accent = preset.accent;
+    switch (preset.id) {
+      case _CoverTemplatePresetId.editorialRight:
+        return [
+          _previewTextBlock(right: 8, top: 18, width: 58, height: 10),
+          _previewTextBlock(
+            right: 10,
+            top: 34,
+            width: 48,
+            height: 8,
+            color: accent,
+          ),
+        ];
+      case _CoverTemplatePresetId.lowerThird:
+        return [
+          _previewTextBlock(left: 14, bottom: 18, width: 82, height: 11),
+          _previewTextBlock(
+            left: 22,
+            bottom: 34,
+            width: 56,
+            height: 7,
+            color: accent,
+          ),
+        ];
+      case _CoverTemplatePresetId.leftLead:
+        return [
+          _previewTextBlock(
+            left: 12,
+            top: 16,
+            width: 38,
+            height: 7,
+            color: accent,
+          ),
+          _previewTextBlock(left: 12, top: 30, width: 50, height: 20),
+        ];
+      case _CoverTemplatePresetId.glassCard:
+        return [
+          _previewTextBlock(
+            left: 18,
+            bottom: 26,
+            width: 72,
+            height: 17,
+            color: accent,
+          ),
+          _previewTextBlock(left: 28, bottom: 13, width: 50, height: 7),
+        ];
+      case _CoverTemplatePresetId.breakingBand:
+        return [
+          _previewTextBlock(
+            left: 12,
+            top: 10,
+            width: 36,
+            height: 7,
+            color: accent,
+          ),
+          _previewTextBlock(left: 28, top: 26, width: 64, height: 16),
+        ];
+      case _CoverTemplatePresetId.cleanLabel:
+        return [
+          _previewTextBlock(
+            left: 24,
+            top: 15,
+            width: 58,
+            height: 14,
+            color: accent,
+          ),
+          _previewTextBlock(left: 31, top: 36, width: 44, height: 7),
+        ];
+      case _CoverTemplatePresetId.yellowTag:
+        return [
+          _previewTextBlock(
+            right: 12,
+            bottom: 28,
+            width: 58,
+            height: 13,
+            color: accent,
+          ),
+          _previewTextBlock(right: 18, bottom: 13, width: 42, height: 7),
+        ];
+      case _CoverTemplatePresetId.centerPoster:
+        return [
+          _previewTextBlock(left: 20, top: 30, width: 72, height: 14),
+          _previewTextBlock(
+            left: 33,
+            top: 50,
+            width: 46,
+            height: 7,
+            color: accent,
+          ),
+        ];
+    }
+  }
+
+  Widget _previewTextBlock({
+    double? left,
+    double? right,
+    double? top,
+    double? bottom,
+    required double width,
+    required double height,
+    Color color = Colors.white,
+  }) {
+    return Positioned(
+      left: left,
+      right: right,
+      top: top,
+      bottom: bottom,
+      child: Container(
+        width: width,
+        height: height,
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: color == Colors.white ? 0.92 : 1),
+          borderRadius: BorderRadius.circular(3),
+        ),
+      ),
+    );
+  }
+}
+
+class _CoverTemplateSheetFooter extends StatelessWidget {
+  const _CoverTemplateSheetFooter({
+    required this.selectedTitle,
+    required this.onApply,
+  });
+
+  final String selectedTitle;
+  final VoidCallback onApply;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: _newsAddSoftLine)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                selectedTitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.deepOcean,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.deepOcean,
+                foregroundColor: Colors.white,
+                minimumSize: const Size(132, 44),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.value),
+                ),
+              ),
+              onPressed: onApply,
+              icon: const SymbolIcon(
+                Symbols.check,
+                size: 17,
                 color: Colors.white,
-                fontSize: 12.5,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 0,
+              ),
+              label: const Text(
+                'Uygula',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0,
+                ),
               ),
             ),
           ],
