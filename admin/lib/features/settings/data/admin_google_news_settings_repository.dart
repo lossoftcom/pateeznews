@@ -13,6 +13,7 @@ class GoogleNewsSettingsData {
     required this.languageCode,
     required this.enabled,
     required this.publicationName,
+    required this.canonicalUrl,
     required this.rssContentMode,
     required this.feedLimit,
   });
@@ -21,7 +22,8 @@ class GoogleNewsSettingsData {
     return GoogleNewsSettingsData(
       languageCode: _cleanLanguageCode(languageCode),
       enabled: true,
-      publicationName: 'Pateez',
+      publicationName: 'Pateez.com',
+      canonicalUrl: 'https://www.pateez.com/',
       rssContentMode: GoogleNewsRssContentMode.full,
       feedLimit: 50,
     );
@@ -31,13 +33,13 @@ class GoogleNewsSettingsData {
     Map<String, Object?> json,
     String languageCode,
   ) {
-    final siteName = _string(json['site_name'], fallback: 'Pateez');
+    final siteName = _string(json['site_name'], fallback: 'Pateez.com');
     final organizationName = _string(json['organization_legal_name']);
     final fallbackName = siteName.trim().isNotEmpty
         ? siteName.trim()
         : organizationName.trim().isNotEmpty
         ? organizationName.trim()
-        : 'Pateez';
+        : 'Pateez.com';
     return GoogleNewsSettingsData(
       languageCode: _cleanLanguageCode(
         _string(json['language_code'], fallback: languageCode),
@@ -46,6 +48,10 @@ class GoogleNewsSettingsData {
       publicationName: _string(
         json['google_news_publication_name'],
         fallback: fallbackName,
+      ),
+      canonicalUrl: _string(
+        json['canonical_url'],
+        fallback: 'https://www.pateez.com/',
       ),
       rssContentMode: GoogleNewsRssContentMode.normalize(
         _string(json['google_news_rss_content_mode']),
@@ -60,6 +66,7 @@ class GoogleNewsSettingsData {
   final String languageCode;
   final bool enabled;
   final String publicationName;
+  final String canonicalUrl;
   final String rssContentMode;
   final int feedLimit;
 
@@ -68,7 +75,7 @@ class GoogleNewsSettingsData {
       'language_code': _cleanLanguageCode(languageCode),
       'google_news_enabled': enabled,
       'google_news_publication_name': publicationName.trim().isEmpty
-          ? 'Pateez'
+          ? 'Pateez.com'
           : publicationName.trim(),
       'google_news_rss_content_mode': GoogleNewsRssContentMode.normalize(
         rssContentMode,
@@ -150,6 +157,7 @@ class SupabaseAdminGoogleNewsSettingsRepository
       languageCode: _cleanLanguageCode(settings.languageCode),
       enabled: settings.enabled,
       publicationName: settings.publicationName,
+      canonicalUrl: settings.canonicalUrl,
       rssContentMode: settings.rssContentMode,
       feedLimit: settings.feedLimit,
     );
@@ -207,8 +215,9 @@ class SupabaseAdminGoogleNewsSettingsRepository
 
   Uri _uri(String path) {
     final baseUrl = (apiBaseUrl ?? _apiBaseUrl).trim();
-    if (baseUrl.isNotEmpty && !isLocalAdminApiBaseUrl(baseUrl))
+    if (baseUrl.isNotEmpty && !isLocalAdminApiBaseUrl(baseUrl)) {
       return Uri.parse(baseUrl).resolve(path);
+    }
     return _defaultLocalApiBaseUrl().resolve(path);
   }
 
@@ -245,7 +254,7 @@ class AdminGoogleNewsSettingsException implements Exception {
 }
 
 const _settingsSelect =
-    'language_code,site_name,organization_legal_name,'
+    'language_code,site_name,organization_legal_name,canonical_url,'
     'google_news_enabled,google_news_publication_name,'
     'google_news_rss_content_mode,google_news_feed_limit';
 

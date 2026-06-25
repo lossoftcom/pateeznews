@@ -35,13 +35,14 @@ class _GoogleNewsSettingsScreenState extends State<GoogleNewsSettingsScreen> {
   static const _categoryNewsOption = 'googleNews.option.news';
   static const _categoryVideoOption = 'googleNews.option.video';
 
-  final _publicationNameController = TextEditingController(text: 'Pateez');
+  final _publicationNameController = TextEditingController(text: 'Pateez.com');
   final _feedPostLimitController = TextEditingController(text: '50');
 
   var _active = true;
   var _rssContent = _rssFullOption;
   var _language = 'language.name.tr';
   var _category = _categoryAllOption;
+  var _canonicalUrl = 'https://www.pateez.com/';
   var _loading = true;
   var _saving = false;
   String? _error;
@@ -82,6 +83,9 @@ class _GoogleNewsSettingsScreenState extends State<GoogleNewsSettingsScreen> {
     _active = settings.enabled;
     _publicationNameController.text = settings.publicationName;
     _feedPostLimitController.text = settings.feedLimit.toString();
+    _canonicalUrl = settings.canonicalUrl.trim().isEmpty
+        ? 'https://www.pateez.com/'
+        : settings.canonicalUrl.trim();
     _rssContent = settings.rssContentMode == GoogleNewsRssContentMode.summary
         ? _rssSummaryOption
         : _rssFullOption;
@@ -109,6 +113,7 @@ class _GoogleNewsSettingsScreenState extends State<GoogleNewsSettingsScreen> {
           languageCode: _languageCode,
           enabled: _active,
           publicationName: publicationName,
+          canonicalUrl: _canonicalUrl,
           rssContentMode: _rssMode,
           feedLimit: feedLimit,
         ),
@@ -177,7 +182,11 @@ class _GoogleNewsSettingsScreenState extends State<GoogleNewsSettingsScreen> {
   String get _newsSitemapUrl => _absoluteUrl('/news-sitemap.xml');
 
   String _absoluteUrl(String path, [Map<String, String>? query]) {
-    return Uri.https('pateez.com', path, query).toString();
+    final base = Uri.tryParse(_canonicalUrl.trim());
+    final origin = base == null || !base.hasScheme || base.host.trim().isEmpty
+        ? Uri.https('www.pateez.com', '/')
+        : base;
+    return origin.replace(path: path, queryParameters: query).toString();
   }
 
   String _languageOptionForCode(String code) {

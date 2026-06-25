@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { supabase } from '@/lib/supabase';
+import { dbQuery } from '@/lib/server/supabaseDb';
 import { dataService } from '@/services/dataService.server';
 import { resolveLangCode } from '@/utils/lang';
 import { getPostPathSegment } from '@/utils/postUrl';
@@ -149,22 +150,22 @@ export const GET: APIRoute = async ({ request }) => {
   }
 
   const fetchSettings = async (languageCode: string) => {
-    const { data } = await supabase
-      .from('site_settings')
-      .select([
-        'site_name',
-        'meta_description',
-        'canonical_url',
-        'content_post_url_structure',
-        'content_redirect_rss_posts',
-        'google_news_enabled',
-        'google_news_publication_name',
-        'google_news_rss_content_mode',
-        'google_news_feed_limit',
-      ].join(','))
-      .eq('language_code', languageCode)
-      .maybeSingle();
-    return (data as unknown as GoogleNewsFeedSettings | null) || null;
+    const result = await dbQuery<GoogleNewsFeedSettings>(
+      `SELECT site_name,
+              meta_description,
+              canonical_url,
+              content_post_url_structure,
+              content_redirect_rss_posts,
+              google_news_enabled,
+              google_news_publication_name,
+              google_news_rss_content_mode,
+              google_news_feed_limit
+         FROM public.site_settings
+        WHERE language_code = $1
+        LIMIT 1`,
+      [languageCode]
+    );
+    return result.rows[0] || null;
   };
 
   let settings = await fetchSettings(lang);
@@ -178,7 +179,7 @@ export const GET: APIRoute = async ({ request }) => {
   }
 
   const base = normalizeBase(settings?.canonical_url || requestUrl.origin) || requestUrl.origin;
-  const publicationName = stripHtml(String(settings?.google_news_publication_name || settings?.site_name || 'Pateez'));
+  const publicationName = stripHtml(String(settings?.google_news_publication_name || settings?.site_name || 'Pateez.com'));
   const channelDescription = stripHtml(String(settings?.meta_description || ''));
   const feedLimit = clampLimit(requestUrl.searchParams.get('limit'), clampLimit(settings?.google_news_feed_limit, 50));
   const useFullContent = String(settings?.google_news_rss_content_mode || 'full').trim().toLowerCase() !== 'summary';
