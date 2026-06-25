@@ -2085,8 +2085,8 @@ const collectInstagramProfileCandidates = async (
   const edges = Array.isArray(data?.data?.user?.edge_owner_to_timeline_media?.edges)
     ? data.data.user.edge_owner_to_timeline_media.edges
     : [];
-  return edges
-    .map((edge: any) => {
+  const discoveries: Array<CandidateDiscovery | null> = edges
+    .map((edge: any): CandidateDiscovery | null => {
       const node = edge?.node || {};
       const shortcode = normalizeText(node.shortcode);
       const caption = instagramCaption(node);
@@ -2109,7 +2109,8 @@ const collectInstagramProfileCandidates = async (
           isVideo: Boolean(node.is_video),
         },
       };
-    })
+    });
+  return discoveries
     .filter((item): item is CandidateDiscovery => Boolean(item))
     .slice(0, limit);
 };

@@ -451,12 +451,12 @@ class _SourceSettings extends StatelessWidget {
         const SizedBox(height: 14),
         const _SelectInputField(
           label: 'Cache Süresi',
-          value: '15 dakika',
+          value: '60 dakika',
           options: ['5 dakika', '15 dakika', '30 dakika', '60 dakika'],
         ),
         const SizedBox(height: 14),
         _InlineToggle(
-          title: 'Open cache • 15 dk',
+          title: 'Open cache • 60 dk',
           description:
               'Aynı şehir/ilçe sorgularını gereksiz yenilemeden korur.',
           value: cacheEnabled,

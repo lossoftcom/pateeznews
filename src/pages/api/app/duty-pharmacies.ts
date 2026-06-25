@@ -7,11 +7,25 @@ const SOURCE_URL = 'https://www.neo.org.tr/nobetci-eczaneler';
 const CITY = 'Niğde';
 const CITY_SLUG = 'nigde';
 const TIMEZONE = 'Europe/Istanbul';
-const PHARMACY_REFRESH_MS = 15 * 60 * 1000;
+const PHARMACY_REFRESH_MINUTES = 60;
+const PHARMACY_REFRESH_MS = PHARMACY_REFRESH_MINUTES * 60 * 1000;
+const SOURCE_FAILURE_RETRY_MINUTES = 60;
+const SOURCE_FAILURE_RETRY_MS = SOURCE_FAILURE_RETRY_MINUTES * 60 * 1000;
 const SOURCE_FETCH_TIMEOUT_MS = 10000;
 const FRESH_OPERATION_TIMEOUT_MS = 12000;
 const CACHE_KEY = `duty_pharmacies:${CITY_SLUG}`;
+const SOURCE_RETRY_KEY = `${CACHE_KEY}:source_retry`;
 const DISTRICT_ORDER = ['MERKEZ', 'ALTUNHİSAR', 'BOR', 'ÇAMARDI', 'ÇİFTLİK', 'ULUKIŞLA'];
+const NEO_REQUEST_HEADERS = {
+  Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+  'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
+  'Cache-Control': 'no-cache',
+  Pragma: 'no-cache',
+  Referer: 'https://www.neo.org.tr/',
+  'Upgrade-Insecure-Requests': '1',
+  'User-Agent':
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
+} as const;
 
 type DutyPharmacy = {
   id: string;
@@ -50,6 +64,13 @@ type DutyPharmacyPayload = {
 
 let memoryCache: { expiresAt: number; payload: DutyPharmacyPayload } | null = null;
 let refreshInFlight: Promise<DutyPharmacyPayload> | null = null;
+
+class SourceRetryDeferredError extends Error {
+  constructor(readonly retryAfter: string) {
+    super(`NEO retry deferred until ${retryAfter}`);
+    this.name = 'SourceRetryDeferredError';
+  }
+}
 
 const normalizeText = (value: unknown) =>
   String(value || '')
@@ -159,6 +180,8 @@ const nextIstanbulMidnight = (date = new Date()) => {
 };
 
 const cacheExpiryDate = () => new Date(Math.min(Date.now() + PHARMACY_REFRESH_MS, nextIstanbulMidnight().getTime()));
+
+const sourceFailureRetryDate = () => new Date(Math.min(Date.now() + SOURCE_FAILURE_RETRY_MS, nextIstanbulMidnight().getTime()));
 
 const districtRank = (district: string) => {
   const index = DISTRICT_ORDER.indexOf(trUpper(district));
@@ -301,6 +324,31 @@ const readCache = async () => {
   }
 };
 
+const readSourceRetryAfter = async () => {
+  try {
+    await ensureCacheSchema();
+    const result = await dbQuery<{ expires_at: string }>(
+      `SELECT expires_at
+       FROM public.app_cache
+       WHERE key = $1
+       LIMIT 1`,
+      [SOURCE_RETRY_KEY]
+    );
+    const expiresAt = new Date(result.rows[0]?.expires_at || 0).getTime();
+    return expiresAt > Date.now() ? expiresAt : null;
+  } catch {
+    return null;
+  }
+};
+
+const retryAfterFromError = (error: any) =>
+  error instanceof SourceRetryDeferredError ? error.retryAfter : null;
+
+const assertSourceRetryAllowed = async () => {
+  const retryAfter = await readSourceRetryAfter();
+  if (retryAfter) throw new SourceRetryDeferredError(new Date(retryAfter).toISOString());
+};
+
 const writeCache = async (payload: DutyPharmacyPayload) => {
   await ensureCacheSchema();
   const expiresAt = cacheExpiryDate().toISOString();
@@ -316,6 +364,55 @@ const writeCache = async (payload: DutyPharmacyPayload) => {
   memoryCache = { payload, expiresAt: new Date(expiresAt).getTime() };
 };
 
+const clearSourceRetry = async () => {
+  try {
+    await ensureCacheSchema();
+    await dbQuery(`DELETE FROM public.app_cache WHERE key = $1`, [SOURCE_RETRY_KEY]);
+  } catch {
+    // Source retry metadata must not block serving a valid pharmacy list.
+  }
+};
+
+const rememberSourceFailure = async (error: any, payload?: DutyPharmacyPayload | null) => {
+  const retryDate = sourceFailureRetryDate();
+  const retryAfter = retryDate.toISOString();
+  const retryPayload = {
+    source: 'neo.org.tr',
+    reason: errorMessage(error, 'Duty pharmacy refresh failed'),
+    retryAfter,
+    createdAt: new Date().toISOString(),
+  };
+
+  try {
+    await ensureCacheSchema();
+    await dbQuery(
+      `INSERT INTO public.app_cache (key, payload, expires_at, updated_at)
+       VALUES ($1, $2::jsonb, $3, now())
+       ON CONFLICT (key) DO UPDATE SET
+         payload = EXCLUDED.payload,
+         expires_at = EXCLUDED.expires_at,
+         updated_at = now()`,
+      [SOURCE_RETRY_KEY, JSON.stringify(retryPayload), retryAfter]
+    );
+
+    if (payload && cacheMatchesToday(payload)) {
+      await dbQuery(
+        `UPDATE public.app_cache
+         SET expires_at = $2
+         WHERE key = $1`,
+        [CACHE_KEY, retryAfter]
+      );
+    }
+  } catch {
+    // Keep the endpoint usable even if retry metadata cannot be persisted.
+  }
+
+  if (payload && cacheMatchesToday(payload)) {
+    memoryCache = { payload, expiresAt: retryDate.getTime() };
+  }
+  return retryAfter;
+};
+
 const rememberPayload = (payload: DutyPharmacyPayload) => {
   memoryCache = { payload, expiresAt: cacheExpiryDate().getTime() };
 };
@@ -329,12 +426,11 @@ const fetchFresh = async ({ reuseInFlight = true } = {}): Promise<DutyPharmacyPa
   if (reuseInFlight && refreshInFlight) return refreshInFlight;
 
   const operation = (async () => {
+    await assertSourceRetryAllowed();
+
     const response = await fetch(SOURCE_URL, {
       signal: AbortSignal.timeout(SOURCE_FETCH_TIMEOUT_MS),
-      headers: {
-        Accept: 'text/html,application/xhtml+xml',
-        'User-Agent': 'Pateez/1.0 (+https://www.pateez.com)',
-      },
+      headers: NEO_REQUEST_HEADERS,
     });
 
     if (!response.ok) throw new Error(`NEO returned ${response.status}`);
@@ -362,7 +458,7 @@ const fetchFresh = async ({ reuseInFlight = true } = {}): Promise<DutyPharmacyPa
         year: 'numeric',
       }).format(now),
       fetchedAt: now.toISOString(),
-      updateIntervalMinutes: 15,
+      updateIntervalMinutes: PHARMACY_REFRESH_MINUTES,
       districts,
       pharmacies,
       meta: {
@@ -377,6 +473,7 @@ const fetchFresh = async ({ reuseInFlight = true } = {}): Promise<DutyPharmacyPa
     } catch {
       rememberPayload(payload);
     }
+    await clearSourceRetry();
     return payload;
   })();
 
@@ -401,7 +498,7 @@ export const GET: APIRoute = async ({ url }) => {
   if (!forceRefresh && currentMemoryCache && currentMemoryCache.expiresAt > now && cacheMatchesToday(currentMemoryCache.payload)) {
     return json({
       ...currentMemoryCache.payload,
-      cache: { hit: true, stale: false, source: 'memory', refreshIntervalMinutes: 15 },
+      cache: { hit: true, stale: false, source: 'memory', refreshIntervalMinutes: PHARMACY_REFRESH_MINUTES },
     });
   }
 
@@ -414,7 +511,7 @@ export const GET: APIRoute = async ({ url }) => {
     memoryCache = { payload: cached.payload, expiresAt: cached.expiresAt };
     return json({
       ...cached.payload,
-      cache: { hit: true, stale: false, source: 'database', refreshIntervalMinutes: 15 },
+      cache: { hit: true, stale: false, source: 'database', refreshIntervalMinutes: PHARMACY_REFRESH_MINUTES },
     });
   }
 
@@ -423,9 +520,10 @@ export const GET: APIRoute = async ({ url }) => {
       const fresh = await fetchFresh({ reuseInFlight: false });
       return json({
         ...fresh,
-        cache: { hit: false, stale: false, source: 'neo.org.tr', refreshIntervalMinutes: 15 },
+        cache: { hit: false, stale: false, source: 'neo.org.tr', refreshIntervalMinutes: PHARMACY_REFRESH_MINUTES },
       });
     } catch (error: any) {
+      const retryAfter = retryAfterFromError(error) || await rememberSourceFailure(error, cached.payload);
       return json({
         ...cached.payload,
         cache: {
@@ -433,7 +531,8 @@ export const GET: APIRoute = async ({ url }) => {
           stale: cached.expiresAt <= now,
           refreshing: false,
           source: 'database',
-          refreshIntervalMinutes: 15,
+          refreshIntervalMinutes: PHARMACY_REFRESH_MINUTES,
+          retryAfter,
           refreshError: errorMessage(error, 'Duty pharmacy refresh failed'),
         },
       });
@@ -441,10 +540,12 @@ export const GET: APIRoute = async ({ url }) => {
   }
 
   if (cached?.payload && cacheMatchesToday(cached.payload)) {
-    void fetchFresh().catch(() => null);
+    void fetchFresh().catch((error) => {
+      if (!retryAfterFromError(error)) void rememberSourceFailure(error, cached.payload);
+    });
     return json({
       ...cached.payload,
-      cache: { hit: true, stale: true, refreshing: true, source: 'database', refreshIntervalMinutes: 15 },
+      cache: { hit: true, stale: true, refreshing: true, source: 'database', refreshIntervalMinutes: PHARMACY_REFRESH_MINUTES },
     });
   }
 
@@ -452,9 +553,10 @@ export const GET: APIRoute = async ({ url }) => {
     const fresh = await fetchFresh({ reuseInFlight: !forceRefresh });
     return json({
       ...fresh,
-      cache: { hit: false, stale: false, source: 'neo.org.tr', refreshIntervalMinutes: 15 },
+      cache: { hit: false, stale: false, source: 'neo.org.tr', refreshIntervalMinutes: PHARMACY_REFRESH_MINUTES },
     });
   } catch (error: any) {
+    const retryAfter = retryAfterFromError(error) || await rememberSourceFailure(error);
     return json({
       city: CITY,
       citySlug: CITY_SLUG,
@@ -464,11 +566,11 @@ export const GET: APIRoute = async ({ url }) => {
       serviceDate: localParts().dateKey,
       serviceDateLabel: new Intl.DateTimeFormat('tr-TR', { timeZone: TIMEZONE, day: 'numeric', month: 'long', year: 'numeric' }).format(new Date()),
       fetchedAt: new Date().toISOString(),
-      updateIntervalMinutes: 15,
+      updateIntervalMinutes: PHARMACY_REFRESH_MINUTES,
       districts: [],
       pharmacies: [],
       meta: { total: 0, centerCount: 0, midnightGuard: true },
-      cache: { hit: false, stale: false, source: 'neo.org.tr', refreshIntervalMinutes: 15 },
+      cache: { hit: false, stale: false, source: 'neo.org.tr', refreshIntervalMinutes: PHARMACY_REFRESH_MINUTES, retryAfter },
       error: error?.message || 'Duty pharmacy data could not be fetched',
     }, 502);
   }

@@ -270,8 +270,8 @@ async function applySupabaseSession(session: AppAuthResult['session']) {
   const { error } = await supabase.auth.setSession({
     access_token: accessToken,
     refresh_token: refreshToken,
-    user: session?.user as any,
-  });
+    user: session?.user,
+  } as any);
   if (error) throw error;
 }
 
@@ -402,6 +402,7 @@ async function getXSessionFromPopup() {
     `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`,
   );
   if (!popup) throw new Error('X giriş penceresi açılamadı');
+  const loginPopup = popup;
 
   return new Promise<AppAuthResult>((resolve, reject) => {
     const timeout = window.setTimeout(() => {
@@ -410,7 +411,7 @@ async function getXSessionFromPopup() {
     }, 120_000);
 
     const timer = window.setInterval(() => {
-      if (popup.closed) {
+      if (loginPopup.closed) {
         window.clearInterval(timer);
         window.clearTimeout(timeout);
         window.removeEventListener('message', onMessage);
@@ -422,7 +423,7 @@ async function getXSessionFromPopup() {
       window.clearInterval(timer);
       window.clearTimeout(timeout);
       window.removeEventListener('message', onMessage);
-      popup.close();
+      loginPopup.close();
     }
 
     function onMessage(event: MessageEvent) {

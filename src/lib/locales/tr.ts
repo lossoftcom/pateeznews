@@ -1000,7 +1000,7 @@ export default {
   "weather_settings.page_desc": "Ön yüzdeki hava kartı için şehir, koordinat ve Open-Meteo cache ayarlarını yönetin.",
   "weather_settings.card_title": "Hava Durumu",
   "duty_pharmacy_settings.page_title": "Nöbetçi Eczane Ayarları",
-  "duty_pharmacy_settings.page_desc": "Ön yüzdeki nöbetçi eczane kartını Niğde Eczacı Odası kaynağı ve 15 dakikalık cache ile yönetin.",
+  "duty_pharmacy_settings.page_desc": "Ön yüzdeki nöbetçi eczane kartını Niğde Eczacı Odası kaynağı ve 60 dakikalık cache ile yönetin.",
   "duty_pharmacy_settings.card_title": "Nöbetçi Eczane",
   "duty_pharmacy_settings.city": "Şehir",
   "duty_pharmacy_settings.locked_city": "Şimdilik yalnızca Niğde aktif.",

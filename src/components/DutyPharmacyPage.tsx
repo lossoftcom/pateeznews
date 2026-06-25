@@ -27,7 +27,7 @@ type DutyPharmacyPayload = {
 const EMPTY_DATA: DutyPharmacyPayload = {
   city: 'Niğde',
   serviceDateLabel: '',
-  updateIntervalMinutes: 15,
+  updateIntervalMinutes: 60,
   districts: [],
   pharmacies: [],
 };
