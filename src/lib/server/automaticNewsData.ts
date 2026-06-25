@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import * as parse5 from 'parse5';
 import { readRuntimeEnv } from './runtimeEnv';
 import { dbQuery } from './supabaseDb';
+import { notifyAdminsForAutomaticNewsItem } from './notifications/adminEvents';
 
 const SOURCE_FETCH_TIMEOUT_MS = 4500;
 const DETAIL_FETCH_TIMEOUT_MS = 6500;
@@ -187,6 +188,11 @@ export interface AutomaticNewsAutomationSettings {
 interface ProcessSourceOptions {
   enabledAt?: string | null;
   runId?: string | null;
+}
+
+interface InsertedAutomaticNewsItemRow {
+  id: string;
+  display_id: string;
 }
 
 const normalizeText = (value: unknown) =>
@@ -2062,7 +2068,7 @@ const insertAutomaticNewsItem = async (item: AutomaticNewsItemInput) => {
   const detectionLatencySeconds = Number.isFinite(detectedAt) && Number.isFinite(publishedAt)
     ? Math.max(0, Math.floor((detectedAt - publishedAt) / 1000))
     : null;
-  const result = await dbQuery<{ id: string }>(
+  const result = await dbQuery<InsertedAutomaticNewsItemRow>(
     `INSERT INTO public.automatic_news_items
        (source_id, source_name, source_type, source_url, canonical_url, external_id,
         title, title_fingerprint, summary, content_text, category, status, language_code,
@@ -2080,7 +2086,7 @@ const insertAutomaticNewsItem = async (item: AutomaticNewsItemInput) => {
         $27, $28, $29, $30,
         $31, now(), $32::jsonb)
      ON CONFLICT DO NOTHING
-     RETURNING id`,
+     RETURNING id::text, display_id::text`,
     [
       finalItem.source.id,
       finalItem.source.display_name,
@@ -2120,7 +2126,15 @@ const insertAutomaticNewsItem = async (item: AutomaticNewsItemInput) => {
       }),
     ],
   );
-  return (result.rowCount || 0) > 0;
+  const inserted = result.rows[0];
+  if (!inserted) return false;
+  await notifyAdminsForAutomaticNewsItem(finalItem, inserted).catch((error) => {
+    console.warn(
+      'Automatic news admin notification failed:',
+      error?.message || error,
+    );
+  });
+  return true;
 };
 
 const latestDetectionLatency = (items: AutomaticNewsItemInput[]) => {

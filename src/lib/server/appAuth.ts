@@ -9,6 +9,7 @@ import {
 import { connectDbClient, dbQuery, type DatabaseClient } from './supabaseDb';
 import { readRuntimeEnv } from './runtimeEnv';
 import { signInWithPassword as signInWithSupabasePassword } from './supabaseAuth';
+import { notifyAdminsForUserSignup } from './notifications/adminEvents';
 
 export type AppAuthProvider = 'email' | 'google' | 'apple' | 'facebook' | 'x' | 'twitter';
 
@@ -464,6 +465,18 @@ export async function signUpWithPassword(email: string, password: string, metada
     if (!profile) throw new Error('Profile could not be created');
     await client.query('COMMIT');
     const session = await createSession(profile);
+    await notifyAdminsForUserSignup({
+      userId,
+      name: fullName,
+      email,
+      provider: 'email',
+      city,
+    }).catch((notifyError) => {
+      console.warn(
+        'User signup admin notification failed:',
+        notifyError?.message || notifyError,
+      );
+    });
     return { data: { user: session.user, session }, error: null };
   } catch (error: any) {
     await client.query('ROLLBACK').catch(() => undefined);
@@ -915,7 +928,7 @@ async function upsertSocialProfile(
   if (String(profile.status || '').toLowerCase() === 'blocked') {
     throw new Error('Account is blocked');
   }
-  return profile;
+  return { profile, created: !existingUserId };
 }
 
 export async function signInWithSocialToken(input: {
@@ -928,15 +941,31 @@ export async function signInWithSocialToken(input: {
   signupCity?: unknown;
 }) {
   const providerProfile = await providerProfileFromInput(input);
+  const ipAddress = cleanIpAddress(input.ipAddress);
+  const signupCity = cleanSignupCity(input.signupCity);
   const client = await connectDbClient();
   try {
     await client.query('BEGIN');
-    const profile = await upsertSocialProfile(client, providerProfile, {
-      ipAddress: input.ipAddress,
-      signupCity: input.signupCity,
+    const { profile, created } = await upsertSocialProfile(client, providerProfile, {
+      ipAddress,
+      signupCity,
     });
     await client.query('COMMIT');
     const session = await createSession(profile);
+    if (created) {
+      await notifyAdminsForUserSignup({
+        userId: profile.id,
+        name: profile.full_name || profile.username,
+        email: profile.email,
+        provider: providerProfile.provider,
+        city: signupCity || profile.city,
+      }).catch((notifyError) => {
+        console.warn(
+          'Social signup admin notification failed:',
+          notifyError?.message || notifyError,
+        );
+      });
+    }
     return { data: { user: session.user, session, profile }, error: null };
   } catch (error) {
     await client.query('ROLLBACK').catch(() => undefined);

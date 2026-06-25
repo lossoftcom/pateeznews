@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { ensureAppSchema, json } from '@/lib/server/appDb';
 import { dbQuery } from '@/lib/server/supabaseDb';
 import { TURKEY_CITIES, normalizeTurkeyCity } from '@/lib/server/turkeyCities';
+import { notifyAdminsForSubscriber } from '@/lib/server/notifications/adminEvents';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -81,10 +82,12 @@ export const POST: APIRoute = async ({ request }) => {
 
     await ensureAppSchema();
 
-    const existing = await dbQuery(
-      'SELECT id FROM public.newsletter_subscribers WHERE lower(email) = lower($1) LIMIT 1',
+    const existing = await dbQuery<{ id: string; status: string | null }>(
+      'SELECT id, status FROM public.newsletter_subscribers WHERE lower(email) = lower($1) LIMIT 1',
       [email]
     );
+    const wasActive = String(existing.rows[0]?.status || '').toLowerCase() === 'active';
+    const shouldNotifyAdmin = !existing.rows[0] || !wasActive;
 
     const result = existing.rows[0]
       ? await dbQuery(
@@ -105,6 +108,21 @@ export const POST: APIRoute = async ({ request }) => {
          RETURNING *`,
         [email, languageCode, source, location.ip, location.city]
       );
+
+    if (shouldNotifyAdmin && result.rows[0]?.id) {
+      await notifyAdminsForSubscriber({
+        subscriberId: result.rows[0].id,
+        email: result.rows[0].email || email,
+        source: result.rows[0].source || source,
+        city: result.rows[0].city || location.city,
+        languageCode: result.rows[0].language_code || languageCode,
+      }).catch((notifyError) => {
+        console.warn(
+          'Subscriber admin notification failed:',
+          notifyError?.message || notifyError,
+        );
+      });
+    }
 
     return json({ ok: true, subscriber: result.rows[0] });
   } catch (error: any) {

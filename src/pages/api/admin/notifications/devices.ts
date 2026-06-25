@@ -15,26 +15,32 @@ import {
 export const prerender = false;
 
 const DEVICE_SELECT = `
-  id::text,
-  user_id::text,
-  fcm_token,
-  platform,
-  app_surface,
-  language_code,
-  country_code,
-  timezone,
-  app_version,
-  device_id,
-  device_model,
-  permission_status,
-  topics,
-  is_active,
-  last_seen_at,
-  token_refreshed_at,
-  invalidated_at,
-  invalid_reason,
-  created_at,
-  updated_at
+  dt.id::text,
+  dt.user_id::text,
+  dt.fcm_token,
+  dt.platform,
+  dt.app_surface,
+  dt.language_code,
+  dt.country_code,
+  dt.timezone,
+  dt.app_version,
+  dt.device_id,
+  dt.device_model,
+  dt.permission_status,
+  dt.topics,
+  dt.is_active,
+  dt.last_seen_at,
+  dt.token_refreshed_at,
+  dt.invalidated_at,
+  dt.invalid_reason,
+  dt.created_at,
+  dt.updated_at,
+  COALESCE(p.role, '') AS user_role,
+  COALESCE(r.label, '') AS role_label,
+  COALESCE(p.username, '') AS username,
+  COALESCE(p.full_name, '') AS full_name,
+  COALESCE(p.email, '') AS user_email,
+  COALESCE(p.auth_provider, '') AS auth_provider
 `;
 
 const FIELD_MAP: Record<string, string> = {
@@ -68,8 +74,10 @@ function devicePayload(body: Record<string, any>) {
 async function selectedDevice(id: string) {
   const result = await dbQuery(
     `SELECT ${DEVICE_SELECT}
-     FROM public.notification_device_tokens
-     WHERE id = $1::bigint`,
+     FROM public.notification_device_tokens dt
+     LEFT JOIN public.profiles p ON p.id = dt.user_id
+     LEFT JOIN public.roles r ON r.name = p.role
+     WHERE dt.id = $1::bigint`,
     [id]
   );
   return result.rows[0] || null;
@@ -89,25 +97,31 @@ export const GET: APIRoute = async ({ request, url }) => {
 
     if (platform && platform !== 'all') {
       values.push(platform);
-      where.push(`(platform = $${values.length} OR app_surface = $${values.length})`);
+      where.push(`(dt.platform = $${values.length} OR dt.app_surface = $${values.length})`);
     }
     if (search) {
       values.push(`%${search}%`);
-      where.push(`(fcm_token ILIKE $${values.length} OR app_surface ILIKE $${values.length} OR device_model ILIKE $${values.length} OR app_version ILIKE $${values.length})`);
+      where.push(`(dt.fcm_token ILIKE $${values.length} OR dt.app_surface ILIKE $${values.length} OR dt.device_model ILIKE $${values.length} OR dt.app_version ILIKE $${values.length} OR p.username ILIKE $${values.length} OR p.full_name ILIKE $${values.length} OR p.email ILIKE $${values.length} OR p.role ILIKE $${values.length} OR r.label ILIKE $${values.length})`);
     }
 
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
     const [items, total, stats] = await Promise.all([
       dbQuery(
         `SELECT ${DEVICE_SELECT}
-         FROM public.notification_device_tokens
+         FROM public.notification_device_tokens dt
+         LEFT JOIN public.profiles p ON p.id = dt.user_id
+         LEFT JOIN public.roles r ON r.name = p.role
          ${whereSql}
-         ORDER BY last_seen_at DESC
+         ORDER BY dt.last_seen_at DESC
          LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
         [...values, limit, offset]
       ),
       dbQuery<{ count: string }>(
-        `SELECT COUNT(*)::bigint AS count FROM public.notification_device_tokens ${whereSql}`,
+        `SELECT COUNT(*)::bigint AS count
+         FROM public.notification_device_tokens dt
+         LEFT JOIN public.profiles p ON p.id = dt.user_id
+         LEFT JOIN public.roles r ON r.name = p.role
+         ${whereSql}`,
         values
       ),
       dbQuery(

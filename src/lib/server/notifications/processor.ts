@@ -39,15 +39,24 @@ async function activateScheduledCampaigns() {
   );
 }
 
-async function queueCampaignOutbox(limit: number) {
-  const campaigns = await dbQuery<{ id: string }>(
-    `SELECT id::text
-     FROM public.notification_campaigns
-     WHERE status = 'sending'
-     ORDER BY COALESCE(started_at, created_at) ASC
-     LIMIT $1`,
-    [Math.max(1, Math.min(limit, 25))]
-  );
+async function queueCampaignOutbox(limit: number, campaignId = '') {
+  const campaigns = campaignId
+    ? await dbQuery<{ id: string }>(
+        `SELECT id::text
+         FROM public.notification_campaigns
+         WHERE id = $1::bigint
+           AND status = 'sending'
+         LIMIT 1`,
+        [campaignId]
+      )
+    : await dbQuery<{ id: string }>(
+        `SELECT id::text
+         FROM public.notification_campaigns
+         WHERE status = 'sending'
+         ORDER BY COALESCE(started_at, created_at) ASC
+         LIMIT $1`,
+        [Math.max(1, Math.min(limit, 25))]
+      );
 
   let queued = 0;
   for (const campaign of campaigns.rows) {
@@ -166,7 +175,7 @@ async function queueCampaignOutbox(limit: number) {
   return queued;
 }
 
-async function reserveOutbox(limit: number) {
+async function reserveOutbox(limit: number, campaignId = '') {
   const result = await dbQuery<OutboxRow>(
     `UPDATE public.notification_outbox
      SET status = 'sending',
@@ -179,6 +188,7 @@ async function reserveOutbox(limit: number) {
          AND attempts < max_attempts
          AND COALESCE(error_code, '') <> 'THIRD_PARTY_AUTH_ERROR'
          AND next_attempt_at <= now()
+         AND ($2::bigint IS NULL OR campaign_id = $2::bigint)
        ORDER BY next_attempt_at ASC, created_at ASC
        LIMIT $1
        FOR UPDATE SKIP LOCKED
@@ -199,7 +209,7 @@ async function reserveOutbox(limit: number) {
        channel_id,
        attempts,
        max_attempts`,
-    [Math.max(1, Math.min(limit, 500))]
+    [Math.max(1, Math.min(limit, 500)), campaignId || null]
   );
   return result.rows;
 }
@@ -352,9 +362,12 @@ async function refreshCampaignCounts(campaignId: string) {
   );
 }
 
-export async function processNotificationOutbox(limit = 100): Promise<NotificationOutboxResult> {
-  await activateScheduledCampaigns();
-  const queued = await queueCampaignOutbox(limit);
+export async function processNotificationOutbox(
+  limit = 100,
+  campaignId = ''
+): Promise<NotificationOutboxResult> {
+  if (!campaignId) await activateScheduledCampaigns();
+  const queued = await queueCampaignOutbox(limit, campaignId);
 
   let credentials;
   try {
@@ -370,7 +383,7 @@ export async function processNotificationOutbox(limit = 100): Promise<Notificati
     };
   }
 
-  const rows = await reserveOutbox(limit);
+  const rows = await reserveOutbox(limit, campaignId);
   const campaignIds = new Set<string>();
   let sent = 0;
   let failed = 0;

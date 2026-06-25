@@ -273,6 +273,12 @@ class AdminNotificationDevice {
     this.timezone = '',
     this.appVersion = '',
     this.deviceModel = '',
+    this.userRole = '',
+    this.roleLabel = '',
+    this.username = '',
+    this.fullName = '',
+    this.userEmail = '',
+    this.authProvider = '',
     this.topics = const <String>[],
     this.invalidReason = '',
   });
@@ -287,6 +293,12 @@ class AdminNotificationDevice {
   final String timezone;
   final String appVersion;
   final String deviceModel;
+  final String userRole;
+  final String roleLabel;
+  final String username;
+  final String fullName;
+  final String userEmail;
+  final String authProvider;
   final String permissionStatus;
   final List<String> topics;
   final bool active;
@@ -305,6 +317,12 @@ class AdminNotificationDevice {
       timezone: _text(json['timezone']),
       appVersion: _text(json['app_version']),
       deviceModel: _text(json['device_model']),
+      userRole: _text(json['user_role']),
+      roleLabel: _text(json['role_label']),
+      username: _text(json['username']),
+      fullName: _text(json['full_name']),
+      userEmail: _text(json['user_email']),
+      authProvider: _text(json['auth_provider']),
       permissionStatus: _text(json['permission_status'], 'unknown'),
       topics: _stringList(json['topics']),
       active: _bool(json['is_active'], fallback: true),

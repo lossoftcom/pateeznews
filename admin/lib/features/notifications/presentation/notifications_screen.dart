@@ -709,6 +709,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         headers: [
           _TableHeader('notifications.table.device', 'device', flex: 3),
           _TableHeader('notifications.table.token', 'token', flex: 4),
+          _TableHeader('notifications.table.access', 'access', flex: 3),
           _TableHeader('notifications.table.permission', 'permission', flex: 2),
           _TableHeader('notifications.table.status', 'status', flex: 2),
           _TableHeader('notifications.table.date', 'date', flex: 2),
@@ -1803,6 +1804,13 @@ class _DeviceRow extends StatelessWidget {
           ),
         ),
         Expanded(
+          flex: 3,
+          child: _TwoLineCell(
+            title: _deviceAccessTitle(context, device),
+            subtitle: _deviceAccessSubtitle(device),
+          ),
+        ),
+        Expanded(
           flex: 2,
           child: _TwoLineCell(
             title: _permissionStatusLabel(device.permissionStatus),
@@ -2101,6 +2109,10 @@ class _DeviceMobileCard extends StatelessWidget {
               AdminMobileMeta(
                 icon: Symbols.notifications,
                 value: _shortToken(device.fcmToken),
+              ),
+              AdminMobileMeta(
+                icon: Symbols.verified,
+                value: _deviceAccessTitle(context, device),
               ),
               AdminMobileMeta(
                 icon: Symbols.person,
@@ -4678,6 +4690,52 @@ class _SettingsPanelState extends State<_SettingsPanel> {
 String _shortToken(String token) {
   if (token.length <= 28) return token;
   return '${token.substring(0, 14)}...${token.substring(token.length - 10)}';
+}
+
+String _deviceAccessTitle(
+  BuildContext context,
+  AdminNotificationDevice device,
+) {
+  final label = device.roleLabel.trim();
+  if (label.isNotEmpty) return label;
+  final role = device.userRole.trim();
+  if (role.isNotEmpty) return role;
+  return context.t('notifications.device.noSession');
+}
+
+String _deviceAccessSubtitle(AdminNotificationDevice device) {
+  final parts = <String>[];
+  final role = device.userRole.trim();
+  final label = device.roleLabel.trim();
+  if (role.isNotEmpty && role.toLowerCase() != label.toLowerCase()) {
+    parts.add(role);
+  }
+  final username = device.username.trim();
+  final fullName = device.fullName.trim();
+  final account = username.isNotEmpty
+      ? (username.startsWith('@') ? username : '@$username')
+      : fullName.isNotEmpty
+      ? fullName
+      : device.userEmail.trim();
+  if (account.isNotEmpty) parts.add(account);
+  final provider = _authProviderLabel(device.authProvider);
+  if (provider.isNotEmpty) parts.add(provider);
+  return parts.join(' · ');
+}
+
+String _authProviderLabel(String provider) {
+  switch (provider.trim().toLowerCase()) {
+    case 'email':
+      return 'E-posta';
+    case 'google':
+      return 'Google';
+    case 'apple':
+      return 'Apple';
+    case 'anonymous':
+      return 'Anonim';
+    default:
+      return provider.trim();
+  }
 }
 
 String _permissionStatusLabel(String status) {

@@ -6,7 +6,7 @@ import { useToast } from '@/context/ToastContext';
 import { useLanguage } from '@/context/LanguageContext';
 import type { EmojiClickData } from 'emoji-picker-react';
 import { Smile } from 'lucide-react';
-import { postAction } from '@/services/appActions';
+import { commentAction, postAction } from '@/services/appActions';
 
 const EmojiPicker = React.lazy(async () => {
   const module = await import('emoji-picker-react');
@@ -338,18 +338,14 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId, publisherId }) 
         throw new Error(t('comments.invalid_post_id'));
       }
 
-      const commentData = {
-        post_id: numericPostId,
+      await commentAction('submit', {
+        postId: numericPostId,
         content: newComment.trim(),
-        parent_id: replyTo?.id ? parseInt(replyTo.id, 10) : null,
-        user_id: user?.id || null,
-        guest_name: user ? null : guestName.trim(),
-        guest_email: user ? null : guestEmail.trim(),
-        status: 'pending'
-      };
-
-      const { error } = await supabase.from('comments').insert([commentData]);
-      if (error) throw error;
+        guestName: guestName.trim(),
+        guestEmail: guestEmail.trim(),
+        parentId: replyTo?.id ? parseInt(replyTo.id, 10) : null,
+        limit: 20,
+      });
 
       showToast(t('comments.submitted_pending'), 'success');
       setNewComment('');
@@ -358,6 +354,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId, publisherId }) 
         setGuestName('');
         setGuestEmail('');
       }
+      await fetchComments(user);
     } catch (err: any) {
       showToast(t('comments.submit_error').replace('{error}', err.message), 'error');
     }

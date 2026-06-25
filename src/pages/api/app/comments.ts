@@ -5,6 +5,7 @@ import {
   sanitizePublicInteractionText,
   type SecuritySpamInteractionPolicy,
 } from "@/lib/server/securitySettings";
+import { notifyAdminsForComment } from "@/lib/server/notifications/adminEvents";
 
 export const prerender = false;
 
@@ -31,6 +32,11 @@ type CommentSettings = {
   commentSystem: boolean;
   commentApprovalSystem: boolean;
   spamInteractionPolicy: SecuritySpamInteractionPolicy;
+};
+
+type InsertedCommentRow = {
+  id: string;
+  status: string;
 };
 
 const numericId = (value: unknown) => {
@@ -312,11 +318,12 @@ export const POST: APIRoute = async ({ request }) => {
         ? "pending"
         : "approved";
 
-      await withTransaction(async (client) => {
-        await client.query(
+      const insertedComment = await withTransaction(async (client) => {
+        const result = await client.query<InsertedCommentRow>(
           `INSERT INTO public.comments
              (post_id, user_id, guest_name, guest_email, parent_id, content, status)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           RETURNING id::text, status`,
           [
             postId,
             userId,
@@ -327,7 +334,44 @@ export const POST: APIRoute = async ({ request }) => {
             status,
           ],
         );
+        return result.rows[0] || null;
       });
+
+      if (insertedComment) {
+        const contextResult = await dbQuery<{
+          post_title: string | null;
+          author_name: string | null;
+          author_username: string | null;
+          author_email: string | null;
+        }>(
+          `SELECT p.title AS post_title,
+                  pr.full_name AS author_name,
+                  pr.username AS author_username,
+                  pr.email AS author_email
+           FROM public.posts p
+           LEFT JOIN public.profiles pr ON pr.id = $2::uuid
+           WHERE p.id = $1
+           LIMIT 1`,
+          [postId, userId],
+        ).catch(() => ({ rows: [] }));
+        const contextRow = contextResult.rows[0] || null;
+        await notifyAdminsForComment({
+          commentId: insertedComment.id,
+          postId,
+          postTitle: contextRow?.post_title,
+          authorName: userId
+            ? (contextRow?.author_name || contextRow?.author_username || contextRow?.author_email)
+            : guestName,
+          authorEmail: userId ? contextRow?.author_email : guestEmail,
+          status: insertedComment.status,
+          content,
+        }).catch((notifyError) => {
+          console.warn(
+            "Comment admin notification failed:",
+            notifyError?.message || notifyError,
+          );
+        });
+      }
 
       return json({
         ok: true,

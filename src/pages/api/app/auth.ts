@@ -19,6 +19,7 @@ import {
   validatePasswordWithSecuritySettings,
 } from '@/lib/server/securitySettings';
 import { normalizeTurkeyCity } from '@/lib/server/turkeyCities';
+import { notifyAdminsForUserSignup } from '@/lib/server/notifications/adminEvents';
 
 function cleanText(value: unknown) {
   return String(value || '').trim();
@@ -180,7 +181,7 @@ async function completeOAuthProfile(
     email || user.id,
   );
 
-  await withTransaction(async (client) => {
+  const completedProfile = await withTransaction(async (client) => {
     const existingResult = await client.query(
       `SELECT username
        FROM public.profiles
@@ -188,6 +189,7 @@ async function completeOAuthProfile(
        LIMIT 1`,
       [user.id],
     );
+    const profileAlreadyExists = Boolean(existingResult.rows[0]);
     const existingUsername = cleanText(existingResult.rows[0]?.username);
     const username = existingUsername ||
       (await uniqueSignupUsername(client, usernameBase, user.id));
@@ -226,11 +228,26 @@ async function completeOAuthProfile(
         providers,
       ],
     );
+    return { created: !profileAlreadyExists, displayName };
   });
   await markProfileSignedIn(user.id, {
     ipAddress: location.ip,
     signupCity: location.city,
   });
+  if (completedProfile.created) {
+    await notifyAdminsForUserSignup({
+      userId: user.id,
+      name: completedProfile.displayName,
+      email,
+      provider,
+      city: location.city,
+    }).catch((notifyError) => {
+      console.warn(
+        'OAuth signup admin notification failed:',
+        notifyError?.message || notifyError,
+      );
+    });
+  }
 }
 
 async function ensureSignupEmailAvailable(client: any, email: string) {
@@ -382,6 +399,18 @@ export const POST: APIRoute = async ({ request }) => {
           signupCity,
         });
         const profile = await profileForUser(authUser.id);
+        await notifyAdminsForUserSignup({
+          userId: authUser.id,
+          name: fullName,
+          email,
+          provider: 'email',
+          city: signupCity || city,
+        }).catch((notifyError) => {
+          console.warn(
+            'User signup admin notification failed:',
+            notifyError?.message || notifyError,
+          );
+        });
         return json({
           data: { ...signInResult.data, profile: profileForClient(profile) },
           error: null,
