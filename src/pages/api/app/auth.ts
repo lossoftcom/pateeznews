@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import crypto from 'crypto';
 import { dbQuery } from '@/lib/server/supabaseDb';
 import { getSessionFromRequest, json, withTransaction } from '@/lib/server/appDb';
 import {
@@ -20,6 +21,14 @@ import {
 } from '@/lib/server/securitySettings';
 import { normalizeTurkeyCity } from '@/lib/server/turkeyCities';
 import { notifyAdminsForUserSignup } from '@/lib/server/notifications/adminEvents';
+import { sendMailWithAccount } from '@/lib/server/mail/providers';
+import { readRuntimeEnv } from '@/lib/server/runtimeEnv';
+
+const SIGNUP_VERIFICATION_PURPOSE = 'signup';
+const SIGNUP_VERIFICATION_TEMPLATE = 'Yeni Üye Kod Doğrulama';
+const SIGNUP_CODE_TTL_SECONDS = 150;
+const SIGNUP_CODE_RESEND_SECONDS = 120;
+const SIGNUP_CODE_MAX_ATTEMPTS = 5;
 
 function cleanText(value: unknown) {
   return String(value || '').trim();
@@ -35,6 +44,53 @@ function cleanIdentifier(value: unknown) {
 
 function looksLikeEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function verificationHash(email: string, code: string) {
+  const secret =
+    readRuntimeEnv('PATEEZ_AUTH_JWT_SECRET') ||
+    readRuntimeEnv('AUTH_JWT_SECRET') ||
+    readRuntimeEnv('MAIL_SECRET_KEY') ||
+    'pateez-signup-verification';
+  return crypto
+    .createHmac('sha256', secret)
+    .update(`${SIGNUP_VERIFICATION_PURPOSE}:${email.toLowerCase()}:${code}`)
+    .digest('hex');
+}
+
+function generateVerificationCode() {
+  return String(crypto.randomInt(100000, 1000000));
+}
+
+function secondsUntil(value: unknown) {
+  const time = Date.parse(String(value || ''));
+  if (!Number.isFinite(time)) return 0;
+  return Math.max(0, Math.ceil((time - Date.now()) / 1000));
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function replaceVerificationVariables(value: unknown, variables: Record<string, string>, html = false) {
+  return Object.entries(variables).reduce((text, [key, raw]) => {
+    const replacement = html ? escapeHtml(raw) : raw;
+    return text.replaceAll(`{{${key}}}`, replacement);
+  }, String(value || ''));
+}
+
+function plainTextFromHtml(html: string) {
+  return String(html || '')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 async function emailForIdentifier(identifier: string) {
@@ -261,6 +317,359 @@ async function ensureSignupEmailAvailable(client: any, email: string) {
   if (result.rows[0]) throw new Error('E-posta zaten kullanılıyor');
 }
 
+type SignupInput = {
+  fullName: string;
+  email: string;
+  password: string;
+  passwordAgain: string;
+  city: string;
+  signupCity: string;
+  attemptIdentifier: string;
+};
+
+async function readSignupInput(
+  request: Request,
+  body: Record<string, any>,
+  location: { ip: string | null; city: string | null },
+): Promise<
+  | { ok: true; input: SignupInput; settings: Awaited<ReturnType<typeof getSecuritySettings>> }
+  | { ok: false; response: Response }
+> {
+  const fullName = cleanText(body.fullName || body.full_name).slice(0, 160);
+  const email = cleanEmail(body.email);
+  const password = String(body.password || '');
+  const passwordAgain = String(body.passwordAgain || body.password_again || '');
+  const city = normalizeTurkeyCity(body.city);
+  const signupCity = location.city || city;
+  const attemptIdentifier =
+    email ||
+    request.headers.get('cf-connecting-ip') ||
+    request.headers.get('x-real-ip') ||
+    'unknown';
+
+  const settings = await getSecuritySettings('tr');
+  const lock = await getLoginAttemptLock('app-signup', attemptIdentifier);
+  if (lock.locked) {
+    return {
+      ok: false,
+      response: json(
+        { data: { user: null, session: null, profile: null }, error: { message: 'Kayıt geçici olarak kilitli. Lütfen daha sonra tekrar deneyin.' } },
+        429,
+      ),
+    };
+  }
+
+  const fail = async (message: string, status = 400) => {
+    await recordLoginFailure('app-signup', attemptIdentifier, settings);
+    return {
+      ok: false as const,
+      response: json(
+        { data: { user: null, session: null, profile: null }, error: { message } },
+        status,
+      ),
+    };
+  };
+
+  if (!fullName || !email || !password || !city) {
+    return fail('Ad soyad, e-posta, şifre ve şehir zorunlu');
+  }
+  if (!looksLikeEmail(email)) {
+    return fail('Geçerli bir e-posta girin');
+  }
+  if (passwordAgain && password !== passwordAgain) {
+    return fail('Şifreler eşleşmiyor');
+  }
+  const passwordError = validatePasswordWithSecuritySettings(password, settings);
+  if (passwordError) {
+    return fail(passwordError);
+  }
+
+  return {
+    ok: true,
+    input: {
+      fullName,
+      email,
+      password,
+      passwordAgain,
+      city,
+      signupCity,
+      attemptIdentifier,
+    },
+    settings,
+  };
+}
+
+async function findSignupMailAccount() {
+  const result = await dbQuery(
+    `SELECT *,
+            hesap_adi AS account_name,
+            gonderen_adi AS sender_name,
+            gonderen_eposta AS sender_email,
+            servis_tipi AS service_type,
+            gonderim_modu AS sending_mode,
+            smtp_sunucu AS smtp_host,
+            smtp_kullanici AS smtp_username,
+            smtp_sifre AS smtp_password_encrypted,
+            smtp_guvenlik AS smtp_secure,
+            varsayilan_reply_to AS default_reply_to
+       FROM public.mail_accounts
+      WHERE aktif_mi IS TRUE
+        AND lower(gonderen_eposta) = ANY($1::text[])
+      ORDER BY CASE lower(gonderen_eposta)
+                 WHEN 'destek@pateez.com' THEN 0
+                 WHEN 'info@pateez.com' THEN 1
+                 WHEN 'haber@pateez.com' THEN 2
+                 ELSE 3
+               END,
+               olusturma_tarihi DESC
+      LIMIT 1`,
+    [['destek@pateez.com', 'info@pateez.com', 'haber@pateez.com', 'pateez@pateez.com']],
+  );
+  if (result.rows[0]) return result.rows[0];
+  const fallback = await dbQuery(
+    `SELECT *,
+            hesap_adi AS account_name,
+            gonderen_adi AS sender_name,
+            gonderen_eposta AS sender_email,
+            servis_tipi AS service_type,
+            gonderim_modu AS sending_mode,
+            smtp_sunucu AS smtp_host,
+            smtp_kullanici AS smtp_username,
+            smtp_sifre AS smtp_password_encrypted,
+            smtp_guvenlik AS smtp_secure,
+            varsayilan_reply_to AS default_reply_to
+       FROM public.mail_accounts
+      WHERE aktif_mi IS TRUE
+      ORDER BY olusturma_tarihi DESC
+      LIMIT 1`,
+  );
+  return fallback.rows[0] || null;
+}
+
+async function sendSignupVerificationMail(input: SignupInput, code: string) {
+  const [templateResult, account] = await Promise.all([
+    dbQuery<{
+      id: string;
+      konu: string | null;
+      icerik_html: string | null;
+      onizleme_metni: string | null;
+    }>(
+      `SELECT id::text, konu, icerik_html, onizleme_metni
+         FROM public.mail_templates
+        WHERE sablon_adi = $1
+          AND aktif_mi IS TRUE
+        ORDER BY id DESC
+        LIMIT 1`,
+      [SIGNUP_VERIFICATION_TEMPLATE],
+    ),
+    findSignupMailAccount(),
+  ]);
+  const template = templateResult.rows[0];
+  if (!template) throw new Error('Üyelik doğrulama mail şablonu bulunamadı');
+  if (!account) throw new Error('Aktif mail hesabı bulunamadı');
+
+  const variables = {
+    uye_adi: input.fullName,
+    uye_eposta: input.email,
+    dogrulama_kodu: code,
+  };
+  const subject = replaceVerificationVariables(
+    template.konu || 'Pateez.com üyelik doğrulama kodun: {{dogrulama_kodu}}',
+    variables,
+  );
+  const html = replaceVerificationVariables(template.icerik_html, variables, true);
+  const text = replaceVerificationVariables(
+    template.onizleme_metni || plainTextFromHtml(html),
+    variables,
+  );
+
+  const outbox = await dbQuery(
+    `INSERT INTO public.mail_outbox (
+       hesap_id, alici_eposta, alici_adi, konu, icerik_html, icerik_text,
+       sablon_id, durum, kullanici
+     )
+     VALUES ($1, $2, $3, $4, $5, $6, $7::bigint, 'sending', NULL)
+     RETURNING id`,
+    [
+      account.id,
+      input.email,
+      input.fullName,
+      subject,
+      html,
+      text,
+      template.id,
+    ],
+  );
+
+  try {
+    const sent = await sendMailWithAccount(account, {
+      to: input.email,
+      subject,
+      html,
+      text,
+    });
+    await dbQuery(
+      `UPDATE public.mail_outbox
+          SET durum = 'sent',
+              servis_message_id = $1,
+              gonderim_tarihi = now(),
+              hata_mesaji = null
+        WHERE id = $2::bigint`,
+      [sent.messageId, outbox.rows[0]?.id],
+    );
+    await dbQuery(
+      `UPDATE public.mail_accounts
+          SET bu_gun_gonderilen = COALESCE(bu_gun_gonderilen, 0) + 1,
+              bu_ay_gonderilen = COALESCE(bu_ay_gonderilen, 0) + 1,
+              baglanti_durumu = 'ok',
+              son_hata_mesaji = null,
+              guncelleme_tarihi = now()
+        WHERE id = $1::bigint`,
+      [account.id],
+    );
+  } catch (error: any) {
+    await dbQuery(
+      `UPDATE public.mail_outbox
+          SET durum = 'failed',
+              hata_mesaji = $1
+        WHERE id = $2::bigint`,
+      [error?.message || 'Doğrulama maili gönderilemedi', outbox.rows[0]?.id],
+    ).catch(() => undefined);
+    await dbQuery(
+      `UPDATE public.mail_accounts
+          SET baglanti_durumu = 'error',
+              son_hata_mesaji = $1,
+              guncelleme_tarihi = now()
+        WHERE id = $2::bigint`,
+      [error?.message || 'Doğrulama maili gönderilemedi', account.id],
+    ).catch(() => undefined);
+    throw error;
+  }
+}
+
+async function requestSignupVerification(input: SignupInput) {
+  const existing = await dbQuery<{
+    resend_available_at: string | null;
+    expires_at: string | null;
+  }>(
+    `SELECT resend_available_at, expires_at
+       FROM public.app_email_verifications
+      WHERE purpose = $1
+        AND lower(email) = lower($2)
+        AND consumed_at IS NULL
+      ORDER BY created_at DESC
+      LIMIT 1`,
+    [SIGNUP_VERIFICATION_PURPOSE, input.email],
+  );
+  const existingRow = existing.rows[0];
+  if (existingRow && secondsUntil(existingRow.resend_available_at) > 0) {
+    return {
+      verificationRequired: true,
+      email: input.email,
+      resendAfterSeconds: secondsUntil(existingRow.resend_available_at),
+      expiresAt: existingRow.expires_at,
+      message: 'Doğrulama kodu zaten gönderildi',
+    };
+  }
+
+  await dbQuery(
+    `DELETE FROM public.app_email_verifications
+      WHERE purpose = $1
+        AND lower(email) = lower($2)
+        AND consumed_at IS NULL`,
+    [SIGNUP_VERIFICATION_PURPOSE, input.email],
+  );
+
+  const code = generateVerificationCode();
+  const expiresAt = new Date(Date.now() + SIGNUP_CODE_TTL_SECONDS * 1000).toISOString();
+  const resendAvailableAt = new Date(Date.now() + SIGNUP_CODE_RESEND_SECONDS * 1000).toISOString();
+  await dbQuery(
+    `INSERT INTO public.app_email_verifications (
+       purpose, email, code_hash, payload, resend_available_at, expires_at
+     )
+     VALUES ($1, $2, $3, $4::jsonb, $5::timestamptz, $6::timestamptz)`,
+    [
+      SIGNUP_VERIFICATION_PURPOSE,
+      input.email,
+      verificationHash(input.email, code),
+      JSON.stringify({ fullName: input.fullName, city: input.city }),
+      resendAvailableAt,
+      expiresAt,
+    ],
+  );
+
+  try {
+    await sendSignupVerificationMail(input, code);
+  } catch (error) {
+    await dbQuery(
+      `DELETE FROM public.app_email_verifications
+        WHERE purpose = $1
+          AND lower(email) = lower($2)
+          AND code_hash = $3
+          AND consumed_at IS NULL`,
+      [SIGNUP_VERIFICATION_PURPOSE, input.email, verificationHash(input.email, code)],
+    ).catch(() => undefined);
+    throw error;
+  }
+  return {
+    verificationRequired: true,
+    email: input.email,
+    resendAfterSeconds: SIGNUP_CODE_RESEND_SECONDS,
+    expiresAt,
+    message: 'Doğrulama kodu e-posta adresine gönderildi',
+  };
+}
+
+async function consumeSignupVerification(client: any, email: string, code: string) {
+  const cleanCode = cleanText(code).replace(/\D/g, '');
+  if (!/^\d{6}$/.test(cleanCode)) {
+    throw new Error('6 haneli doğrulama kodunu girin');
+  }
+  const result = await client.query(
+    `SELECT id, code_hash, attempt_count, expires_at
+       FROM public.app_email_verifications
+      WHERE purpose = $1
+        AND lower(email) = lower($2)
+        AND consumed_at IS NULL
+      ORDER BY created_at DESC
+      LIMIT 1
+      FOR UPDATE`,
+    [SIGNUP_VERIFICATION_PURPOSE, email],
+  );
+  const row = result.rows[0];
+  if (!row) throw new Error('Doğrulama kodu bulunamadı. Yeni kod isteyin');
+  if (Date.parse(String(row.expires_at)) <= Date.now()) {
+    await client.query(
+      `UPDATE public.app_email_verifications
+          SET consumed_at = now(),
+              updated_at = now()
+        WHERE id = $1::bigint`,
+      [row.id],
+    );
+    throw new Error('Doğrulama kodunun süresi doldu. Yeni kod isteyin');
+  }
+  if (Number(row.attempt_count || 0) >= SIGNUP_CODE_MAX_ATTEMPTS) {
+    throw new Error('Çok fazla hatalı kod denendi. Yeni kod isteyin');
+  }
+  if (row.code_hash !== verificationHash(email, cleanCode)) {
+    await client.query(
+      `UPDATE public.app_email_verifications
+          SET attempt_count = attempt_count + 1,
+              updated_at = now()
+        WHERE id = $1::bigint`,
+      [row.id],
+    );
+    throw new Error('Doğrulama kodu hatalı');
+  }
+  await client.query(
+    `UPDATE public.app_email_verifications
+        SET consumed_at = now(),
+            updated_at = now()
+      WHERE id = $1::bigint`,
+    [row.id],
+  );
+}
+
 export const POST: APIRoute = async ({ request }) => {
   try {
     const body = await request.json();
@@ -300,73 +709,62 @@ export const POST: APIRoute = async ({ request }) => {
       });
     }
 
-    if (action === 'signUpWithPassword') {
-      const fullName = cleanText(body.fullName || body.full_name).slice(0, 160);
-      const email = cleanEmail(body.email);
-      const password = String(body.password || '');
-      const passwordAgain = String(body.passwordAgain || body.password_again || '');
-      const city = normalizeTurkeyCity(body.city);
-      const signupCity = location.city || city;
-      const attemptIdentifier =
-        email ||
-        request.headers.get('cf-connecting-ip') ||
-        request.headers.get('x-real-ip') ||
-        'unknown';
+    if (action === 'requestSignupVerification') {
+      const validation = await readSignupInput(request, body, location);
+      if (!validation.ok) return validation.response;
+      try {
+        await withTransaction(async (client) => {
+          await ensureSignupEmailAvailable(client, validation.input.email);
+        });
+        const verification = await requestSignupVerification(validation.input);
+        return json({ data: verification, error: null });
+      } catch (error: any) {
+        await recordLoginFailure('app-signup', validation.input.attemptIdentifier, validation.settings);
+        return json(
+          { data: { verificationRequired: false }, error: { message: error?.message || 'Doğrulama kodu gönderilemedi' } },
+          400,
+        );
+      }
+    }
 
-      const settings = await getSecuritySettings('tr');
-      const lock = await getLoginAttemptLock('app-signup', attemptIdentifier);
-      if (lock.locked) {
-        return json(
-          { data: { user: null, session: null, profile: null }, error: { message: 'Kayıt geçici olarak kilitli. Lütfen daha sonra tekrar deneyin.' } },
-          429,
-        );
-      }
+    if (action === 'signUpWithPassword' || action === 'verifySignupWithPassword') {
+      const validation = await readSignupInput(request, body, location);
+      if (!validation.ok) return validation.response;
+      const { input, settings } = validation;
+      const verificationCode = cleanText(body.verificationCode || body.verification_code || body.code);
 
-      if (!fullName || !email || !password || !city) {
-        await recordLoginFailure('app-signup', attemptIdentifier, settings);
-        return json(
-          { data: { user: null, session: null, profile: null }, error: { message: 'Ad soyad, e-posta, şifre ve şehir zorunlu' } },
-          400,
-        );
-      }
-      if (!looksLikeEmail(email)) {
-        await recordLoginFailure('app-signup', attemptIdentifier, settings);
-        return json(
-          { data: { user: null, session: null, profile: null }, error: { message: 'Geçerli bir e-posta girin' } },
-          400,
-        );
-      }
-      if (passwordAgain && password !== passwordAgain) {
-        await recordLoginFailure('app-signup', attemptIdentifier, settings);
-        return json(
-          { data: { user: null, session: null, profile: null }, error: { message: 'Şifreler eşleşmiyor' } },
-          400,
-        );
-      }
-      const passwordError = validatePasswordWithSecuritySettings(password, settings);
-      if (passwordError) {
-        await recordLoginFailure('app-signup', attemptIdentifier, settings);
-        return json(
-          { data: { user: null, session: null, profile: null }, error: { message: passwordError } },
-          400,
-        );
+      if (!verificationCode) {
+        try {
+          await withTransaction(async (client) => {
+            await ensureSignupEmailAvailable(client, input.email);
+          });
+          const verification = await requestSignupVerification(input);
+          return json({ data: verification, error: null });
+        } catch (error: any) {
+          await recordLoginFailure('app-signup', input.attemptIdentifier, settings);
+          return json(
+            { data: { verificationRequired: false }, error: { message: error?.message || 'Doğrulama kodu gönderilemedi' } },
+            400,
+          );
+        }
       }
 
       let createdAuthUserId: string | null = null;
       let createdProfileId: string | null = null;
       try {
-        const usernameBase = cleanSignupUsernameBase(fullName, email);
+        const usernameBase = cleanSignupUsernameBase(input.fullName, input.email);
         const authUser = await withTransaction(async (client) => {
-          await ensureSignupEmailAvailable(client, email);
+          await consumeSignupVerification(client, input.email, verificationCode);
+          await ensureSignupEmailAvailable(client, input.email);
           const username = await uniqueSignupUsername(client, usernameBase);
           const created = await adminCreateAuthUser({
-            email,
-            password,
+            email: input.email,
+            password: input.password,
             userMetadata: {
-              full_name: fullName,
+              full_name: input.fullName,
               username,
-              email,
-              city,
+              email: input.email,
+              city: input.city,
               role: 'member',
               status: 'Aktif',
             },
@@ -382,29 +780,29 @@ export const POST: APIRoute = async ({ request }) => {
                $1::uuid, $2, $3, $4, 'member', 'Aktif', $5, $3,
                NULLIF($6, ''), NULLIF($7, ''), true, now(), now()
              )`,
-            [created.id, fullName, username, email, city, location.ip || '', signupCity || ''],
+            [created.id, input.fullName, username, input.email, input.city, location.ip || '', input.signupCity || ''],
           );
-          await setPasswordForUser(created.id, password, client);
+          await setPasswordForUser(created.id, input.password, client);
           createdProfileId = created.id;
           return created;
         });
 
-        const signInResult = await signInWithPassword(email, password);
+        const signInResult = await signInWithPassword(input.email, input.password);
         if (signInResult.error || !signInResult.data.session?.user?.id) {
           throw new Error(signInResult.error?.message || 'Kayıt oturumu oluşturulamadı');
         }
-        await clearLoginFailures('app-signup', attemptIdentifier);
+        await clearLoginFailures('app-signup', input.attemptIdentifier);
         await markProfileSignedIn(authUser.id, {
           ipAddress: location.ip,
-          signupCity,
+          signupCity: input.signupCity,
         });
         const profile = await profileForUser(authUser.id);
         await notifyAdminsForUserSignup({
           userId: authUser.id,
-          name: fullName,
-          email,
+          name: input.fullName,
+          email: input.email,
           provider: 'email',
-          city: signupCity || city,
+          city: input.signupCity || input.city,
         }).catch((notifyError) => {
           console.warn(
             'User signup admin notification failed:',
@@ -422,7 +820,7 @@ export const POST: APIRoute = async ({ request }) => {
         if (createdAuthUserId) {
           await adminDeleteAuthUser(createdAuthUserId).catch(() => undefined);
         }
-        await recordLoginFailure('app-signup', attemptIdentifier, settings);
+        await recordLoginFailure('app-signup', input.attemptIdentifier, settings);
         return json(
           { data: { user: null, session: null, profile: null }, error: { message: error?.message || 'Kayıt oluşturulamadı' } },
           400,

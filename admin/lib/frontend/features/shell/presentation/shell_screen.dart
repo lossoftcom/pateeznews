@@ -83,6 +83,8 @@ class ShellScreen extends StatefulWidget {
     this.notificationDeepLinkSerial = 0,
     this.onSignIn,
     this.onSignUp,
+    this.onRequestSignUpVerification,
+    this.onVerifySignUp,
     this.onSocialSignIn,
     this.onSignOut,
     this.onOpenAdminPanel,
@@ -114,6 +116,8 @@ class ShellScreen extends StatefulWidget {
   final int notificationDeepLinkSerial;
   final FrontendSignInCallback? onSignIn;
   final FrontendSignUpCallback? onSignUp;
+  final FrontendSignUpVerificationCallback? onRequestSignUpVerification;
+  final FrontendVerifySignUpCallback? onVerifySignUp;
   final FrontendSocialSignInCallback? onSocialSignIn;
   final Future<void> Function()? onSignOut;
   final Future<void> Function()? onOpenAdminPanel;
@@ -207,6 +211,9 @@ class _ShellScreenState extends State<ShellScreen>
                     authLoading: widget.authLoading,
                     onSignIn: widget.onSignIn,
                     onSignUp: widget.onSignUp,
+                    onRequestSignUpVerification:
+                        widget.onRequestSignUpVerification,
+                    onVerifySignUp: widget.onVerifySignUp,
                     onSocialSignIn: widget.onSocialSignIn,
                     onSignOut: widget.onSignOut,
                     shellSettings: widget.shellData.siteSettings,

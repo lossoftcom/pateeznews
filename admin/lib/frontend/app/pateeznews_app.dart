@@ -428,6 +428,48 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
     return authState;
   }
 
+  Future<FrontendSignupVerificationState> _requestSignUpVerification({
+    required String fullName,
+    required String email,
+    required String password,
+    required String passwordAgain,
+    required String city,
+  }) {
+    return widget.authRepository.requestSignUpVerification(
+      fullName: fullName,
+      email: email,
+      password: password,
+      passwordAgain: passwordAgain,
+      city: city,
+    );
+  }
+
+  Future<FrontendAuthState> _verifySignUp({
+    required String fullName,
+    required String email,
+    required String password,
+    required String passwordAgain,
+    required String city,
+    required String verificationCode,
+  }) async {
+    final authState = await widget.authRepository.verifySignUpWithPassword(
+      fullName: fullName,
+      email: email,
+      password: password,
+      passwordAgain: passwordAgain,
+      city: city,
+      verificationCode: verificationCode,
+    );
+    if (mounted) {
+      setState(() => _authState = authState);
+      unawaited(_refreshProfileData(authState));
+      unawaited(_loadHomeData());
+      unawaited(_loadOpinionData());
+      unawaited(_syncPushNotifications(authState));
+    }
+    return authState;
+  }
+
   Future<FrontendAuthState> _signInWithSocial(
     FrontendSocialAuthProvider provider,
   ) async {
@@ -585,6 +627,8 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
                 notificationDeepLinkSerial: _notificationDeepLinkSerial,
                 onSignIn: _signIn,
                 onSignUp: _signUp,
+                onRequestSignUpVerification: _requestSignUpVerification,
+                onVerifySignUp: _verifySignUp,
                 onSocialSignIn: _signInWithSocial,
                 onSignOut: _signOut,
                 onOpenAdminPanel: _openAdminPanel,

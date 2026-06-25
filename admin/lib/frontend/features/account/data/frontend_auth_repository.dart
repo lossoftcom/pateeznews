@@ -274,6 +274,35 @@ class FrontendAuthState {
   bool get isAdmin => profile?.isAdmin == true;
 }
 
+class FrontendSignupVerificationState {
+  const FrontendSignupVerificationState({
+    required this.email,
+    required this.resendAfterSeconds,
+    this.expiresAt,
+    this.message,
+  });
+
+  final String email;
+  final int resendAfterSeconds;
+  final DateTime? expiresAt;
+  final String? message;
+
+  factory FrontendSignupVerificationState.fromResult(
+    Map<String, Object?> result,
+  ) {
+    final data = _asStringMap(result['data']);
+    final expiresRaw = data['expiresAt']?.toString();
+    return FrontendSignupVerificationState(
+      email: data['email']?.toString() ?? '',
+      resendAfterSeconds: _asInt(data['resendAfterSeconds']),
+      expiresAt: expiresRaw == null || expiresRaw.isEmpty
+          ? null
+          : DateTime.tryParse(expiresRaw),
+      message: data['message']?.toString(),
+    );
+  }
+}
+
 class FrontendAuthStore {
   const FrontendAuthStore({
     this.secureStorage = const FlutterSecureStorage(
@@ -425,6 +454,45 @@ class FrontendAuthRepository {
       await store.clearProfileCache();
     }
     return FrontendAuthState(session: session, profile: profile);
+  }
+
+  Future<FrontendSignupVerificationState> requestSignUpVerification({
+    required String fullName,
+    required String email,
+    required String password,
+    required String passwordAgain,
+    required String city,
+  }) async {
+    final result = await _postJson('/api/app/auth', {
+      'action': 'requestSignupVerification',
+      'fullName': fullName.trim(),
+      'email': email.trim().toLowerCase(),
+      'password': password,
+      'passwordAgain': passwordAgain,
+      'city': city.trim(),
+    });
+    _throwIfApiError(result, fallbackMessage: 'Doğrulama kodu gönderilemedi');
+    return FrontendSignupVerificationState.fromResult(result);
+  }
+
+  Future<FrontendAuthState> verifySignUpWithPassword({
+    required String fullName,
+    required String email,
+    required String password,
+    required String passwordAgain,
+    required String city,
+    required String verificationCode,
+  }) async {
+    final result = await _postJson('/api/app/auth', {
+      'action': 'verifySignupWithPassword',
+      'fullName': fullName.trim(),
+      'email': email.trim().toLowerCase(),
+      'password': password,
+      'passwordAgain': passwordAgain,
+      'city': city.trim(),
+      'verificationCode': verificationCode.trim(),
+    });
+    return _authStateFromResult(result, fallbackMessage: 'Kayıt doğrulanamadı');
   }
 
   Future<FrontendAuthState> signUpWithPassword({

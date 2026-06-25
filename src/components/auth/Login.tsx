@@ -8,7 +8,7 @@ import RemixIcon from '@/components/ui/RemixIcon';
 
 type AccountMode = 'signIn' | 'signUp';
 type SocialProvider = 'google' | 'apple' | 'facebook' | 'x';
-type AuthFieldName = 'identifier' | 'password' | 'fullName' | 'email' | 'city' | 'newPassword' | 'newPasswordAgain';
+type AuthFieldName = 'identifier' | 'password' | 'fullName' | 'email' | 'city' | 'newPassword' | 'newPasswordAgain' | 'verificationCode';
 type AuthFieldErrors = Partial<Record<AuthFieldName, string>>;
 
 type SocialAuthSettings = {
@@ -26,6 +26,26 @@ type AppAuthResult = {
     user?: unknown;
   } | null;
   profile?: unknown;
+  verificationRequired?: boolean;
+  email?: string;
+  resendAfterSeconds?: number;
+  expiresAt?: string | null;
+  message?: string;
+};
+
+type SignupPayload = {
+  fullName: string;
+  email: string;
+  password: string;
+  passwordAgain: string;
+  city: string;
+};
+
+type SignupVerificationState = {
+  email: string;
+  fullName: string;
+  resendAvailableAt: number;
+  expiresAt: number;
 };
 
 declare global {
@@ -217,6 +237,7 @@ const fieldForAuthError = (message: string, mode: AccountMode): AuthFieldName | 
   if (normalized.includes('e-posta') || normalized.includes('email')) return mode === 'signUp' ? 'email' : 'identifier';
   if (normalized.includes('eşleş') || normalized.includes('şifreler')) return mode === 'signUp' ? 'newPasswordAgain' : 'password';
   if (normalized.includes('şifre') || normalized.includes('password')) return mode === 'signUp' ? 'newPassword' : 'password';
+  if (normalized.includes('doğrulama') || normalized.includes('kod')) return mode === 'signUp' ? 'verificationCode' : null;
   if (normalized.includes('geçersiz giriş') || normalized.includes('giriş bilgileri') || normalized.includes('invalid login')) return 'password';
   if (normalized.includes('ad soyad')) return 'fullName';
   if (normalized.includes('şehir')) return 'city';
@@ -236,6 +257,32 @@ const providerLabel = (provider: SocialProvider, mode: AccountMode) => {
   if (provider === 'apple') return `Apple ile ${action}`;
   if (provider === 'facebook') return `Facebook ile ${action}`;
   return `X ile ${action}`;
+};
+
+const signupVerificationTime = (value: unknown, fallbackMs: number) => {
+  const parsed = Date.parse(String(value || ''));
+  return Number.isFinite(parsed) ? parsed : Date.now() + fallbackMs;
+};
+
+const formatCountdown = (seconds: number) => {
+  const safe = Math.max(0, Math.ceil(seconds));
+  const minutes = Math.floor(safe / 60);
+  const rest = safe % 60;
+  return `${minutes}:${String(rest).padStart(2, '0')}`;
+};
+
+const passwordStrength = (value: string) => {
+  const score = [
+    value.length >= 8,
+    /[a-zçğıöşü]/.test(value) && /[A-ZÇĞİÖŞÜ]/.test(value),
+    /\d/.test(value),
+    /[^A-Za-z0-9ÇĞİÖŞÜçğıöşü]/.test(value),
+    value.length >= 12,
+  ].filter(Boolean).length;
+  if (!value) return { score: 0, label: 'Güçlü şifre oluştur', color: '#dfe8eb' };
+  if (score <= 2) return { score, label: 'Daha güçlü olabilir', color: '#f59f00' };
+  if (score <= 4) return { score, label: 'Güçlü şifre', color: '#10a76f' };
+  return { score, label: 'Çok güçlü şifre', color: '#07885a' };
 };
 
 const providerIcon = (provider: SocialProvider) => {
@@ -453,8 +500,13 @@ const Login: React.FC<LoginProps> = ({ onSuccess, onClose, siteSettings }) => {
   const [newPassword, setNewPassword] = useState('');
   const [newPasswordAgain, setNewPasswordAgain] = useState('');
   const [city, setCity] = useState(DEFAULT_CITY);
+  const [signupPayload, setSignupPayload] = useState<SignupPayload | null>(null);
+  const [signupVerification, setSignupVerification] = useState<SignupVerificationState | null>(null);
+  const [verificationCode, setVerificationCode] = useState('');
+  const [timeTick, setTimeTick] = useState(() => Date.now());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<AuthFieldErrors>({});
   const [showPassword, setShowPassword] = useState(false);
   const [showPasswordAgain, setShowPasswordAgain] = useState(false);
@@ -465,6 +517,14 @@ const Login: React.FC<LoginProps> = ({ onSuccess, onClose, siteSettings }) => {
   const siteSocialAuth = useMemo(() => socialAuthFromSiteSettings(siteSettings), [siteSettings]);
   const socialAuth = shellSocialAuth || siteSocialAuth;
   const isSignUp = mode === 'signUp';
+  const isSignupVerificationStep = isSignUp && Boolean(signupVerification);
+  const strength = useMemo(() => passwordStrength(newPassword), [newPassword]);
+  const resendSeconds = signupVerification
+    ? Math.max(0, Math.ceil((signupVerification.resendAvailableAt - timeTick) / 1000))
+    : 0;
+  const expiresSeconds = signupVerification
+    ? Math.max(0, Math.ceil((signupVerification.expiresAt - timeTick) / 1000))
+    : 0;
   const logoUrl = (
     String(siteSettings?.logo_url || '').trim() ||
     shellLogoUrl ||
@@ -483,6 +543,13 @@ const Login: React.FC<LoginProps> = ({ onSuccess, onClose, siteSettings }) => {
   useEffect(() => {
     setLogoFailed(false);
   }, [logoUrl]);
+
+  useEffect(() => {
+    if (!signupVerification) return undefined;
+    setTimeTick(Date.now());
+    const timer = window.setInterval(() => setTimeTick(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [signupVerification]);
 
   useEffect(() => {
     let cancelled = false;
@@ -533,6 +600,19 @@ const Login: React.FC<LoginProps> = ({ onSuccess, onClose, siteSettings }) => {
   const setModeSafely = (nextMode: AccountMode) => {
     if (loading) return;
     setMode(nextMode);
+    setError(null);
+    setNotice(null);
+    setFieldErrors({});
+    setSignupPayload(null);
+    setSignupVerification(null);
+    setVerificationCode('');
+  };
+
+  const resetSignupVerification = () => {
+    setSignupPayload(null);
+    setSignupVerification(null);
+    setVerificationCode('');
+    setNotice(null);
     setError(null);
     setFieldErrors({});
   };
@@ -586,30 +666,65 @@ const Login: React.FC<LoginProps> = ({ onSuccess, onClose, siteSettings }) => {
     return nextErrors;
   };
 
+  const validateSignupVerificationFields = (): AuthFieldErrors => {
+    const nextErrors = validateSignUpFields();
+    const cleanCode = verificationCode.replace(/\D/g, '');
+    if (!cleanCode) {
+      nextErrors.verificationCode = 'Doğrulama kodu zorunlu';
+    } else if (cleanCode.length !== 6) {
+      nextErrors.verificationCode = '6 haneli kodu girin';
+    }
+    return nextErrors;
+  };
+
   const handleAuth = async (event: React.FormEvent) => {
     event.preventDefault();
     if (loading) return;
-    const validationErrors = isSignUp ? validateSignUpFields() : validateSignInFields();
+    const validationErrors = isSignUp
+      ? isSignupVerificationStep
+        ? validateSignupVerificationFields()
+        : validateSignUpFields()
+      : validateSignInFields();
     if (hasFieldErrors(validationErrors)) {
       setFieldErrors(validationErrors);
       setError(null);
+      setNotice(null);
       return;
     }
     setLoading(true);
     setError(null);
+    setNotice(null);
     setFieldErrors({});
 
     try {
       if (isSignUp) {
-        const cleanName = fullName.trim();
-        const cleanEmail = email.trim().toLowerCase();
-        const data = await appAuthRequest({
-          action: 'signUpWithPassword',
-          fullName: cleanName,
-          email: cleanEmail,
+        const payload: SignupPayload = signupPayload || {
+          fullName: fullName.trim(),
+          email: email.trim().toLowerCase(),
           password: newPassword,
           passwordAgain: newPasswordAgain,
           city,
+        };
+        if (!isSignupVerificationStep) {
+          const data = await appAuthRequest({
+            action: 'requestSignupVerification',
+            ...payload,
+          });
+          setSignupPayload(payload);
+          setSignupVerification({
+            email: String(data.email || payload.email),
+            fullName: payload.fullName,
+            resendAvailableAt: Date.now() + Number(data.resendAfterSeconds || 120) * 1000,
+            expiresAt: signupVerificationTime(data.expiresAt, 150_000),
+          });
+          setVerificationCode('');
+          setNotice(cleanMessage(data.message, 'Doğrulama kodunu e-posta adresine gönderdik.'));
+          return;
+        }
+        const data = await appAuthRequest({
+          action: 'verifySignupWithPassword',
+          ...payload,
+          verificationCode: verificationCode.replace(/\D/g, ''),
         });
         await applySupabaseSession(data.session);
       } else {
@@ -637,6 +752,32 @@ const Login: React.FC<LoginProps> = ({ onSuccess, onClose, siteSettings }) => {
         setFieldErrors({});
         setError(message);
       }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendSignupCode = async () => {
+    if (loading || !signupPayload || resendSeconds > 0) return;
+    setLoading(true);
+    setError(null);
+    setNotice(null);
+    setFieldErrors({});
+    try {
+      const data = await appAuthRequest({
+        action: 'requestSignupVerification',
+        ...signupPayload,
+      });
+      setSignupVerification({
+        email: String(data.email || signupPayload.email),
+        fullName: signupPayload.fullName,
+        resendAvailableAt: Date.now() + Number(data.resendAfterSeconds || 120) * 1000,
+        expiresAt: signupVerificationTime(data.expiresAt, 150_000),
+      });
+      setVerificationCode('');
+      setNotice(cleanMessage(data.message, 'Yeni doğrulama kodunu gönderdik.'));
+    } catch (resendError: any) {
+      setError(cleanMessage(resendError?.message, 'Doğrulama kodu yeniden gönderilemedi.'));
     } finally {
       setLoading(false);
     }
@@ -761,7 +902,7 @@ const Login: React.FC<LoginProps> = ({ onSuccess, onClose, siteSettings }) => {
                 {isSignUp ? 'Kayıt Ol' : 'Giriş Yap'}
               </div>
 
-              {providers.length > 0 && (
+              {providers.length > 0 && !isSignupVerificationStep && (
                 <>
                   <div className="grid grid-cols-1 gap-2 min-[420px]:grid-cols-2 md:grid-cols-2">
                     {providers.map((provider) => (
@@ -787,6 +928,53 @@ const Login: React.FC<LoginProps> = ({ onSuccess, onClose, siteSettings }) => {
               )}
 
               {isSignUp ? (
+                isSignupVerificationStep ? (
+                  <div className="space-y-3">
+                    <div className="rounded-[6px] border border-[#e3ecef] bg-[#fbfcfd] px-4 py-3 text-center">
+                      <div className="text-[11px] font-[900] uppercase tracking-[0.08em] text-[#f54138]">
+                        E-posta doğrulama
+                      </div>
+                      <div className="mt-1 text-[13px] font-[800] leading-snug text-[#263545]">
+                        {signupVerification?.email}
+                      </div>
+                      <div className="mt-1 text-[11.5px] font-[700] leading-snug text-[#7a8791]">
+                        Kod {formatCountdown(expiresSeconds)} içinde geçerli.
+                      </div>
+                    </div>
+                    <TextInput
+                      ariaLabel="Doğrulama kodu"
+                      icon="ri-shield-check-line"
+                      value={verificationCode}
+                      onChange={(value) => {
+                        setVerificationCode(value.replace(/\D/g, '').slice(0, 6));
+                        clearFieldError('verificationCode');
+                      }}
+                      placeholder="6 haneli kod"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      disabled={loading}
+                      error={fieldErrors.verificationCode}
+                    />
+                    <div className="flex items-center justify-between gap-3">
+                      <button
+                        type="button"
+                        onClick={handleResendSignupCode}
+                        disabled={loading || resendSeconds > 0}
+                        className="text-[11.5px] font-[900] text-[#314257] transition hover:text-[#f54138] focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {resendSeconds > 0 ? `Tekrar gönder ${formatCountdown(resendSeconds)}` : 'Kodu tekrar gönder'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={resetSignupVerification}
+                        disabled={loading}
+                        className="text-[11.5px] font-[900] text-[#8b98a2] transition hover:text-[#314257] focus:outline-none disabled:opacity-50"
+                      >
+                        Bilgileri düzenle
+                      </button>
+                    </div>
+                  </div>
+                ) : (
                 <>
                   <TextInput
                     ariaLabel="Ad soyad"
@@ -855,7 +1043,22 @@ const Login: React.FC<LoginProps> = ({ onSuccess, onClose, siteSettings }) => {
                       compact
                     />
                   </div>
+                  <div className="rounded-[5px] border border-[#edf1f2] bg-[#fbfcfd] px-3 py-2">
+                    <div className="flex gap-1">
+                      {[1, 2, 3, 4, 5].map((item) => (
+                        <span
+                          key={item}
+                          className="h-1.5 flex-1 rounded-full"
+                          style={{ backgroundColor: item <= strength.score ? strength.color : '#e7eef1' }}
+                        />
+                      ))}
+                    </div>
+                    <div className="mt-1.5 text-[11px] font-[800] text-[#7a8791]">
+                      {strength.label}
+                    </div>
+                  </div>
                 </>
+                )
               ) : (
                 <>
                   <TextInput
@@ -916,6 +1119,11 @@ const Login: React.FC<LoginProps> = ({ onSuccess, onClose, siteSettings }) => {
                   {error}
                 </p>
               )}
+              {notice && !error && (
+                <p className="rounded-[4px] border border-[#d7eee5] bg-[#f1fbf7] px-3 py-2 text-[11.5px] font-[800] leading-snug text-[#0d8a5b]">
+                  {notice}
+                </p>
+              )}
 
               <button
                 type="submit"
@@ -925,11 +1133,11 @@ const Login: React.FC<LoginProps> = ({ onSuccess, onClose, siteSettings }) => {
                 {loading ? (
                   <>
                     <Loader2 size={17} className="animate-spin" />
-                    <span>{isSignUp ? 'Bekleniyor' : 'Giriş yapılıyor'}</span>
+                    <span>{isSignUp ? (isSignupVerificationStep ? 'Doğrulanıyor' : 'Kod gönderiliyor') : 'Giriş yapılıyor'}</span>
                   </>
                 ) : (
                   <>
-                    <span>{isSignUp ? 'Kayıt ol' : 'Giriş yap'}</span>
+                    <span>{isSignUp ? (isSignupVerificationStep ? 'Hesabı doğrula' : 'Kayıt ol') : 'Giriş yap'}</span>
                     <ArrowRight size={18} strokeWidth={2.4} />
                   </>
                 )}
@@ -959,6 +1167,7 @@ interface TextInputProps {
   placeholder: string;
   disabled: boolean;
   type?: string;
+  inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode'];
   autoComplete?: string;
   error?: string;
 }
@@ -971,6 +1180,7 @@ const TextInput: React.FC<TextInputProps> = ({
   placeholder,
   disabled,
   type = 'text',
+  inputMode,
   autoComplete,
   error,
 }) => {
@@ -984,6 +1194,7 @@ const TextInput: React.FC<TextInputProps> = ({
         </span>
         <input
           type={type}
+          inputMode={inputMode}
           value={value}
           onChange={(event) => onChange(event.target.value)}
           placeholder={placeholder}

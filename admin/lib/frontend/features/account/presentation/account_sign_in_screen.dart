@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -31,6 +33,25 @@ typedef FrontendSignUpCallback =
       required String city,
     });
 
+typedef FrontendSignUpVerificationCallback =
+    Future<FrontendSignupVerificationState> Function({
+      required String fullName,
+      required String email,
+      required String password,
+      required String passwordAgain,
+      required String city,
+    });
+
+typedef FrontendVerifySignUpCallback =
+    Future<FrontendAuthState> Function({
+      required String fullName,
+      required String email,
+      required String password,
+      required String passwordAgain,
+      required String city,
+      required String verificationCode,
+    });
+
 typedef FrontendSocialSignInCallback =
     Future<FrontendAuthState> Function(FrontendSocialAuthProvider provider);
 
@@ -42,6 +63,8 @@ class AccountSignInScreen extends StatefulWidget {
     this.authLoading = false,
     this.onSignIn,
     this.onSignUp,
+    this.onRequestSignUpVerification,
+    this.onVerifySignUp,
     this.onSocialSignIn,
     this.onSignOut,
     this.shellSettings = const AppShellSettings.empty(),
@@ -52,6 +75,8 @@ class AccountSignInScreen extends StatefulWidget {
   final bool authLoading;
   final FrontendSignInCallback? onSignIn;
   final FrontendSignUpCallback? onSignUp;
+  final FrontendSignUpVerificationCallback? onRequestSignUpVerification;
+  final FrontendVerifySignUpCallback? onVerifySignUp;
   final FrontendSocialSignInCallback? onSocialSignIn;
   final Future<void> Function()? onSignOut;
   final AppShellSettings shellSettings;
@@ -115,6 +140,9 @@ class _AccountSignInScreenState extends State<AccountSignInScreen> {
                               onModeChanged: _setMode,
                               onSignIn: widget.onSignIn,
                               onSignUp: widget.onSignUp,
+                              onRequestSignUpVerification:
+                                  widget.onRequestSignUpVerification,
+                              onVerifySignUp: widget.onVerifySignUp,
                               onSocialSignIn: widget.onSocialSignIn,
                               shellSettings: widget.shellSettings,
                             ),
@@ -466,6 +494,8 @@ class _AuthPanel extends StatefulWidget {
     required this.onModeChanged,
     required this.onSignIn,
     required this.onSignUp,
+    required this.onRequestSignUpVerification,
+    required this.onVerifySignUp,
     required this.onSocialSignIn,
     required this.shellSettings,
   });
@@ -475,11 +505,29 @@ class _AuthPanel extends StatefulWidget {
   final ValueChanged<_AccountMode> onModeChanged;
   final FrontendSignInCallback? onSignIn;
   final FrontendSignUpCallback? onSignUp;
+  final FrontendSignUpVerificationCallback? onRequestSignUpVerification;
+  final FrontendVerifySignUpCallback? onVerifySignUp;
   final FrontendSocialSignInCallback? onSocialSignIn;
   final AppShellSettings shellSettings;
 
   @override
   State<_AuthPanel> createState() => _AuthPanelState();
+}
+
+class _PendingSignUp {
+  const _PendingSignUp({
+    required this.fullName,
+    required this.email,
+    required this.password,
+    required this.passwordAgain,
+    required this.city,
+  });
+
+  final String fullName;
+  final String email;
+  final String password;
+  final String passwordAgain;
+  final String city;
 }
 
 class _AuthPanelState extends State<_AuthPanel> {
@@ -489,62 +537,183 @@ class _AuthPanelState extends State<_AuthPanel> {
   final _email = TextEditingController();
   final _newPassword = TextEditingController();
   final _newPasswordAgain = TextEditingController();
+  final _verificationCode = TextEditingController();
 
   var _city = defaultTurkeyCity;
   var _submitting = false;
+  _PendingSignUp? _pendingSignUp;
+  DateTime? _resendAvailableAt;
+  DateTime? _expiresAt;
+  Timer? _countdownTimer;
   String? _error;
+  String? _notice;
 
   bool get _isSignUp => widget.mode == _AccountMode.signUp;
+  bool get _isVerificationStep => _isSignUp && _pendingSignUp != null;
   bool get _busy => _submitting || widget.authLoading;
+  int get _resendSeconds {
+    final target = _resendAvailableAt;
+    if (target == null) return 0;
+    return target.difference(DateTime.now()).inSeconds.clamp(0, 999).toInt();
+  }
+
+  int get _expiresSeconds {
+    final target = _expiresAt;
+    if (target == null) return 0;
+    return target.difference(DateTime.now()).inSeconds.clamp(0, 999).toInt();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _newPassword.addListener(_refreshPasswordStrength);
+  }
 
   @override
   void dispose() {
+    _newPassword.removeListener(_refreshPasswordStrength);
     _identifier.dispose();
     _password.dispose();
     _name.dispose();
     _email.dispose();
     _newPassword.dispose();
     _newPasswordAgain.dispose();
+    _verificationCode.dispose();
+    _countdownTimer?.cancel();
     super.dispose();
+  }
+
+  void _refreshPasswordStrength() {
+    if (mounted) setState(() {});
+  }
+
+  String _formatSeconds(int seconds) {
+    final safe = seconds.clamp(0, 999).toInt();
+    final minutes = safe ~/ 60;
+    final rest = safe % 60;
+    return '$minutes:${rest.toString().padLeft(2, '0')}';
+  }
+
+  void _startCountdown() {
+    _countdownTimer?.cancel();
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  void _clearVerificationStep() {
+    _countdownTimer?.cancel();
+    setState(() {
+      _pendingSignUp = null;
+      _resendAvailableAt = null;
+      _expiresAt = null;
+      _verificationCode.clear();
+      _error = null;
+      _notice = null;
+    });
+  }
+
+  void _applyVerificationState(
+    _PendingSignUp pending,
+    FrontendSignupVerificationState verification,
+  ) {
+    setState(() {
+      _pendingSignUp = pending;
+      _verificationCode.clear();
+      _resendAvailableAt = DateTime.now().add(
+        Duration(
+          seconds: verification.resendAfterSeconds > 0
+              ? verification.resendAfterSeconds
+              : 120,
+        ),
+      );
+      _expiresAt =
+          verification.expiresAt ??
+          DateTime.now().add(const Duration(seconds: 150));
+      _error = null;
+      _notice = verification.message ?? 'Doğrulama kodunu e-postana gönderdik.';
+    });
+    _startCountdown();
   }
 
   Future<void> _submit() async {
     if (_busy) return;
     FocusScope.of(context).unfocus();
     if (_isSignUp) {
-      final fullName = _name.text.trim();
-      final email = _email.text.trim().toLowerCase();
-      final password = _newPassword.text;
-      final passwordAgain = _newPasswordAgain.text;
-      if (fullName.isEmpty || email.isEmpty || password.isEmpty) {
+      final pending =
+          _pendingSignUp ??
+          _PendingSignUp(
+            fullName: _name.text.trim(),
+            email: _email.text.trim().toLowerCase(),
+            password: _newPassword.text,
+            passwordAgain: _newPasswordAgain.text,
+            city: _city,
+          );
+      if (pending.fullName.isEmpty ||
+          pending.email.isEmpty ||
+          pending.password.isEmpty) {
         setState(() => _error = 'Ad soyad, e-posta, şifre ve şehir zorunlu.');
         return;
       }
-      if (!isTurkeyCity(_city)) {
+      if (!isTurkeyCity(pending.city)) {
         setState(() => _error = 'Şehir seçimi zorunlu.');
         return;
       }
-      if (password != passwordAgain) {
+      if (pending.password != pending.passwordAgain) {
         setState(() => _error = 'Şifreler eşleşmiyor.');
-        return;
-      }
-      final onSignUp = widget.onSignUp;
-      if (onSignUp == null) {
-        setState(() => _error = 'Kayıt servisi hazır değil.');
         return;
       }
       setState(() {
         _submitting = true;
         _error = null;
+        _notice = null;
       });
       try {
-        await onSignUp(
-          fullName: fullName,
-          email: email,
-          password: password,
-          passwordAgain: passwordAgain,
-          city: _city,
-        );
+        if (_isVerificationStep) {
+          final code = _verificationCode.text.replaceAll(RegExp(r'\D'), '');
+          if (code.length != 6) {
+            setState(() => _error = '6 haneli doğrulama kodunu gir.');
+            return;
+          }
+          final onVerify = widget.onVerifySignUp;
+          if (onVerify == null) {
+            setState(() => _error = 'Doğrulama servisi hazır değil.');
+            return;
+          }
+          await onVerify(
+            fullName: pending.fullName,
+            email: pending.email,
+            password: pending.password,
+            passwordAgain: pending.passwordAgain,
+            city: pending.city,
+            verificationCode: code,
+          );
+        } else if (widget.onRequestSignUpVerification != null &&
+            widget.onVerifySignUp != null) {
+          final verification = await widget.onRequestSignUpVerification!(
+            fullName: pending.fullName,
+            email: pending.email,
+            password: pending.password,
+            passwordAgain: pending.passwordAgain,
+            city: pending.city,
+          );
+          if (!mounted) return;
+          _applyVerificationState(pending, verification);
+          return;
+        } else {
+          final onSignUp = widget.onSignUp;
+          if (onSignUp == null) {
+            setState(() => _error = 'Kayıt servisi hazır değil.');
+            return;
+          }
+          await onSignUp(
+            fullName: pending.fullName,
+            email: pending.email,
+            password: pending.password,
+            passwordAgain: pending.passwordAgain,
+            city: pending.city,
+          );
+        }
         if (!mounted) return;
         Navigator.of(context).maybePop();
       } on FrontendAuthException catch (error) {
@@ -574,6 +743,7 @@ class _AuthPanelState extends State<_AuthPanel> {
     setState(() {
       _submitting = true;
       _error = null;
+      _notice = null;
     });
     try {
       await onSignIn(identifier: identifier, password: password);
@@ -585,6 +755,39 @@ class _AuthPanelState extends State<_AuthPanel> {
     } catch (_) {
       if (!mounted) return;
       setState(() => _error = 'Giriş yapılamadı. Lütfen tekrar dene.');
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  Future<void> _resendVerificationCode() async {
+    if (_busy || _pendingSignUp == null || _resendSeconds > 0) return;
+    final onRequest = widget.onRequestSignUpVerification;
+    if (onRequest == null) {
+      setState(() => _error = 'Doğrulama servisi hazır değil.');
+      return;
+    }
+    final pending = _pendingSignUp!;
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    try {
+      final verification = await onRequest(
+        fullName: pending.fullName,
+        email: pending.email,
+        password: pending.password,
+        passwordAgain: pending.passwordAgain,
+        city: pending.city,
+      );
+      if (!mounted) return;
+      _applyVerificationState(pending, verification);
+    } on FrontendAuthException catch (error) {
+      if (!mounted) return;
+      setState(() => _error = error.message);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _error = 'Kod yeniden gönderilemedi. Lütfen tekrar dene.');
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -642,55 +845,98 @@ class _AuthPanelState extends State<_AuthPanel> {
               const SizedBox(height: AppSpacing.md),
             ],
             if (_isSignUp) ...[
-              _TextInputField(
-                label: 'Ad soyad',
-                hint: 'Adını yaz',
-                icon: Symbols.person_rounded,
-                controller: _name,
-                enabled: !_busy,
-                autofillHints: [AutofillHints.name],
-                textInputAction: TextInputAction.next,
-                textCapitalization: TextCapitalization.words,
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              _TextInputField(
-                label: 'E-posta',
-                hint: 'mail@ornek.com',
-                icon: Symbols.alternate_email_rounded,
-                controller: _email,
-                enabled: !_busy,
-                autofillHints: [AutofillHints.email],
-                keyboardType: TextInputType.emailAddress,
-                textInputAction: TextInputAction.next,
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              AdaptiveCitySelectField(
-                label: 'Şehir',
-                value: _city,
-                enabled: !_busy,
-                onChanged: (value) {
-                  setState(() => _city = normalizeTurkeyCity(value));
-                },
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              _PasswordField(
-                label: 'Şifre',
-                hint: 'Güçlü şifre oluştur',
-                controller: _newPassword,
-                enabled: !_busy,
-                autofillHints: [AutofillHints.newPassword],
-                textInputAction: TextInputAction.next,
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              _PasswordField(
-                label: 'Şifre tekrar',
-                hint: 'Şifreni tekrar yaz',
-                controller: _newPasswordAgain,
-                enabled: !_busy,
-                autofillHints: [AutofillHints.newPassword],
-                textInputAction: TextInputAction.done,
-                onSubmitted: (_) => _submit(),
-              ),
+              if (_isVerificationStep) ...[
+                _VerificationCard(
+                  email: _pendingSignUp?.email ?? '',
+                  expiresLabel: _formatSeconds(_expiresSeconds),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                _TextInputField(
+                  label: 'Doğrulama kodu',
+                  hint: '6 haneli kod',
+                  icon: Symbols.verified_user_outlined,
+                  controller: _verificationCode,
+                  enabled: !_busy,
+                  autofillHints: [AutofillHints.oneTimeCode],
+                  keyboardType: TextInputType.number,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => _submit(),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _InlineTextButton(
+                        label: _resendSeconds > 0
+                            ? 'Tekrar gönder ${_formatSeconds(_resendSeconds)}'
+                            : 'Kodu tekrar gönder',
+                        onTap: _busy || _resendSeconds > 0
+                            ? null
+                            : _resendVerificationCode,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: _InlineTextButton(
+                        label: 'Bilgileri düzenle',
+                        onTap: _busy ? null : _clearVerificationStep,
+                      ),
+                    ),
+                  ],
+                ),
+              ] else ...[
+                _TextInputField(
+                  label: 'Ad soyad',
+                  hint: 'Adını yaz',
+                  icon: Symbols.person_rounded,
+                  controller: _name,
+                  enabled: !_busy,
+                  autofillHints: [AutofillHints.name],
+                  textInputAction: TextInputAction.next,
+                  textCapitalization: TextCapitalization.words,
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                _TextInputField(
+                  label: 'E-posta',
+                  hint: 'mail@ornek.com',
+                  icon: Symbols.alternate_email_rounded,
+                  controller: _email,
+                  enabled: !_busy,
+                  autofillHints: [AutofillHints.email],
+                  keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.next,
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                AdaptiveCitySelectField(
+                  label: 'Şehir',
+                  value: _city,
+                  enabled: !_busy,
+                  onChanged: (value) {
+                    setState(() => _city = normalizeTurkeyCity(value));
+                  },
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                _PasswordField(
+                  label: 'Şifre',
+                  hint: 'Güçlü şifre oluştur',
+                  controller: _newPassword,
+                  enabled: !_busy,
+                  autofillHints: [AutofillHints.newPassword],
+                  textInputAction: TextInputAction.next,
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                _PasswordField(
+                  label: 'Şifre tekrar',
+                  hint: 'Şifreni tekrar yaz',
+                  controller: _newPasswordAgain,
+                  enabled: !_busy,
+                  autofillHints: [AutofillHints.newPassword],
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => _submit(),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                _PasswordStrengthBar(password: _newPassword.text),
+              ],
             ] else ...[
               _TextInputField(
                 label: 'Kullanıcı adı veya e-posta',
@@ -735,12 +981,27 @@ class _AuthPanelState extends State<_AuthPanel> {
                 ),
               ),
             ],
+            if (_notice != null && _error == null) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                _notice!,
+                style: AppTypography.meta.copyWith(
+                  color: const Color(0xFF0D8A5B),
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
             const SizedBox(height: AppSpacing.md),
             _PrimaryButton(
               label: _busy
-                  ? (_isSignUp ? 'Bekleniyor' : 'Giriş yapılıyor')
+                  ? (_isSignUp
+                        ? (_isVerificationStep
+                              ? 'Doğrulanıyor'
+                              : 'Kod gönderiliyor')
+                        : 'Giriş yapılıyor')
                   : _isSignUp
-                  ? 'Kayıt ol'
+                  ? (_isVerificationStep ? 'Hesabı doğrula' : 'Kayıt ol')
                   : 'Giriş yap',
               loading: _busy,
               onTap: _submit,
@@ -750,9 +1011,18 @@ class _AuthPanelState extends State<_AuthPanel> {
               label: _isSignUp ? 'Giriş yap' : 'Üye ol',
               onTap: _busy
                   ? null
-                  : () => widget.onModeChanged(
-                      _isSignUp ? _AccountMode.signIn : _AccountMode.signUp,
-                    ),
+                  : () {
+                      _countdownTimer?.cancel();
+                      _pendingSignUp = null;
+                      _resendAvailableAt = null;
+                      _expiresAt = null;
+                      _verificationCode.clear();
+                      _notice = null;
+                      _error = null;
+                      widget.onModeChanged(
+                        _isSignUp ? _AccountMode.signIn : _AccountMode.signUp,
+                      );
+                    },
             ),
           ],
         ),
@@ -1065,6 +1335,161 @@ class _DividerLabel extends StatelessWidget {
         ),
         const Expanded(child: Divider(color: AppColors.softLine, height: 1)),
       ],
+    );
+  }
+}
+
+class _VerificationCard extends StatelessWidget {
+  const _VerificationCard({required this.email, required this.expiresLabel});
+
+  final String email;
+  final String expiresLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceSoft,
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: AppColors.softLine),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Symbols.mark_email_read_outlined,
+            color: AppColors.actionRed,
+            size: 24,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            'E-posta doğrulama',
+            style: AppTypography.titleS.copyWith(
+              color: AppColors.inkStrong,
+              fontSize: 14,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            email,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTypography.meta.copyWith(
+              color: AppColors.deepOcean,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Kod $expiresLabel içinde geçerli.',
+            style: AppTypography.meta.copyWith(
+              color: AppColors.support,
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InlineTextButton extends StatelessWidget {
+  const _InlineTextButton({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton(
+      onPressed: onTap,
+      style: TextButton.styleFrom(
+        foregroundColor: AppColors.deepOcean,
+        disabledForegroundColor: AppColors.support.withValues(alpha: 0.6),
+        padding: EdgeInsets.zero,
+        textStyle: AppTypography.meta.copyWith(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+      child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+    );
+  }
+}
+
+class _PasswordStrengthBar extends StatelessWidget {
+  const _PasswordStrengthBar({required this.password});
+
+  final String password;
+
+  int get _score {
+    final checks = [
+      password.length >= 8,
+      RegExp(r'[a-zçğıöşü]').hasMatch(password) &&
+          RegExp(r'[A-ZÇĞİÖŞÜ]').hasMatch(password),
+      RegExp(r'\d').hasMatch(password),
+      RegExp(r'[^A-Za-z0-9ÇĞİÖŞÜçğıöşü]').hasMatch(password),
+      password.length >= 12,
+    ];
+    return checks.where((item) => item).length;
+  }
+
+  String get _label {
+    if (password.isEmpty) return 'Güçlü şifre oluştur';
+    if (_score <= 2) return 'Daha güçlü olabilir';
+    if (_score <= 4) return 'Güçlü şifre';
+    return 'Çok güçlü şifre';
+  }
+
+  Color get _color {
+    if (password.isEmpty) return AppColors.softLine;
+    if (_score <= 2) return const Color(0xFFF59F00);
+    if (_score <= 4) return const Color(0xFF10A76F);
+    return const Color(0xFF07885A);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceSoft,
+        borderRadius: BorderRadius.circular(AppRadius.value),
+        border: Border.all(color: AppColors.softLine),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              for (var index = 1; index <= 5; index++) ...[
+                Expanded(
+                  child: Container(
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: index <= _score ? _color : AppColors.softLine,
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                  ),
+                ),
+                if (index < 5) const SizedBox(width: 4),
+              ],
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            _label,
+            style: AppTypography.meta.copyWith(
+              color: AppColors.support,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
