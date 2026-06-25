@@ -653,6 +653,7 @@ export const dataService = {
             sourceAvatar: post?.profiles?.avatar_url || (cardData as any)?.sourceAvatar || '',
             isPinned: post?.is_pinned ?? (cardData as any)?.isPinned ?? false,
             isManset: post?.show_in_manset ?? (cardData as any)?.isManset ?? false,
+            hideCoverInDetail: post?.hide_cover_in_detail ?? (cardData as any)?.hideCoverInDetail ?? false,
             publisherId: post?.publisher_id ?? (cardData as any)?.publisherId,
             publisherHandle: post?.profiles?.username ?? (cardData as any)?.publisherHandle,
             publisherBio: post?.profiles?.about_me ?? (cardData as any)?.publisherBio,

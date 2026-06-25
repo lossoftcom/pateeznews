@@ -106,6 +106,7 @@ export interface NewsItem {
   isOfficial?: boolean;
   isPinned?: boolean;
   isManset?: boolean;
+  hideCoverInDetail?: boolean;
   // User specific interaction states (pre-fetched for speed)
   userLiked?: boolean;
   userSaved?: boolean;

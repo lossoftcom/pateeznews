@@ -133,6 +133,7 @@ export const GET: APIRoute = async ({ request, url }) => {
     const offset = numericOffset(url.searchParams.get('offset'));
     const search = normalizeText(url.searchParams.get('search'));
     const status = normalizeText(url.searchParams.get('status'));
+    const adminOnly = ['1', 'true', 'yes'].includes(normalizeText(url.searchParams.get('admin_only')).toLowerCase());
     const values: any[] = [];
     const where: string[] = [];
 
@@ -143,6 +144,12 @@ export const GET: APIRoute = async ({ request, url }) => {
     if (search) {
       values.push(`%${search}%`);
       where.push(`(c.campaign_name ILIKE $${values.length} OR c.title ILIKE $${values.length} OR c.body ILIKE $${values.length})`);
+    }
+    if (adminOnly) {
+      where.push(`(
+        c.data_json->>'adminOnly' = 'true'
+        OR c.data_json->>'admin_only' = 'true'
+      )`);
     }
 
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';

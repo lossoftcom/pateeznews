@@ -288,6 +288,7 @@ class AdminNewsEditorPost {
     required this.publisherId,
     required this.isPinned,
     required this.showInManset,
+    required this.hideCoverInDetail,
     required this.factChecked,
     required this.schemaType,
     required this.publishedAt,
@@ -312,6 +313,7 @@ class AdminNewsEditorPost {
   final String publisherId;
   final bool isPinned;
   final bool showInManset;
+  final bool hideCoverInDetail;
   final bool factChecked;
   final String schemaType;
   final DateTime? publishedAt;
@@ -337,6 +339,7 @@ class AdminNewsEditorPost {
       publisherId: json['publisher_id']?.toString() ?? '',
       isPinned: json['is_pinned'] == true,
       showInManset: json['show_in_manset'] == true,
+      hideCoverInDetail: json['hide_cover_in_detail'] == true,
       factChecked: json['fact_checked'] == true,
       schemaType: json['schema_type']?.toString() ?? 'NewsArticle',
       publishedAt: _modelParseDate(json['published_at']),

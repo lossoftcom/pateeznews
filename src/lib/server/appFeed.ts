@@ -1521,6 +1521,7 @@ const mapFeedItem = (
   const raw = item as NewsItem & {
     sourceAvatar?: string;
     isPinned?: boolean;
+    hideCoverInDetail?: boolean;
     publisherId?: string;
     publisherHandle?: string;
     publisherBio?: string;
@@ -1731,6 +1732,7 @@ const mapFeedItem = (
     publisherExpertise: String(raw.publisherExpertise || ""),
     isPinned: raw.isPinned === true,
     isManset: item.isManset === true,
+    hideCoverInDetail: raw.hideCoverInDetail === true,
     isOfficial: raw.isOfficial === true,
     isVerified: raw.isVerified === true,
     previewComments,

@@ -284,6 +284,7 @@ const POST_FEED_SELECT = `
             p.language_code,
             p.is_pinned,
             p.show_in_manset,
+            p.hide_cover_in_detail,
             p.fact_checked,
             p.schema_type,
             p.card_data,

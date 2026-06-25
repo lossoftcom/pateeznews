@@ -133,6 +133,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   var _pageSize = 25;
   var _total = 0;
   var _loading = true;
+  var _adminOnly = false;
   var _sortState = const TableSortState(key: 'date', ascending: false);
   Timer? _searchDebounce;
 
@@ -171,6 +172,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             limit: _pageSize,
             offset: offset,
             search: search,
+            adminOnly: _adminOnly,
           );
           if (!mounted) return;
           setState(() {
@@ -275,6 +277,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   void _changePage(int page) {
     if (page == _page) return;
     setState(() => _page = page);
+    unawaited(_load());
+  }
+
+  void _toggleAdminOnly() {
+    setState(() {
+      _adminOnly = !_adminOnly;
+      _page = 1;
+    });
     unawaited(_load());
   }
 
@@ -598,6 +608,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 onPageSizeChanged: _changePageSize,
                 onSearchChanged: _changeSearch,
                 onRefresh: () => unawaited(_load()),
+                adminOnly: widget.section == AdminNotificationSection.campaigns
+                    ? _adminOnly
+                    : false,
+                onAdminOnlyToggle:
+                    widget.section == AdminNotificationSection.campaigns
+                    ? _toggleAdminOnly
+                    : null,
                 onCreate: widget.section == AdminNotificationSection.campaigns
                     ? () => unawaited(_showCampaignDialog())
                     : widget.section == AdminNotificationSection.templates
@@ -1151,6 +1168,8 @@ class _Toolbar extends StatefulWidget {
     required this.onPageSizeChanged,
     required this.onSearchChanged,
     required this.onRefresh,
+    required this.adminOnly,
+    required this.onAdminOnlyToggle,
     required this.onCreate,
   });
 
@@ -1161,6 +1180,8 @@ class _Toolbar extends StatefulWidget {
   final ValueChanged<int?> onPageSizeChanged;
   final ValueChanged<String> onSearchChanged;
   final VoidCallback onRefresh;
+  final bool adminOnly;
+  final VoidCallback? onAdminOnlyToggle;
   final VoidCallback? onCreate;
 
   @override
@@ -1193,6 +1214,15 @@ class _ToolbarState extends State<_Toolbar> {
             label: context.t('common.refresh'),
             onPressed: widget.onRefresh,
           ),
+          if (widget.onAdminOnlyToggle != null)
+            AdminTablePrimaryActionButton(
+              icon: Symbols.verified_user_outlined,
+              label: context.t('notifications.filter.admin'),
+              onPressed: widget.onAdminOnlyToggle!,
+              backgroundColor: widget.adminOnly
+                  ? AppColors.deepOcean
+                  : AppColors.deepOcean.withValues(alpha: 0.82),
+            ),
           if (widget.onCreate != null)
             AdminTablePrimaryActionButton(
               icon: Symbols.add,
@@ -1220,16 +1250,19 @@ class _ToolbarState extends State<_Toolbar> {
                 onPageSizeChanged: widget.onPageSizeChanged,
               ),
               const SizedBox(height: 10),
-              if (actionButtons.length == 1)
-                actionButtons.first
-              else
-                Row(
-                  children: [
-                    Expanded(child: actionButtons.first),
-                    const SizedBox(width: 10),
-                    Expanded(child: actionButtons.last),
-                  ],
-                ),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  for (final button in actionButtons)
+                    SizedBox(
+                      width:
+                          (constraints.maxWidth - 10) /
+                          (actionButtons.length > 1 ? 2 : 1),
+                      child: button,
+                    ),
+                ],
+              ),
             ],
           );
         }
@@ -1588,6 +1621,51 @@ class _NotificationTable extends StatelessWidget {
   }
 }
 
+String _campaignTargetSubtitle(
+  BuildContext context,
+  AdminNotificationCampaign campaign,
+) {
+  final targetType = campaign.targetType.trim().toLowerCase();
+  return switch (targetType) {
+    'platform' =>
+      campaign.targetPlatforms.isEmpty
+          ? context.t('notifications.target.allPlatforms')
+          : campaign.targetPlatforms.join(', '),
+    'topic' =>
+      campaign.targetTopics.isEmpty
+          ? context.t('notifications.target.allTopics')
+          : campaign.targetTopics.join(', '),
+    'user' => _countLabel(
+      context,
+      campaign.targetUserIds.length,
+      'notifications.target.selectedUser',
+      'notifications.target.selectedUsers',
+      'notifications.target.noSelectedUsers',
+    ),
+    'token' => _countLabel(
+      context,
+      campaign.targetTokenIds.length,
+      'notifications.target.selectedToken',
+      'notifications.target.selectedTokens',
+      'notifications.target.noSelectedTokens',
+    ),
+    'all' => context.t('notifications.target.all'),
+    _ => context.t('notifications.target.all'),
+  };
+}
+
+String _countLabel(
+  BuildContext context,
+  int count,
+  String singleKey,
+  String pluralKey,
+  String emptyKey,
+) {
+  if (count <= 0) return context.t(emptyKey);
+  final key = count == 1 ? singleKey : pluralKey;
+  return context.t(key).replaceAll('{count}', count.toString());
+}
+
 class _CampaignRow extends StatelessWidget {
   const _CampaignRow({
     required this.campaign,
@@ -1644,9 +1722,7 @@ class _CampaignRow extends StatelessWidget {
           flex: 2,
           child: _TwoLineCell(
             title: context.t('notifications.target.${campaign.targetType}'),
-            subtitle: campaign.targetPlatforms.isEmpty
-                ? context.t('notifications.target.all')
-                : campaign.targetPlatforms.join(', '),
+            subtitle: _campaignTargetSubtitle(context, campaign),
           ),
         ),
         Expanded(
@@ -1919,9 +1995,7 @@ class _CampaignMobileCard extends StatelessWidget {
               ),
               AdminMobileMeta(
                 icon: Symbols.public_rounded,
-                value: campaign.targetPlatforms.isEmpty
-                    ? context.t('notifications.target.all')
-                    : campaign.targetPlatforms.join(', '),
+                value: _campaignTargetSubtitle(context, campaign),
               ),
               AdminMobileMeta(
                 icon: Symbols.check,

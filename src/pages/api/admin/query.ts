@@ -104,6 +104,7 @@ const TABLE_COLUMNS: Record<string, Set<string>> = Object.fromEntries(
       'shares_count', 'views_count', 'saves_count', 'card_data', 'slug',
       'items', 'status', 'seo_title', 'seo_description', 'keywords',
       'language_code', 'published_at', 'is_pinned', 'show_in_manset',
+      'hide_cover_in_detail',
       'fact_checked', 'schema_type', 'faq_data', 'deleted_at', 'deleted_by',
       'deleted_from_status',
     ],

@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:pateeznews_admin/core/network/admin_api_headers.dart';
 
@@ -23,6 +22,7 @@ abstract class AdminNotificationsRepository {
     int limit = 25,
     int offset = 0,
     String search = '',
+    bool adminOnly = false,
   });
 
   Future<AdminNotificationCampaign> saveCampaign(
@@ -102,12 +102,14 @@ class SupabaseAdminNotificationsRepository
     int limit = 25,
     int offset = 0,
     String search = '',
+    bool adminOnly = false,
   }) async {
     final result =
         await _getJson('/api/admin/notifications/campaigns', session, {
           'limit': '$limit',
           'offset': '$offset',
           if (search.trim().isNotEmpty) 'search': search.trim(),
+          if (adminOnly) 'admin_only': 'true',
         });
     return _page(result, (json) => AdminNotificationCampaign.fromJson(json));
   }

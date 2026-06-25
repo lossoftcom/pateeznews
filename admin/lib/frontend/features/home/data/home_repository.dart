@@ -219,6 +219,7 @@ class HomeRepository {
       imageAspectRatio: _positiveDouble(json['imageAspectRatio']),
       isManset: _bool(json['isManset']),
       isPinned: _bool(json['isPinned']),
+      hideCoverInDetail: _bool(json['hideCoverInDetail']),
       sliderImages: _strList(json['sliderImages']),
       videoUrl: videoUrl,
       videoUrls: _strList(json['videoUrls']),

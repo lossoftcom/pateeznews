@@ -110,6 +110,8 @@ class AdminNotificationCampaign {
     this.deepLink = '',
     this.targetPlatforms = const <String>[],
     this.targetTopics = const <String>[],
+    this.targetUserIds = const <String>[],
+    this.targetTokenIds = const <String>[],
     this.ttlSeconds = 3600,
     this.channelId = 'pateez_general',
     this.scheduledStartAt,
@@ -128,6 +130,8 @@ class AdminNotificationCampaign {
   final String deepLink;
   final AdminNotificationStatus status;
   final String priority;
+  final List<String> targetUserIds;
+  final List<String> targetTokenIds;
   final int ttlSeconds;
   final String channelId;
   final int recipientCount;
@@ -150,6 +154,8 @@ class AdminNotificationCampaign {
       targetType: _text(json['target_type'], 'all'),
       targetPlatforms: _stringList(json['target_platforms']),
       targetTopics: _stringList(json['target_topics']),
+      targetUserIds: _stringList(json['target_user_ids']),
+      targetTokenIds: _stringList(json['target_token_ids']),
       imageUrl: _text(json['image_url']),
       deepLink: _text(json['deep_link']),
       status: notificationStatusFromText(json['status']),

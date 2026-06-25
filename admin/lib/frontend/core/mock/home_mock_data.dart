@@ -152,6 +152,7 @@ class NewsArticle {
     this.imageAspectRatio,
     this.isManset = false,
     this.isPinned = false,
+    this.hideCoverInDetail = false,
     this.sliderImages = const [],
     this.videoUrl = '',
     this.videoUrls = const [],
@@ -196,6 +197,7 @@ class NewsArticle {
   final double? imageAspectRatio;
   final bool isManset;
   final bool isPinned;
+  final bool hideCoverInDetail;
 
   /// Ana sayfada "slider" bloğu seçiliyse gösterilecek görseller (sırayla).
   /// Boşsa tek görsel / kapak gösterilir.

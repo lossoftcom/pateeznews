@@ -2044,6 +2044,7 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
   }, [data.id, data.publisherId]);
 
   const renderQuizBlock = (item: any) => <QuizBlock key={item.id} item={item} />;
+  const hideDetailCover = (data as any).hideCoverInDetail === true;
 
   const renderMedia = () => {
     const postType = String((data as any).postType || '').toLowerCase();
@@ -2051,6 +2052,7 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
 
     // Eğer bu bir "article" haberi ise, ana medya her zaman haberin kapak görseli olmalı.
     if (postType === 'article') {
+      if (hideDetailCover) return null;
       const coverOptimized = data.optimizedCoverThumbnail || data.optimizedThumbnail;
       const coverSrc = coverOptimized?.src || coverThumbnail;
       if (!coverSrc) return null;
@@ -2175,8 +2177,10 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
     );
   };
   const coverOptimized = data.optimizedCoverThumbnail || data.optimizedThumbnail;
-  const mobileHeroRawSrc = coverOptimized?.src || (data as any).coverThumbnail || data.thumbnail || data.mediaUrl || '';
-  const mobileHeroSrc = withImageVariant(mobileHeroRawSrc, 1600);
+  const mobileHeroRawSrc = hideDetailCover
+    ? ''
+    : coverOptimized?.src || (data as any).coverThumbnail || data.thumbnail || data.mediaUrl || '';
+  const mobileHeroSrc = mobileHeroRawSrc ? withImageVariant(mobileHeroRawSrc, 1600) : '';
   const mobileHeroSize = imageSizeAttrs(coverOptimized);
   const categoryLine = breadcrumbs
     .map((crumb) => titleCaseText(t(crumb.label) || crumb.label))
@@ -2237,11 +2241,11 @@ const NewsDetail: React.FC<NewsDetailProps> = ({ data, onBack, navItems, siteSet
               frameClassName="mobile-detail-hero-media bg-[#0F1B26]"
               imageClassName="bg-[#0F1B26]"
             />
-          ) : (
+          ) : !hideDetailCover ? (
             <div className="mobile-detail-hero-empty">
               <RemixIcon name="ri-image-line" size={34} />
             </div>
-          )}
+          ) : null}
           <div className="mobile-detail-hero-overlay" ref={heroShareMenuRef}>
             <div className="mobile-detail-hero-actions">
               <button type="button" onClick={toggleDetailLike} className={detailState.liked ? 'is-active' : undefined} aria-label="Beğen">

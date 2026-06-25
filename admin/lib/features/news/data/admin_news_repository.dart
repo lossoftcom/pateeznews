@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:pateeznews_admin/core/network/admin_api_headers.dart';
 import 'package:pateeznews_admin/shared/data/admin_request_retry.dart';
@@ -311,7 +310,7 @@ class SupabaseAdminNewsRepository implements AdminNewsRepository {
       'table': 'posts',
       'method': 'select',
       'select':
-          'id,title,summary,category,type,thumbnail_url,thumbnail_alt,seo_title,seo_description,keywords,slug,status,language_code,publisher_id,is_pinned,show_in_manset,fact_checked,schema_type,published_at,card_data,items,faq_data',
+          'id,title,summary,category,type,thumbnail_url,thumbnail_alt,seo_title,seo_description,keywords,slug,status,language_code,publisher_id,is_pinned,show_in_manset,hide_cover_in_detail,fact_checked,schema_type,published_at,card_data,items,faq_data',
       'filters': [_idFilter(postId)],
       'single': 'single',
     });

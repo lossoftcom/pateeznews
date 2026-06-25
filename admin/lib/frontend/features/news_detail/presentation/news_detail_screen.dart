@@ -753,22 +753,25 @@ class _DetailArticleSection extends StatelessWidget {
     return Column(
       key: sectionKey,
       children: [
-        _DetailHero(
-          article: article,
-          isFirst: isFirst,
-          categoryTrail: categoryTrail,
-          shellSettings: shellSettings,
-          actionState: actionStateFor(article),
-          onLike: () => onLike(article),
-          onDislike: () => onDislike(article),
-          onComment: onComment,
-          onSave: () => onSave(article),
-          onShare: () => onShare(article),
-          authState: authState,
-          postActionRepository: postActionRepository,
-          onAuthRequired: onAuthRequired,
-          onAuthorTap: onAuthorTap,
-        ),
+        if (!article.hideCoverInDetail)
+          _DetailHero(
+            article: article,
+            isFirst: isFirst,
+            categoryTrail: categoryTrail,
+            shellSettings: shellSettings,
+            actionState: actionStateFor(article),
+            onLike: () => onLike(article),
+            onDislike: () => onDislike(article),
+            onComment: onComment,
+            onSave: () => onSave(article),
+            onShare: () => onShare(article),
+            authState: authState,
+            postActionRepository: postActionRepository,
+            onAuthRequired: onAuthRequired,
+            onAuthorTap: onAuthorTap,
+          ),
+        if (article.hideCoverInDetail && isFirst)
+          SizedBox(height: MediaQuery.viewPaddingOf(context).top + 64),
         DetailLede(
               article: article,
               onFollow: onFollow,

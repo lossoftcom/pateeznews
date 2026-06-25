@@ -307,6 +307,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
   var _pollSort = NewsAddQuizSort.asc;
   var _mansetSlider = false;
   var _pinToTop = false;
+  var _hideCoverInDetail = false;
   var _factCheck = false;
   var _pollAllowMulti = false;
   var _pollShowResults = true;
@@ -544,6 +545,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     _pollSort = NewsAddQuizSort.asc;
     _mansetSlider = false;
     _pinToTop = false;
+    _hideCoverInDetail = false;
     _factCheck = false;
     _factRatingValue = '5';
     _pollAllowMulti = false;
@@ -751,6 +753,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     _languageCode = post.languageCode.isEmpty ? 'tr' : post.languageCode;
     _pinToTop = post.isPinned;
     _mansetSlider = post.showInManset;
+    _hideCoverInDetail = post.hideCoverInDetail;
     _factCheck = post.factChecked;
     final factCheckData = _map(post.cardData['factCheck']);
     _setControllerText(
@@ -2657,6 +2660,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
       'publisher_id': _publisherIdForSave,
       'is_pinned': _pinToTop,
       'show_in_manset': _mansetSlider,
+      'hide_cover_in_detail': _hideCoverInDetail,
       'type': _postTypeForActiveTab,
     };
   }
@@ -3598,24 +3602,26 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
 
     final selected = await _openMansetImageDialog();
     if (!mounted || selected == null) return;
-    final selectedImage = selected.trim();
+    final selectedImage = selected.imageUrl.trim();
     final coverImage = _cleanMediaUrl(_coverImageUrl);
 
     setState(() {
       _mansetImageUrl = selectedImage;
       _mansetImageFollowsCover =
           coverImage.isNotEmpty && selectedImage == coverImage;
+      _pinToTop = selected.pinToTop;
       _mansetSlider = true;
     });
   }
 
-  Future<String?> _openMansetImageDialog() {
-    return showDialog<String>(
+  Future<_MansetImageDialogResult?> _openMansetImageDialog() {
+    return showDialog<_MansetImageDialogResult>(
       context: context,
       barrierColor: AppColors.deepOcean.withValues(alpha: 0.58),
       builder: (dialogContext) {
         return _MansetImageDialog(
           initialImageUrl: _mansetImageUrl,
+          initialPinToTop: _pinToTop,
           onValidateImage: _validateMansetImageSelection,
           languageCode: _languageCode,
           headlineText: _titleController.text,
@@ -8241,7 +8247,10 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
     return _CoverCard(
       imageUrl: _coverImageUrl,
       altController: _coverAltController,
+      hideCoverInDetail: _hideCoverInDetail,
       onImageChanged: _handleCoverImageChanged,
+      onHideCoverInDetailChanged: (value) =>
+          setState(() => _hideCoverInDetail = value),
       languageCode: _languageCode,
       headlineText: () => _titleController.text.trim(),
       summaryText: () => _summaryController.text.trim(),
@@ -9564,6 +9573,7 @@ String _newsImageEditorSlug(String value) {
 class _MansetImageDialog extends StatefulWidget {
   const _MansetImageDialog({
     required this.initialImageUrl,
+    required this.initialPinToTop,
     required this.onValidateImage,
     required this.languageCode,
     required this.headlineText,
@@ -9571,6 +9581,7 @@ class _MansetImageDialog extends StatefulWidget {
   });
 
   final String? initialImageUrl;
+  final bool initialPinToTop;
   final Future<Size?> Function(String imageUrl) onValidateImage;
   final String languageCode;
   final String headlineText;
@@ -9583,6 +9594,7 @@ class _MansetImageDialog extends StatefulWidget {
 class _MansetImageDialogState extends State<_MansetImageDialog> {
   String? _imageUrl;
   Size? _imageSize;
+  late bool _pinToTop;
   var _checking = false;
   var _hover = false;
 
@@ -9592,6 +9604,7 @@ class _MansetImageDialogState extends State<_MansetImageDialog> {
     _imageUrl = widget.initialImageUrl?.trim().isEmpty ?? true
         ? null
         : widget.initialImageUrl!.trim();
+    _pinToTop = widget.initialPinToTop;
   }
 
   Future<void> _openMediaLibrary() async {
@@ -9693,6 +9706,17 @@ class _MansetImageDialogState extends State<_MansetImageDialog> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     _MansetImageNotice(),
+                    const SizedBox(height: 14),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: _NamedToggle(
+                        label: 'newsAdd.pin',
+                        value: _pinToTop,
+                        onChanged: (value) => setState(() => _pinToTop = value),
+                        activeColor: AppColors.warmHorizon,
+                        showCheckIcon: true,
+                      ),
+                    ),
                     const SizedBox(height: 18),
                     LayoutBuilder(
                       builder: (context, constraints) {
@@ -9740,7 +9764,12 @@ class _MansetImageDialogState extends State<_MansetImageDialog> {
             _MansetImageDialogFooter(
               onCancel: () => Navigator.of(context).pop(),
               onSave: canSave
-                  ? () => Navigator.of(context).pop(_imageUrl!.trim())
+                  ? () => Navigator.of(context).pop(
+                      _MansetImageDialogResult(
+                        imageUrl: _imageUrl!.trim(),
+                        pinToTop: _pinToTop,
+                      ),
+                    )
                   : null,
             ),
           ],
@@ -9748,6 +9777,16 @@ class _MansetImageDialogState extends State<_MansetImageDialog> {
       ),
     );
   }
+}
+
+class _MansetImageDialogResult {
+  const _MansetImageDialogResult({
+    required this.imageUrl,
+    required this.pinToTop,
+  });
+
+  final String imageUrl;
+  final bool pinToTop;
 }
 
 class _MansetImageDialogHeader extends StatelessWidget {
@@ -17788,7 +17827,9 @@ class _CoverCard extends StatefulWidget {
   const _CoverCard({
     required this.imageUrl,
     required this.altController,
+    required this.hideCoverInDetail,
     required this.onImageChanged,
+    required this.onHideCoverInDetailChanged,
     required this.languageCode,
     required this.headlineText,
     required this.summaryText,
@@ -17796,7 +17837,9 @@ class _CoverCard extends StatefulWidget {
 
   final String? imageUrl;
   final TextEditingController altController;
+  final bool hideCoverInDetail;
   final ValueChanged<String?> onImageChanged;
+  final ValueChanged<bool> onHideCoverInDetailChanged;
   final String languageCode;
   final ValueGetter<String> headlineText;
   final ValueGetter<String> summaryText;
@@ -18273,14 +18316,28 @@ class _CoverCardState extends State<_CoverCard> {
         children: [
           Padding(
             padding: const EdgeInsets.only(bottom: 14, left: 2),
-            child: Text(
-              context.t('newsAdd.cover'),
-              style: const TextStyle(
-                color: AppColors.deepOcean,
-                fontSize: 12.5,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.35,
-              ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    context.t('newsAdd.cover'),
+                    style: const TextStyle(
+                      color: AppColors.deepOcean,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.35,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                _NamedToggle(
+                  label: 'newsAdd.hideCoverInDetail',
+                  value: widget.hideCoverInDetail,
+                  onChanged: widget.onHideCoverInDetailChanged,
+                  activeColor: AppColors.actionRed,
+                  showCheckIcon: true,
+                ),
+              ],
             ),
           ),
           GestureDetector(
