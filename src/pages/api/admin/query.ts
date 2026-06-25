@@ -63,6 +63,7 @@ const TABLE_COLUMNS: Record<string, Set<string>> = Object.fromEntries(
       'content', 'status', 'is_pinned', 'likes_count', 'created_at',
       'updated_at', 'post_title', 'user_name', 'user_avatar',
       'replies_count', 'reports_count', 'content_search', 'meta_search',
+      'ip_address', 'city',
     ],
     ai_ready_formats: [
       'id', 'title', 'prompt', 'purpose', 'language_code', 'is_active', 'created_at',
@@ -72,7 +73,7 @@ const TABLE_COLUMNS: Record<string, Set<string>> = Object.fromEntries(
     comments: [
       'id', 'post_id', 'user_id', 'parent_id', 'content', 'status',
       'is_pinned', 'likes_count', 'created_at', 'updated_at', 'guest_name',
-      'guest_email', 'post_title', 'user_name',
+      'guest_email', 'post_title', 'user_name', 'ip_address', 'city',
     ],
     language_translations: ['language_code', 'key', 'value', 'updated_at'],
     languages: [

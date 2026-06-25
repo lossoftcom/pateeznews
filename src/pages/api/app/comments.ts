@@ -6,6 +6,8 @@ import {
   type SecuritySpamInteractionPolicy,
 } from "@/lib/server/securitySettings";
 import { notifyAdminsForComment } from "@/lib/server/notifications/adminEvents";
+import { getRequestLocation } from "@/lib/server/requestLocation";
+import { normalizeTurkeyCity } from "@/lib/server/turkeyCities";
 
 export const prerender = false;
 
@@ -39,6 +41,11 @@ type InsertedCommentRow = {
   status: string;
 };
 
+type CommentLocation = {
+  ip: string | null;
+  city: string | null;
+};
+
 const numericId = (value: unknown) => {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
@@ -50,6 +57,11 @@ const cleanText = (value: unknown, max = 2000) =>
 const cleanEmail = (value: unknown) => cleanText(value, 254).toLowerCase();
 
 const looksLikeEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+
+const cleanCity = (value: unknown) => {
+  const city = normalizeTurkeyCity(value);
+  return city || cleanText(value, 120) || null;
+};
 
 const resolveImageUrl = (url: string, base: string): string => {
   if (!url) return "";
@@ -272,6 +284,38 @@ async function assertParentBelongsToPost(parentId: number | null, postId: number
   }
 }
 
+async function resolveCommentLocation(
+  request: Request,
+  body: Record<string, any>,
+  userId: string | null,
+): Promise<CommentLocation> {
+  const requestLocation = getRequestLocation(request);
+  const bodyCity = cleanCity(body.city || body.signupCity || body.signup_city);
+  if (!userId) {
+    return { ip: requestLocation.ip, city: requestLocation.city || bodyCity };
+  }
+
+  const profileResult = await dbQuery<{
+    signup_city: string | null;
+    city: string | null;
+  }>(
+    `SELECT signup_city, city
+     FROM public.profiles
+     WHERE id = $1::uuid
+     LIMIT 1`,
+    [userId],
+  ).catch(() => ({ rows: [] }));
+  const profile = profileResult.rows[0] || null;
+  return {
+    ip: requestLocation.ip,
+    city:
+      requestLocation.city ||
+      cleanCity(profile?.signup_city) ||
+      cleanCity(profile?.city) ||
+      bodyCity,
+  };
+}
+
 export const POST: APIRoute = async ({ request }) => {
   try {
     const body = await request.json();
@@ -317,12 +361,13 @@ export const POST: APIRoute = async ({ request }) => {
       const status = commentSettings.commentApprovalSystem
         ? "pending"
         : "approved";
+      const location = await resolveCommentLocation(request, body, userId);
 
       const insertedComment = await withTransaction(async (client) => {
         const result = await client.query<InsertedCommentRow>(
           `INSERT INTO public.comments
-             (post_id, user_id, guest_name, guest_email, parent_id, content, status)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)
+             (post_id, user_id, guest_name, guest_email, parent_id, content, status, ip_address, city)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, NULLIF($8, ''), NULLIF($9, ''))
            RETURNING id::text, status`,
           [
             postId,
@@ -332,6 +377,8 @@ export const POST: APIRoute = async ({ request }) => {
             parentId,
             content,
             status,
+            location.ip || "",
+            location.city || "",
           ],
         );
         return result.rows[0] || null;

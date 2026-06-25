@@ -53,6 +53,8 @@ class AdminComment {
     required this.userAvatar,
     required this.guestName,
     required this.guestEmail,
+    this.ipAddress = '',
+    this.city = '',
     this.userFullName = '',
     this.userEmail = '',
     this.userUsername = '',
@@ -75,6 +77,8 @@ class AdminComment {
   final String userAvatar;
   final String guestName;
   final String guestEmail;
+  final String ipAddress;
+  final String city;
   final String userFullName;
   final String userEmail;
   final String userUsername;

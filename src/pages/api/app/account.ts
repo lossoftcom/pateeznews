@@ -79,6 +79,11 @@ function cleanUuid(value: unknown) {
     : '';
 }
 
+function cleanUuidList(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return Array.from(new Set(value.map(cleanUuid).filter(Boolean)));
+}
+
 function userPayload(
   body: any,
   passwordRequired: boolean,
@@ -294,8 +299,9 @@ export const POST: APIRoute = async ({ request }) => {
         return json({ error: { message: 'Current password is invalid' } }, 400);
       }
       await withTransaction(async (client) => {
+        await adminDeleteAuthUser(userId, client);
+        await client.query('UPDATE public.posts SET publisher_id = NULL WHERE publisher_id = $1::uuid', [userId]);
         await client.query('DELETE FROM public.profiles WHERE id = $1::uuid', [userId]);
-        await adminDeleteAuthUser(userId);
       });
       return json({ ok: true });
     }
@@ -442,26 +448,26 @@ export const POST: APIRoute = async ({ request }) => {
 
     if (action === 'admin-delete-user') {
       if (!(await requireAdminPermission(userId, 'manage_users'))) return json({ error: { message: 'Forbidden' } }, 403);
-      const targetUserId = String(body.userId || '');
+      const targetUserId = cleanUuid(body.userId);
       if (!targetUserId) return json({ error: { message: 'User missing' } }, 400);
       await withTransaction(async (client) => {
+        await adminDeleteAuthUser(targetUserId, client);
+        await client.query('UPDATE public.posts SET publisher_id = NULL WHERE publisher_id = $1::uuid', [targetUserId]);
         await client.query('DELETE FROM public.profiles WHERE id = $1::uuid', [targetUserId]);
-        await adminDeleteAuthUser(targetUserId);
       });
       return json({ ok: true });
     }
 
     if (action === 'admin-delete-users') {
       if (!(await requireAdminPermission(userId, 'manage_users'))) return json({ error: { message: 'Forbidden' } }, 403);
-      const userIds = Array.isArray(body.userIds)
-        ? body.userIds.map((value: unknown) => String(value || '').trim()).filter(Boolean)
-        : [];
+      const userIds = cleanUuidList(body.userIds);
       if (!userIds.length) return json({ error: { message: 'Users missing' } }, 400);
       await withTransaction(async (client) => {
-        await client.query('DELETE FROM public.profiles WHERE id = ANY($1::uuid[])', [userIds]);
         for (const targetUserId of userIds) {
-          await adminDeleteAuthUser(targetUserId);
+          await adminDeleteAuthUser(targetUserId, client);
         }
+        await client.query('UPDATE public.posts SET publisher_id = NULL WHERE publisher_id = ANY($1::uuid[])', [userIds]);
+        await client.query('DELETE FROM public.profiles WHERE id = ANY($1::uuid[])', [userIds]);
       });
       return json({ ok: true, deletedIds: userIds });
     }

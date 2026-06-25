@@ -1,3 +1,5 @@
+import { isIP } from 'node:net';
+
 import { TURKEY_CITIES, normalizeTurkeyCity } from './turkeyCities';
 
 type CloudflareRequest = Request & {
@@ -29,18 +31,33 @@ const normalizeDetectedCity = (value: unknown) => {
 const headerValue = (request: Request, name: string) =>
   request.headers.get(name)?.trim() || '';
 
-const firstForwardedIp = (value: string) =>
+const forwardedForIps = (value: string) =>
   value
     .split(',')
     .map((part) => part.trim())
-    .find(Boolean) || '';
+    .filter(Boolean);
 
-const normalizeClientIp = (value: unknown) => {
+const forwardedHeaderIps = (value: string) =>
+  value
+    .split(',')
+    .map((part) => part.match(/(?:^|;)\s*for=(?:"([^"]+)"|([^;,\s]+))/i))
+    .map((match) => (match ? match[1] || match[2] || '' : ''))
+    .filter(Boolean);
+
+export const normalizeClientIp = (value: unknown) => {
   if (!value) return null;
   const raw = Array.isArray(value) ? value[0] : value;
   if (typeof raw !== 'string' && typeof raw !== 'number') return null;
-  const ip = String(raw).trim().slice(0, 64);
-  return ip || null;
+  let ip = String(raw).trim().replace(/^"|"$/g, '');
+  if (!ip) return null;
+  if (ip.startsWith('[')) {
+    const end = ip.indexOf(']');
+    if (end > 0) ip = ip.slice(1, end);
+  } else if (/^\d{1,3}(?:\.\d{1,3}){3}:\d+$/.test(ip)) {
+    ip = ip.replace(/:\d+$/, '');
+  }
+  ip = ip.replace(/%.+$/, '').slice(0, 64);
+  return isIP(ip) ? ip : null;
 };
 
 export function getRequestLocation(request: Request, clientAddress?: string) {
@@ -51,13 +68,14 @@ export function getRequestLocation(request: Request, clientAddress?: string) {
       cf.region ||
       headerValue(request, 'cf-region'),
   );
-  const ip = normalizeClientIp(
-    headerValue(request, 'cf-connecting-ip') ||
-      headerValue(request, 'true-client-ip') ||
-      headerValue(request, 'x-real-ip') ||
-      firstForwardedIp(headerValue(request, 'x-forwarded-for')) ||
-      clientAddress,
-  );
+  const forwarded = headerValue(request, 'forwarded');
+  const ip =
+    normalizeClientIp(headerValue(request, 'cf-connecting-ip')) ||
+    normalizeClientIp(headerValue(request, 'true-client-ip')) ||
+    normalizeClientIp(headerValue(request, 'x-real-ip')) ||
+    forwardedForIps(headerValue(request, 'x-forwarded-for')).map(normalizeClientIp).find(Boolean) ||
+    forwardedHeaderIps(forwarded).map(normalizeClientIp).find(Boolean) ||
+    normalizeClientIp(clientAddress);
 
   return { city, ip };
 }

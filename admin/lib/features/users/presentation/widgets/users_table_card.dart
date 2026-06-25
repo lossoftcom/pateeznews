@@ -1952,15 +1952,18 @@ class _UserLocationCell extends StatelessWidget {
         ),
         if (ip.isNotEmpty) ...[
           const SizedBox(height: 2),
-          HighlightedText(
-            'IP $ip',
-            query: _UsersSearchScope.of(context),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: AppColors.support,
-              fontWeight: FontWeight.w500,
-              fontSize: 11.5,
+          Tooltip(
+            message: ip,
+            child: HighlightedText(
+              'IP $ip',
+              query: _UsersSearchScope.of(context),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppColors.support,
+                fontWeight: FontWeight.w500,
+                fontSize: 11.5,
+              ),
             ),
           ),
         ],

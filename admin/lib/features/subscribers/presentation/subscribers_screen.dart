@@ -1626,11 +1626,14 @@ class _SubscriberTableRow extends StatelessWidget {
           ),
           SizedBox(
             width: _SubscriberTableHeader._ipWidth,
-            child: _SubscriberTextCell(value: subscriber.ipAddress),
+            child: _SubscriberTextCell(
+              value: subscriber.ipAddress,
+              emptyText: '-',
+            ),
           ),
           SizedBox(
             width: _SubscriberTableHeader._cityWidth,
-            child: _SubscriberTextCell(value: subscriber.city),
+            child: _SubscriberTextCell(value: subscriber.city, emptyText: '-'),
           ),
           SizedBox(
             width: _SubscriberTableHeader._statusWidth,
@@ -1691,15 +1694,22 @@ class _SubscriberTableRow extends StatelessWidget {
 }
 
 class _SubscriberTextCell extends StatelessWidget {
-  const _SubscriberTextCell({required this.value, this.primary = false});
+  const _SubscriberTextCell({
+    required this.value,
+    this.primary = false,
+    this.emptyText = '',
+  });
 
   final String value;
   final bool primary;
+  final String emptyText;
 
   @override
   Widget build(BuildContext context) {
-    return HighlightedText(
-      value,
+    final text = value.trim();
+    final display = text.isEmpty ? emptyText : text;
+    final child = HighlightedText(
+      display,
       query: _SubscribersSearchScope.of(context),
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
@@ -1710,6 +1720,8 @@ class _SubscriberTextCell extends StatelessWidget {
         letterSpacing: 0,
       ),
     );
+    if (text.isEmpty) return child;
+    return Tooltip(message: text, child: child);
   }
 }
 

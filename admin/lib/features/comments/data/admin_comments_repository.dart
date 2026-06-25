@@ -228,7 +228,7 @@ class SupabaseAdminCommentsRepository implements AdminCommentsRepository {
       'table': 'admin_comment_details',
       'method': 'select',
       'select':
-          'id,post_id,user_id,guest_name,guest_email,parent_id,content,status,is_pinned,likes_count,created_at,updated_at,post_title,user_name,user_avatar,replies_count,reports_count',
+          'id,post_id,user_id,guest_name,guest_email,parent_id,content,status,is_pinned,likes_count,created_at,updated_at,post_title,user_name,user_avatar,replies_count,reports_count,ip_address,city',
       'filters': filters,
       'orders': _commentOrders(sortKey, sortAscending),
       'range': {'from': from, 'to': to},
@@ -421,6 +421,8 @@ class SupabaseAdminCommentsRepository implements AdminCommentsRepository {
       'status' => 'status',
       'likes' => 'likes_count',
       'replies' => 'replies_count',
+      'ip' => 'ip_address',
+      'city' => 'city',
       'date' => 'created_at',
       _ => 'created_at',
     };
@@ -463,8 +465,9 @@ class SupabaseAdminCommentsRepository implements AdminCommentsRepository {
 
   Uri _uri(String path) {
     final baseUrl = (apiBaseUrl ?? _apiBaseUrl).trim();
-    if (baseUrl.isNotEmpty && !isLocalAdminApiBaseUrl(baseUrl))
+    if (baseUrl.isNotEmpty && !isLocalAdminApiBaseUrl(baseUrl)) {
       return Uri.parse(baseUrl).resolve(path);
+    }
     return _defaultLocalApiBaseUrl().resolve(path);
   }
 
@@ -565,6 +568,8 @@ class SupabaseAdminCommentsRepository implements AdminCommentsRepository {
           '',
       guestName: item['guest_name']?.toString() ?? '',
       guestEmail: item['guest_email']?.toString() ?? '',
+      ipAddress: item['ip_address']?.toString() ?? '',
+      city: item['city']?.toString() ?? '',
       userFullName: profileItem['full_name']?.toString() ?? '',
       userEmail: profileItem['email']?.toString() ?? '',
       userUsername: profileItem['username']?.toString() ?? '',

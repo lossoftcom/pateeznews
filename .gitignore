@@ -28,3 +28,4 @@ migration/*.sql
 !migration/2026-06-17-notifications-fcm.sql
 !migration/2026-06-23-automatic-news-instagram-telemetry.sql
 !migration/2026-06-24-ai-ready-formats-purpose.sql
+!migration/2026-06-25-comments-ip-city.sql

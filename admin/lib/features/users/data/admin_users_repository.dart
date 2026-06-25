@@ -57,6 +57,7 @@ class SupabaseAdminUsersRepository implements AdminUsersRepository {
 
   static const _apiBaseUrl = String.fromEnvironment('PATEEZNEWS_API_BASE_URL');
   static const _requestTimeout = Duration(seconds: 8);
+  static const _accountActionTimeout = Duration(seconds: 20);
   static const _all = 'Tümü';
   static const _fallbackRoles = [
     AdminUserRole(id: 'admin', name: 'admin', label: 'Süper Yönetici'),
@@ -290,7 +291,7 @@ class SupabaseAdminUsersRepository implements AdminUsersRepository {
       'action': action,
       'token': session.accessToken,
       ...payload,
-    }, token: session.accessToken);
+    }, token: session.accessToken, timeout: _accountActionTimeout);
     _throwIfApiError(result, fallbackMessage: 'Kullanıcı işlemi tamamlanamadı');
   }
 
@@ -298,6 +299,7 @@ class SupabaseAdminUsersRepository implements AdminUsersRepository {
     String path,
     Map<String, Object?> body, {
     String? token,
+    Duration? timeout,
   }) async {
     final headers = await adminJsonHeaders(token: token);
 
@@ -312,7 +314,7 @@ class SupabaseAdminUsersRepository implements AdminUsersRepository {
                   headers: headers,
                   body: jsonEncode(body),
                 ))
-            .timeout(_requestTimeout);
+            .timeout(timeout ?? _requestTimeout);
 
     final decoded = response.body.isEmpty
         ? <String, Object?>{}
@@ -330,8 +332,9 @@ class SupabaseAdminUsersRepository implements AdminUsersRepository {
 
   Uri _uri(String path) {
     final baseUrl = (apiBaseUrl ?? _apiBaseUrl).trim();
-    if (baseUrl.isNotEmpty && !isLocalAdminApiBaseUrl(baseUrl))
+    if (baseUrl.isNotEmpty && !isLocalAdminApiBaseUrl(baseUrl)) {
       return Uri.parse(baseUrl).resolve(path);
+    }
     return _defaultLocalApiBaseUrl().resolve(path);
   }
 

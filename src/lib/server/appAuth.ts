@@ -550,11 +550,12 @@ export async function adminUpdateAuthUser(userId: string, attrs: {
   return userFromProfile(profile);
 }
 
-export async function adminDeleteAuthUser(userId: string) {
+export async function adminDeleteAuthUser(userId: string, client?: DatabaseClient) {
   const cleanUserId = cleanText(userId);
   if (!cleanUserId) return;
-  await dbQuery('DELETE FROM public.profile_auth_credentials WHERE user_id = $1::uuid', [cleanUserId]).catch(() => undefined);
-  await dbQuery('DELETE FROM public.profile_auth_identities WHERE user_id = $1::uuid', [cleanUserId]).catch(() => undefined);
+  const query = client?.query.bind(client) || dbQuery;
+  await query('DELETE FROM public.profile_auth_credentials WHERE user_id = $1::uuid', [cleanUserId]).catch(() => undefined);
+  await query('DELETE FROM public.profile_auth_identities WHERE user_id = $1::uuid', [cleanUserId]).catch(() => undefined);
 }
 
 function cleanSignupUsernameBase(fullName: string, email: string) {

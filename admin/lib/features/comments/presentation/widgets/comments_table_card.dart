@@ -971,6 +971,28 @@ class _CommentsMobileCard extends StatelessWidget {
               ),
             ),
           ],
+          if (comment.ipAddress.trim().isNotEmpty ||
+              comment.city.trim().isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                if (comment.ipAddress.trim().isNotEmpty)
+                  AdminMobileChip(
+                    label: comment.ipAddress.trim(),
+                    icon: Symbols.public_outlined,
+                    color: AppColors.support,
+                  ),
+                if (comment.city.trim().isNotEmpty)
+                  AdminMobileChip(
+                    label: comment.city.trim(),
+                    icon: Symbols.location_on_rounded,
+                    color: AppColors.deepOcean,
+                  ),
+              ],
+            ),
+          ],
           const SizedBox(height: 12),
           Divider(height: 1, color: AppColors.softLine.withValues(alpha: 0.9)),
           const SizedBox(height: 10),
@@ -1622,10 +1644,12 @@ class _CommentsDataTable extends StatelessWidget {
   final ValueChanged<AdminComment> onReplyComment;
   final ValueChanged<AdminComment> onDeleteComment;
 
-  static const double _minWidth = 1320;
+  static const double _minWidth = 1610;
   static const double _selectWidth = 42;
   static const double _idWidth = 64;
   static const double _postWidth = 238;
+  static const double _ipWidth = 168;
+  static const double _cityWidth = 116;
   static const double _statusWidth = 132;
   static const double _likesWidth = 92;
   static const double _repliesWidth = 92;
@@ -1709,6 +1733,8 @@ class _CommentsTableColumnLayout {
     required this.idWidth,
     required this.commentWidth,
     required this.postWidth,
+    required this.ipWidth,
+    required this.cityWidth,
     required this.statusWidth,
     required this.likesWidth,
     required this.repliesWidth,
@@ -1720,6 +1746,8 @@ class _CommentsTableColumnLayout {
   final double idWidth;
   final double commentWidth;
   final double postWidth;
+  final double ipWidth;
+  final double cityWidth;
   final double statusWidth;
   final double likesWidth;
   final double repliesWidth;
@@ -1731,6 +1759,8 @@ class _CommentsTableColumnLayout {
         _CommentsDataTable._selectWidth -
         _CommentsDataTable._idWidth -
         _CommentsDataTable._postWidth -
+        _CommentsDataTable._ipWidth -
+        _CommentsDataTable._cityWidth -
         _CommentsDataTable._statusWidth -
         _CommentsDataTable._likesWidth -
         _CommentsDataTable._repliesWidth -
@@ -1762,6 +1792,16 @@ class _CommentsTableColumnLayout {
       scale,
       minWidth: 150,
     );
+    final ipWidth = AdminTableChrome.scaledColumn(
+      _CommentsDataTable._ipWidth,
+      scale,
+      minWidth: 118,
+    );
+    final cityWidth = AdminTableChrome.scaledColumn(
+      _CommentsDataTable._cityWidth,
+      scale,
+      minWidth: 86,
+    );
     final statusWidth = AdminTableChrome.scaledColumn(
       _CommentsDataTable._statusWidth,
       scale,
@@ -1792,6 +1832,8 @@ class _CommentsTableColumnLayout {
         selectWidth +
         idWidth +
         postWidth +
+        ipWidth +
+        cityWidth +
         statusWidth +
         likesWidth +
         repliesWidth +
@@ -1808,10 +1850,12 @@ class _CommentsTableColumnLayout {
       idWidth: idWidth,
       commentWidth: commentWidth,
       postWidth: postWidth + (extraWidth * 0.10),
-      statusWidth: statusWidth + (extraWidth * 0.08),
-      likesWidth: likesWidth + (extraWidth * 0.08),
-      repliesWidth: repliesWidth + (extraWidth * 0.08),
-      createdWidth: createdWidth + (extraWidth * 0.30),
+      ipWidth: ipWidth + (extraWidth * 0.10),
+      cityWidth: cityWidth + (extraWidth * 0.06),
+      statusWidth: statusWidth + (extraWidth * 0.06),
+      likesWidth: likesWidth + (extraWidth * 0.06),
+      repliesWidth: repliesWidth + (extraWidth * 0.06),
+      createdWidth: createdWidth + (extraWidth * 0.20),
       menuWidth: menuWidth,
     );
   }
@@ -1876,6 +1920,20 @@ class _CommentsHeader extends StatelessWidget {
             width: layout.postWidth,
             label: 'Post',
             sortKey: 'post',
+            sortState: sortState,
+            onSort: onSort,
+          ),
+          _SortableColumnHeader(
+            width: layout.ipWidth,
+            label: 'IP',
+            sortKey: 'ip',
+            sortState: sortState,
+            onSort: onSort,
+          ),
+          _SortableColumnHeader(
+            width: layout.cityWidth,
+            label: 'City',
+            sortKey: 'city',
             sortState: sortState,
             onSort: onSort,
           ),
@@ -2017,6 +2075,14 @@ class _CommentsRow extends StatelessWidget {
           SizedBox(
             width: layout.postWidth,
             child: _PostCell(comment: comment),
+          ),
+          SizedBox(
+            width: layout.ipWidth,
+            child: _CommentTextCell(value: comment.ipAddress),
+          ),
+          SizedBox(
+            width: layout.cityWidth,
+            child: _CommentTextCell(value: comment.city, primary: true),
           ),
           SizedBox(
             width: layout.statusWidth,
@@ -2421,6 +2487,33 @@ class _PostCellState extends State<_PostCell> {
         ),
       ),
     );
+  }
+}
+
+class _CommentTextCell extends StatelessWidget {
+  const _CommentTextCell({required this.value, this.primary = false});
+
+  final String value;
+  final bool primary;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = value.trim();
+    final display = text.isEmpty ? '-' : text;
+    final child = HighlightedText(
+      display,
+      query: _CommentsSearchScope.of(context),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        color: primary ? AppColors.deepOcean : AppColors.inkSoft,
+        fontSize: 12,
+        fontWeight: primary ? FontWeight.w600 : FontWeight.w500,
+        letterSpacing: 0,
+      ),
+    );
+    if (text.isEmpty) return child;
+    return Tooltip(message: text, child: child);
   }
 }
 
