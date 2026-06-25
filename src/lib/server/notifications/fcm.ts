@@ -6,6 +6,7 @@ import { readRuntimeEnv } from '@/lib/server/runtimeEnv';
 const FIREBASE_SCOPE = 'https://www.googleapis.com/auth/firebase.messaging';
 const FIREBASE_AUDIENCE = 'https://oauth2.googleapis.com/token';
 const DEFAULT_API_BASE_URL = 'https://fcm.googleapis.com/v1';
+const DEFAULT_WEB_PUSH_ICON_URL = 'https://pateez.com/local-upload/logo/tr/pateezlogoicon.png';
 
 type SettingsRow = {
   project_id?: string;
@@ -231,6 +232,8 @@ export async function sendFcmMessage(
       notification: {
         title: input.title,
         body: input.body,
+        icon: DEFAULT_WEB_PUSH_ICON_URL,
+        badge: DEFAULT_WEB_PUSH_ICON_URL,
         ...(image ? { image } : {}),
       },
       fcm_options: {

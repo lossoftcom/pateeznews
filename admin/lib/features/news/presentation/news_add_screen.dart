@@ -13,6 +13,9 @@ import '../../../core/network/admin_api_headers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../auth/data/admin_auth_models.dart';
+import '../../notifications/data/admin_notifications_repository.dart';
+import '../../notifications/presentation/notification_models.dart';
+import '../../social/data/admin_social_repository.dart';
 import '../../settings/data/admin_content_settings_repository.dart';
 import '../../settings/data/admin_ai_settings_repository.dart';
 import '../data/admin_news_ai_repository.dart';
@@ -264,6 +267,8 @@ class NewsAddScreen extends StatefulWidget {
     super.key,
     required this.session,
     required this.repository,
+    this.notificationsRepository = const SupabaseAdminNotificationsRepository(),
+    this.socialRepository = const SupabaseAdminSocialRepository(),
     this.profile,
     this.postId,
     this.aiRepository,
@@ -278,6 +283,8 @@ class NewsAddScreen extends StatefulWidget {
   final AdminSession session;
   final AdminProfile? profile;
   final AdminNewsRepository repository;
+  final AdminNotificationsRepository notificationsRepository;
+  final AdminSocialRepository socialRepository;
   final AdminNewsAiRepository? aiRepository;
   final AdminContentSettingsRepository contentSettingsRepository;
   final ContentPostFormatSettingsData? initialPostFormatSettings;
@@ -2095,7 +2102,10 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
       await showNewsPublishShareDialog(
         context,
         session: widget.session,
+        socialRepository: widget.socialRepository,
         data: _collectShareData(),
+        onSendSocialPost: _sendNewsSocialPost,
+        onSendNotification: _sendNewsNotification,
         onConfirmPublish: () async {
           await _saveEditorPost(
             'published',
@@ -2195,6 +2205,59 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
           : (images.isNotEmpty ? images.first : ''),
       imageUrls: images,
       category: _selectedCategory.trim(),
+    );
+  }
+
+  Future<NewsSocialPublishResult> _sendNewsSocialPost(
+    NewsSocialPublishRequest request,
+  ) async {
+    final result = await widget.socialRepository.publishPost(
+      widget.session,
+      socialAccountId: request.socialAccountId,
+      data: request.data,
+    );
+    return NewsSocialPublishResult(
+      id: result.id,
+      bundlePostId: result.bundlePostId,
+      status: result.status,
+    );
+  }
+
+  Future<NewsNotificationDispatchResult> _sendNewsNotification(
+    NewsNotificationDispatchRequest request,
+  ) async {
+    final campaign = AdminNotificationCampaign(
+      id: 0,
+      name: request.campaignName,
+      title: request.title,
+      body: request.body,
+      targetType: request.targetType,
+      status: AdminNotificationStatus.draft,
+      priority: request.priority,
+      recipientCount: 0,
+      queuedCount: 0,
+      sentCount: 0,
+      failedCount: 0,
+      openedCount: 0,
+      clickedCount: 0,
+      createdAt: DateTime.now(),
+      imageUrl: request.imageUrl,
+      deepLink: request.deepLink,
+      targetPlatforms: request.targetPlatforms,
+      ttlSeconds: request.ttlSeconds,
+      channelId: request.channelId,
+    );
+    final saved = await widget.notificationsRepository.saveCampaign(
+      widget.session,
+      campaign: campaign,
+    );
+    final dispatched = await widget.notificationsRepository
+        .updateCampaignAction(widget.session, saved, 'dispatch');
+    return NewsNotificationDispatchResult(
+      recipientCount: dispatched.recipientCount,
+      queuedCount: dispatched.queuedCount,
+      sentCount: dispatched.sentCount,
+      failedCount: dispatched.failedCount,
     );
   }
 

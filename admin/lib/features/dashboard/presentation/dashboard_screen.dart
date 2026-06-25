@@ -1227,6 +1227,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   session: widget.session,
                                   profile: widget.profile,
                                   repository: widget.newsRepository,
+                                  notificationsRepository:
+                                      widget.notificationsRepository,
+                                  socialRepository: widget.socialRepository,
                                   contentSettingsRepository:
                                       widget.contentSettingsRepository,
                                   initialPostFormatSettings:
@@ -1241,6 +1244,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   session: widget.session,
                                   profile: widget.profile,
                                   repository: widget.newsRepository,
+                                  notificationsRepository:
+                                      widget.notificationsRepository,
+                                  socialRepository: widget.socialRepository,
                                   onAddPost: _openNewsAdd,
                                   onEditPost: _openNewsEdit,
                                 ),

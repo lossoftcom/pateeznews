@@ -12,6 +12,9 @@ import '../../../shared/widgets/admin_toast.dart';
 import '../../../shared/widgets/highlighted_text.dart';
 import '../../../shared/widgets/sortable_table_header.dart';
 import '../../auth/data/admin_auth_models.dart';
+import '../../notifications/data/admin_notifications_repository.dart';
+import '../../notifications/presentation/notification_models.dart';
+import '../../social/data/admin_social_repository.dart';
 import '../data/admin_news_repository.dart';
 import 'news_models.dart';
 import 'widgets/news_link_opener.dart';
@@ -31,6 +34,8 @@ class NewsScreen extends StatefulWidget {
     super.key,
     required this.session,
     this.repository = const SupabaseAdminNewsRepository(),
+    this.notificationsRepository = const SupabaseAdminNotificationsRepository(),
+    this.socialRepository = const SupabaseAdminSocialRepository(),
     this.profile,
     this.onAddPost,
     this.onEditPost,
@@ -38,6 +43,8 @@ class NewsScreen extends StatefulWidget {
 
   final AdminSession session;
   final AdminNewsRepository repository;
+  final AdminNotificationsRepository notificationsRepository;
+  final AdminSocialRepository socialRepository;
   final AdminProfile? profile;
   final VoidCallback? onAddPost;
   final ValueChanged<String>? onEditPost;
@@ -419,8 +426,11 @@ class _NewsScreenState extends State<NewsScreen> {
       await showNewsPublishShareDialog(
         context,
         session: widget.session,
+        socialRepository: widget.socialRepository,
         data: _shareDataForPost(editorPost),
         onConfirmPublish: () => _toggleStatusAndReload(post),
+        onSendSocialPost: _sendNewsSocialPost,
+        onSendNotification: _sendNewsNotification,
       );
     } catch (error) {
       if (!mounted) return;
@@ -449,8 +459,11 @@ class _NewsScreenState extends State<NewsScreen> {
       await showNewsPublishShareDialog(
         context,
         session: widget.session,
+        socialRepository: widget.socialRepository,
         data: _shareDataForPost(editorPost),
         mode: mode,
+        onSendSocialPost: _sendNewsSocialPost,
+        onSendNotification: _sendNewsNotification,
       );
     } catch (error) {
       if (!mounted) return;
@@ -459,6 +472,59 @@ class _NewsScreenState extends State<NewsScreen> {
         _loading = false;
       });
     }
+  }
+
+  Future<NewsSocialPublishResult> _sendNewsSocialPost(
+    NewsSocialPublishRequest request,
+  ) async {
+    final result = await widget.socialRepository.publishPost(
+      widget.session,
+      socialAccountId: request.socialAccountId,
+      data: request.data,
+    );
+    return NewsSocialPublishResult(
+      id: result.id,
+      bundlePostId: result.bundlePostId,
+      status: result.status,
+    );
+  }
+
+  Future<NewsNotificationDispatchResult> _sendNewsNotification(
+    NewsNotificationDispatchRequest request,
+  ) async {
+    final campaign = AdminNotificationCampaign(
+      id: 0,
+      name: request.campaignName,
+      title: request.title,
+      body: request.body,
+      targetType: request.targetType,
+      status: AdminNotificationStatus.draft,
+      priority: request.priority,
+      recipientCount: 0,
+      queuedCount: 0,
+      sentCount: 0,
+      failedCount: 0,
+      openedCount: 0,
+      clickedCount: 0,
+      createdAt: DateTime.now(),
+      imageUrl: request.imageUrl,
+      deepLink: request.deepLink,
+      targetPlatforms: request.targetPlatforms,
+      ttlSeconds: request.ttlSeconds,
+      channelId: request.channelId,
+    );
+    final saved = await widget.notificationsRepository.saveCampaign(
+      widget.session,
+      campaign: campaign,
+    );
+    final dispatched = await widget.notificationsRepository
+        .updateCampaignAction(widget.session, saved, 'dispatch');
+    return NewsNotificationDispatchResult(
+      recipientCount: dispatched.recipientCount,
+      queuedCount: dispatched.queuedCount,
+      sentCount: dispatched.sentCount,
+      failedCount: dispatched.failedCount,
+    );
   }
 
   Future<void> _toggleStatusAndReload(AdminNewsPost post) async {

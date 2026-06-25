@@ -47,12 +47,82 @@ class NewsPublishShareData {
 
 enum NewsPublishShareMode { publishFlow, socialOnly, notificationOnly }
 
+class NewsNotificationDispatchRequest {
+  const NewsNotificationDispatchRequest({
+    required this.campaignName,
+    required this.title,
+    required this.body,
+    required this.imageUrl,
+    required this.deepLink,
+    required this.targetType,
+    required this.targetPlatforms,
+    required this.priority,
+    required this.ttlSeconds,
+    required this.channelId,
+  });
+
+  final String campaignName;
+  final String title;
+  final String body;
+  final String imageUrl;
+  final String deepLink;
+  final String targetType;
+  final List<String> targetPlatforms;
+  final String priority;
+  final int ttlSeconds;
+  final String channelId;
+}
+
+class NewsNotificationDispatchResult {
+  const NewsNotificationDispatchResult({
+    required this.recipientCount,
+    required this.queuedCount,
+    required this.sentCount,
+    required this.failedCount,
+  });
+
+  final int recipientCount;
+  final int queuedCount;
+  final int sentCount;
+  final int failedCount;
+}
+
+class NewsSocialPublishRequest {
+  const NewsSocialPublishRequest({
+    required this.socialAccountId,
+    required this.data,
+  });
+
+  final int? socialAccountId;
+  final SocialPublishData data;
+}
+
+class NewsSocialPublishResult {
+  const NewsSocialPublishResult({
+    required this.id,
+    required this.bundlePostId,
+    required this.status,
+  });
+
+  final String id;
+  final String bundlePostId;
+  final String status;
+}
+
 Future<void> showNewsPublishShareDialog(
   BuildContext context, {
   required AdminSession session,
   required NewsPublishShareData data,
   NewsPublishShareMode mode = NewsPublishShareMode.publishFlow,
+  AdminSocialRepository socialRepository =
+      const SupabaseAdminSocialRepository(),
   Future<void> Function()? onConfirmPublish,
+  Future<NewsSocialPublishResult> Function(NewsSocialPublishRequest request)?
+  onSendSocialPost,
+  Future<NewsNotificationDispatchResult> Function(
+    NewsNotificationDispatchRequest request,
+  )?
+  onSendNotification,
 }) {
   return showGeneralDialog<void>(
     context: context,
@@ -64,7 +134,10 @@ Future<void> showNewsPublishShareDialog(
       session: session,
       data: data,
       mode: mode,
+      socialRepository: socialRepository,
       onConfirmPublish: onConfirmPublish,
+      onSendSocialPost: onSendSocialPost,
+      onSendNotification: onSendNotification,
     ),
     transitionBuilder: (ctx, anim, _, child) {
       final mobile = MediaQuery.of(ctx).size.width < 720;
@@ -94,12 +167,16 @@ Future<void> showNewsPublishShareDialog(
 
 class _ShareAccount {
   _ShareAccount({
+    required this.id,
+    required this.socialAccountId,
     required this.platform,
     required this.name,
     required this.handle,
     required this.avatarUrl,
   });
 
+  final int id;
+  final int socialAccountId;
   final SocialPlatform platform;
   final String name;
   final String handle;
@@ -160,19 +237,39 @@ _PlatformMeta _platformMeta(SocialPlatform platform) {
 
 enum _Step { intro, social, notif, done }
 
+class _NewsPublishShareException implements Exception {
+  const _NewsPublishShareException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
 class _NewsPublishShareDialog extends StatefulWidget {
   const _NewsPublishShareDialog({
     required this.session,
     required this.data,
     required this.mode,
+    required this.socialRepository,
     required this.onConfirmPublish,
+    required this.onSendSocialPost,
+    required this.onSendNotification,
   });
 
   final AdminSession session;
   final NewsPublishShareData data;
   final NewsPublishShareMode mode;
+  final AdminSocialRepository socialRepository;
   final Future<void> Function()? onConfirmPublish;
-
+  final Future<NewsSocialPublishResult> Function(
+    NewsSocialPublishRequest request,
+  )?
+  onSendSocialPost;
+  final Future<NewsNotificationDispatchResult> Function(
+    NewsNotificationDispatchRequest request,
+  )?
+  onSendNotification;
   @override
   State<_NewsPublishShareDialog> createState() =>
       _NewsPublishShareDialogState();
@@ -199,10 +296,18 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
   bool _utm = true;
   bool _publishing = false;
   bool _published = false;
+  NewsSocialPublishResult? _socialResult;
+  NewsNotificationDispatchResult? _notificationResult;
 
   SocialPlatform _previewPlatform = SocialPlatform.instagram;
   String _format = 'feed';
-  final Set<String> _platforms = {'android', 'ios', 'flutter', 'astro'};
+  static const _allNotificationPlatforms = <String>[
+    'android',
+    'ios',
+    'flutter_web',
+    'astro_web',
+  ];
+  final Set<String> _platforms = {..._allNotificationPlatforms};
 
   _Step _step = _Step.intro;
   String _mobileView = 'edit';
@@ -296,12 +401,19 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
 
   Future<void> _loadAccounts() async {
     try {
-      final raw = await const SupabaseAdminSocialRepository()
-          .fetchConnectedAccounts(widget.session);
+      final raw = await widget.socialRepository.fetchConnectedAccounts(
+        widget.session,
+      );
       if (!mounted) return;
       final list = raw
+          .where((a) {
+            final status = a.status.trim().toLowerCase();
+            return status.isEmpty || status == 'connected';
+          })
           .map(
             (a) => _ShareAccount(
+              id: a.id,
+              socialAccountId: a.socialAccountId,
               platform: a.platform,
               name: a.resolvedDisplayName,
               handle: a.resolvedUsername,
@@ -376,19 +488,220 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
 
   String get _finishToast {
     return switch (widget.mode) {
-      NewsPublishShareMode.socialOnly => 'Paylaşım hazırlandı.',
-      NewsPublishShareMode.notificationOnly => 'Bildirim hazırlandı.',
+      NewsPublishShareMode.socialOnly => 'Sosyal medya paylaşımı gönderildi.',
+      NewsPublishShareMode.notificationOnly => 'Bildirim gönderildi.',
       NewsPublishShareMode.publishFlow => 'Haber yayına alındı.',
     };
   }
 
   String get _doneSubtitle {
     return switch (widget.mode) {
-      NewsPublishShareMode.socialOnly => 'Sosyal medya paylaşımı hazır.',
-      NewsPublishShareMode.notificationOnly => 'Bildirim gönderimi hazır.',
+      NewsPublishShareMode.socialOnly =>
+        _socialResult == null
+            ? 'Sosyal medya paylaşımı hazır.'
+            : _socialSummary,
+      NewsPublishShareMode.notificationOnly =>
+        _notificationResult == null
+            ? 'Bildirim gönderimi hazır.'
+            : _notificationSummary,
       NewsPublishShareMode.publishFlow =>
-        'Haber yayında. Paylaşım ve bildirim adımları hazır.',
+        'Haber yayında. ${_publishFlowSummary()}',
     };
+  }
+
+  String _publishFlowSummary() {
+    final parts = <String>[];
+    if (_shareSocial) parts.add(_socialSummary);
+    if (_notify) parts.add(_notificationSummary);
+    if (parts.isEmpty) return 'Paylaşım ve bildirim adımları hazır.';
+    return parts.join(' ');
+  }
+
+  String get _socialSummary {
+    final result = _socialResult;
+    if (result == null) return 'Sosyal medya paylaşımı hazır.';
+    final id = result.bundlePostId.isNotEmpty ? result.bundlePostId : result.id;
+    final status = result.status.trim();
+    if (id.isEmpty) {
+      return status.isEmpty
+          ? 'Sosyal medya paylaşımı gönderildi.'
+          : 'Sosyal medya paylaşımı gönderildi ($status).';
+    }
+    return status.isEmpty
+        ? 'Sosyal medya paylaşımı gönderildi: $id'
+        : 'Sosyal medya paylaşımı gönderildi: $id ($status).';
+  }
+
+  String get _notificationSummary {
+    final result = _notificationResult;
+    if (result == null) return 'Bildirim gönderimi hazır.';
+    if (result.recipientCount == 0) {
+      return 'Bildirim kampanyası oluşturuldu, uygun cihaz bulunamadı.';
+    }
+    if (result.failedCount > 0 && result.sentCount == 0) {
+      return 'Bildirim gönderimi denendi, ${result.failedCount} hata alındı.';
+    }
+    return '${result.sentCount} cihaza bildirim gönderildi.';
+  }
+
+  String _compactNotificationText(String value, int maxLength) {
+    final clean = value.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (clean.length <= maxLength) return clean;
+    final cut = clean.substring(0, maxLength - 3);
+    final lastSpace = cut.lastIndexOf(' ');
+    final safeCut = lastSpace > 24 ? cut.substring(0, lastSpace) : cut;
+    return '${safeCut.trimRight()}...';
+  }
+
+  List<_ShareAccount> get _selectedAccounts =>
+      _accounts.where((account) => account.selected).toList(growable: false);
+
+  Set<SocialPlatform> get _selectedSocialPlatforms => {
+    for (final account in _selectedAccounts) account.platform,
+  };
+
+  Map<SocialPlatform, int> get _selectedConnectedAccountIds {
+    final selected = <SocialPlatform, int>{};
+    for (final account in _selectedAccounts) {
+      selected[account.platform] = account.id;
+    }
+    return selected;
+  }
+
+  int? get _primarySocialAccountId {
+    final accounts = _selectedAccounts;
+    return accounts.isEmpty ? null : accounts.first.socialAccountId;
+  }
+
+  SocialPostType get _socialPostType {
+    return switch (_format) {
+      'story' => SocialPostType.story,
+      'reels' => SocialPostType.reels,
+      _ => SocialPostType.feed,
+    };
+  }
+
+  List<String> get _selectedMediaUrls {
+    final urls = <String>[];
+    for (var i = 0; i < _images.length; i++) {
+      if (!_imgSel[i]) continue;
+      final url = _images[i].trim();
+      if (url.isNotEmpty) urls.add(url);
+    }
+    if (urls.isEmpty && widget.data.mansetImageUrl.trim().isNotEmpty) {
+      urls.add(widget.data.mansetImageUrl.trim());
+    }
+    return urls;
+  }
+
+  String _socialLink() {
+    final link = widget.data.link.trim();
+    if (!_utm || link.isEmpty) return link;
+    final uri = Uri.tryParse(link);
+    if (uri == null || !uri.hasScheme || !uri.hasAuthority) return link;
+    final campaign = _normalizeTag(widget.data.category).isNotEmpty
+        ? _normalizeTag(widget.data.category).toLowerCase()
+        : 'haber';
+    return uri
+        .replace(
+          queryParameters: {
+            ...uri.queryParameters,
+            'utm_source': 'pateez',
+            'utm_medium': 'social',
+            'utm_campaign': campaign,
+          },
+        )
+        .toString();
+  }
+
+  NewsSocialPublishRequest _socialRequest() {
+    final caption = _postText.text.trim();
+    if (_loadingAccounts) {
+      throw const _NewsPublishShareException(
+        'Sosyal hesaplar yükleniyor. Birkaç saniye sonra tekrar deneyin.',
+      );
+    }
+    if (_selectedAccounts.isEmpty) {
+      throw const _NewsPublishShareException(
+        'Paylaşım için en az bir sosyal hesap seçin.',
+      );
+    }
+    if (caption.isEmpty) {
+      throw const _NewsPublishShareException('Gönderi metni zorunlu.');
+    }
+    final mediaUrls = _selectedMediaUrls;
+    if (mediaUrls.isEmpty) {
+      final mediaRequired = _selectedSocialPlatforms.where(
+        (platform) =>
+            platform == SocialPlatform.instagram ||
+            platform == SocialPlatform.tiktok ||
+            platform == SocialPlatform.youtube ||
+            platform == SocialPlatform.pinterest,
+      );
+      if (mediaRequired.isNotEmpty) {
+        final labels = mediaRequired
+            .map((platform) => _platformMeta(platform).label)
+            .join(', ');
+        throw _NewsPublishShareException(
+          '$labels paylaşımı için görsel veya video gerekir.',
+        );
+      }
+    }
+    return NewsSocialPublishRequest(
+      socialAccountId: _primarySocialAccountId,
+      data: SocialPublishData(
+        selectedPlatforms: _selectedSocialPlatforms,
+        selectedConnectedAccountIds: _selectedConnectedAccountIds,
+        postType: _socialPostType,
+        caption: caption,
+        hashtags: _hashtagsInFirstComment
+            ? const <String>[]
+            : List<String>.unmodifiable(_tags),
+        newsTitle: widget.data.title.trim(),
+        newsImageUrl: widget.data.mansetImageUrl.trim(),
+        newsLink: _socialLink(),
+        campaignName: _compactNotificationText(
+          'Haber - ${widget.data.title.trim()}',
+          100,
+        ),
+        mediaUrls: mediaUrls,
+        newsSummary: widget.data.summary.trim(),
+        newsCategory: widget.data.category.trim(),
+      ),
+    );
+  }
+
+  NewsNotificationDispatchRequest _notificationRequest() {
+    final title = _compactNotificationText(_nfTitle.text, 96);
+    final body = _compactNotificationText(_nfBody.text, 152);
+    if (title.isEmpty || body.isEmpty) {
+      throw const _NewsPublishShareException(
+        'Bildirim başlığı ve açıklaması zorunlu.',
+      );
+    }
+    if (_platforms.isEmpty) {
+      throw const _NewsPublishShareException(
+        'En az bir bildirim platformu seçin.',
+      );
+    }
+    final allSelected = _platforms.length == _allNotificationPlatforms.length;
+    return NewsNotificationDispatchRequest(
+      campaignName: _compactNotificationText('Haber - $title', 100),
+      title: title,
+      body: body,
+      imageUrl: widget.data.mansetImageUrl.trim(),
+      deepLink: widget.data.link.trim(),
+      targetType: allSelected ? 'all' : 'platform',
+      targetPlatforms: allSelected
+          ? const <String>[]
+          : [
+              for (final platform in _allNotificationPlatforms)
+                if (_platforms.contains(platform)) platform,
+            ],
+      priority: 'normal',
+      ttlSeconds: 3600,
+      channelId: 'pateez_general',
+    );
   }
 
   void _goNext() {
@@ -426,11 +739,39 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
     if (_publishing || _published) return;
     setState(() => _publishing = true);
     try {
+      final socialRequest = _shareSocial ? _socialRequest() : null;
+      final socialDispatcher = socialRequest == null
+          ? null
+          : widget.onSendSocialPost;
+      if (socialRequest != null && socialDispatcher == null) {
+        throw const _NewsPublishShareException(
+          'Sosyal medya gönderim bağlantısı hazır değil.',
+        );
+      }
+      final notificationRequest = _notify ? _notificationRequest() : null;
+      final notificationDispatcher = notificationRequest == null
+          ? null
+          : widget.onSendNotification;
+      if (notificationRequest != null && notificationDispatcher == null) {
+        throw const _NewsPublishShareException(
+          'Bildirim gönderim bağlantısı hazır değil.',
+        );
+      }
       await widget.onConfirmPublish?.call();
+      NewsSocialPublishResult? socialResult;
+      if (socialRequest != null) {
+        socialResult = await socialDispatcher!(socialRequest);
+      }
+      NewsNotificationDispatchResult? notificationResult;
+      if (notificationRequest != null) {
+        notificationResult = await notificationDispatcher!(notificationRequest);
+      }
       if (!mounted) return;
       setState(() {
         _publishing = false;
         _published = true;
+        _socialResult = socialResult;
+        _notificationResult = notificationResult;
         _step = _Step.done;
         _mobileView = 'edit';
       });
@@ -1274,6 +1615,8 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
     final account = _accounts.firstWhere(
       (a) => a.platform == _previewPlatform && a.selected,
       orElse: () => _ShareAccount(
+        id: 0,
+        socialAccountId: 0,
         platform: _previewPlatform,
         name: 'Pateez',
         handle: 'pateezcom',
@@ -1602,11 +1945,12 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
       ('all', 'Tümü', Symbols.public),
       ('android', 'Android', Symbols.phone_iphone_outlined),
       ('ios', 'iOS', Symbols.apple_rounded),
-      ('flutter', 'Flutter Web', Symbols.phone_iphone_outlined),
-      ('astro', 'Astro Web', Symbols.public),
+      ('flutter_web', 'Flutter Web', Symbols.phone_iphone_outlined),
+      ('astro_web', 'Astro Web', Symbols.public),
     ];
-    bool isOn(String key) =>
-        key == 'all' ? _platforms.length == 4 : _platforms.contains(key);
+    bool isOn(String key) => key == 'all'
+        ? _platforms.length == _allNotificationPlatforms.length
+        : _platforms.contains(key);
     return Wrap(
       spacing: 7,
       runSpacing: 7,
@@ -1616,12 +1960,12 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
             onTap: () {
               setState(() {
                 if (item.$1 == 'all') {
-                  if (_platforms.length == 4) {
+                  if (_platforms.length == _allNotificationPlatforms.length) {
                     _platforms.clear();
                   } else {
                     _platforms
                       ..clear()
-                      ..addAll(['android', 'ios', 'flutter', 'astro']);
+                      ..addAll(_allNotificationPlatforms);
                   }
                 } else if (_platforms.contains(item.$1)) {
                   _platforms.remove(item.$1);
@@ -1824,14 +2168,15 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
           _recapRow(
             icon: Symbols.send_rounded,
             title: 'Sosyal medya paylaşımı',
-            subtitle:
-                '$accountCount hesapta · $_selectedImageCount görsel sıraya alındı',
+            subtitle: _socialResult == null
+                ? '$accountCount hesapta · $_selectedImageCount görsel sıraya alındı'
+                : _socialSummary,
           ),
         if (_notify)
           _recapRow(
             icon: Symbols.notifications,
             title: 'Bildirim',
-            subtitle: '${_platforms.length} platforma gönderildi',
+            subtitle: _notificationSummary,
           ),
       ],
     );
