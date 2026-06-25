@@ -15,6 +15,7 @@ class FrontendPushNotificationService {
     this.httpClient,
     this.apiBaseUrl,
     this.onDeepLink,
+    this.onOpen,
   });
 
   static const _configuredApiBaseUrl = String.fromEnvironment(
@@ -31,6 +32,7 @@ class FrontendPushNotificationService {
   final http.Client? httpClient;
   final String? apiBaseUrl;
   final FutureOr<void> Function(String deepLink)? onDeepLink;
+  final FutureOr<void> Function(FrontendPushOpenAction action)? onOpen;
   StreamSubscription<String>? _tokenRefreshSubscription;
   StreamSubscription<RemoteMessage>? _messageOpenedSubscription;
   String _currentAuthToken = '';
@@ -124,13 +126,25 @@ class FrontendPushNotificationService {
       debugPrint('Pateez push open event failed: $error');
     }
 
-    final deepLink = _firstText(message.data, const [
-      'deepLink',
-      'deep_link',
-      'click_action',
-      'link',
-      'url',
-    ]);
+    final action = FrontendPushOpenAction.fromMessageData(message.data);
+    if (action.isAdminOnly) {
+      try {
+        await onOpen?.call(action);
+      } catch (error) {
+        debugPrint('Pateez push admin open failed: $error');
+      }
+      return;
+    }
+
+    final deepLink = action.deepLink.isNotEmpty
+        ? action.deepLink
+        : _firstText(message.data, const [
+            'deepLink',
+            'deep_link',
+            'click_action',
+            'link',
+            'url',
+          ]);
     if (deepLink.isEmpty) return;
     try {
       await onDeepLink?.call(deepLink);
@@ -264,12 +278,75 @@ class FrontendPushNotificationService {
       return 'flutter-${DateTime.now().microsecondsSinceEpoch}';
     }
   }
+}
 
-  String _firstText(Map<String, dynamic> data, List<String> keys) {
-    for (final key in keys) {
-      final value = data[key]?.toString().trim() ?? '';
-      if (value.isNotEmpty) return value;
-    }
-    return '';
+class FrontendPushOpenAction {
+  const FrontendPushOpenAction({
+    required this.data,
+    required this.deepLink,
+    required this.type,
+    required this.adminPage,
+    required this.isAdminOnly,
+  });
+
+  final Map<String, String> data;
+  final String deepLink;
+  final String type;
+  final String adminPage;
+  final bool isAdminOnly;
+
+  factory FrontendPushOpenAction.fromMessageData(Map<String, dynamic> source) {
+    final data = <String, String>{
+      for (final entry in source.entries)
+        entry.key: entry.value?.toString().trim() ?? '',
+    };
+    final type = _firstText(data, const ['type']);
+    final explicitAdminPage = _firstText(data, const [
+      'adminPage',
+      'admin_page',
+      'adminRoute',
+      'admin_route',
+    ]);
+    final adminPage = explicitAdminPage.isNotEmpty
+        ? explicitAdminPage
+        : _adminPageForType(type);
+    return FrontendPushOpenAction(
+      data: data,
+      deepLink: _firstText(data, const [
+        'deepLink',
+        'deep_link',
+        'click_action',
+        'link',
+        'url',
+      ]),
+      type: type,
+      adminPage: adminPage,
+      isAdminOnly:
+          _truthy(_firstText(data, const ['adminOnly', 'admin_only'])) ||
+          adminPage.isNotEmpty,
+    );
   }
+}
+
+String _adminPageForType(String type) {
+  return switch (type.trim()) {
+    'comment_created' => 'comments',
+    'user_signup' => 'users',
+    'newsletter_subscriber' => 'subscribers',
+    'automatic_news' => 'automaticNews',
+    _ => '',
+  };
+}
+
+bool _truthy(String value) {
+  final normalized = value.trim().toLowerCase();
+  return normalized == 'true' || normalized == '1' || normalized == 'yes';
+}
+
+String _firstText(Map<String, dynamic> data, List<String> keys) {
+  for (final key in keys) {
+    final value = data[key]?.toString().trim() ?? '';
+    if (value.isNotEmpty) return value;
+  }
+  return '';
 }

@@ -113,6 +113,7 @@ class DashboardScreen extends StatefulWidget {
     this.whatsappRepository = const SupabaseAdminWhatsappRepository(),
     this.socialRepository = const SupabaseAdminSocialRepository(),
     this.initialContentSettings,
+    this.initialPageName = '',
     this.onOpenFrontend,
   });
 
@@ -142,6 +143,7 @@ class DashboardScreen extends StatefulWidget {
   final AdminWhatsappRepository whatsappRepository;
   final AdminSocialRepository socialRepository;
   final ContentSettingsSnapshot? initialContentSettings;
+  final String initialPageName;
   final VoidCallback? onOpenFrontend;
 
   @override
@@ -165,6 +167,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
+    _selectedPage =
+        _dashboardPageFromName(widget.initialPageName) ?? _DashboardPage.home;
     _contentSettingsSnapshot = widget.initialContentSettings;
     final initialUpload = _contentSettingsSnapshot?.upload;
     if (initialUpload != null) _cacheUploadSettings(initialUpload);
@@ -182,6 +186,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _contentSettingsSnapshot = widget.initialContentSettings;
       _cacheUploadSettings(widget.initialContentSettings!.upload);
     }
+    if (oldWidget.initialPageName != widget.initialPageName) {
+      _openInitialPage();
+    }
   }
 
   Future<void> _restoreSelectedPageThenLoadPermissions() async {
@@ -194,6 +201,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     try {
       final preferences = await SharedPreferences.getInstance();
       _preferences = preferences;
+      final initialPage = _dashboardPageFromName(widget.initialPageName);
+      if (initialPage != null) {
+        await preferences.setString(_selectedPageStorageKey, initialPage.name);
+        return;
+      }
       final restoredPage = _dashboardPageFromName(
         preferences.getString(_selectedPageStorageKey),
       );
@@ -204,6 +216,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     } catch (_) {
       // Yerel sayfa tercihi okunamazsa mevcut varsayılan dashboard davranışı kalır.
     }
+  }
+
+  void _openInitialPage() {
+    final initialPage = _dashboardPageFromName(widget.initialPageName);
+    if (initialPage == null || initialPage == _selectedPage) return;
+    if (!_canOpen(initialPage)) return;
+    _selectPage(initialPage);
   }
 
   ContentSettingsSnapshot _snapshotFor(String languageCode) {

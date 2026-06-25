@@ -59,6 +59,7 @@ class AdminGate extends StatefulWidget {
     required this.notificationsRepository,
     required this.smsRepository,
     required this.socialRepository,
+    this.initialPageName = '',
     this.onOpenFrontend,
   });
 
@@ -84,6 +85,7 @@ class AdminGate extends StatefulWidget {
   final AdminNotificationsRepository notificationsRepository;
   final AdminSmsRepository smsRepository;
   final AdminSocialRepository socialRepository;
+  final String initialPageName;
   final VoidCallback? onOpenFrontend;
 
   @override
@@ -324,6 +326,7 @@ class _AdminGateState extends State<AdminGate> {
               notificationsRepository: widget.notificationsRepository,
               smsRepository: widget.smsRepository,
               socialRepository: widget.socialRepository,
+              initialPageName: widget.initialPageName,
               onOpenFrontend: widget.onOpenFrontend,
             ),
           )

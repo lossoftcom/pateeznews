@@ -93,6 +93,7 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
   ProfileData? _profileData;
   var _authLoading = true;
   var _adminOpen = false;
+  var _adminInitialPageName = '';
   var _ready = false;
   var _notificationDeepLink = '';
   var _notificationDeepLinkSerial = 0;
@@ -106,6 +107,7 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
     super.initState();
     _pushNotifications = FrontendPushNotificationService(
       onDeepLink: _handlePushDeepLink,
+      onOpen: _handlePushOpen,
     );
     AppTypography.configure(_fontSettings);
     unawaited(_bootstrap());
@@ -505,20 +507,31 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
     });
   }
 
-  Future<void> _openAdminPanel() async {
-    final authState = _authState;
-    if (authState == null || !authState.isAdmin) return;
+  Future<void> _handlePushOpen(FrontendPushOpenAction action) async {
+    final pageName = action.adminPage.trim();
+    if (pageName.isEmpty || !mounted) return;
+    await _openAdminPanel(initialPageName: pageName);
+  }
 
-    await widget.adminSessionStore.saveSession(
-      _adminSessionFromFrontend(authState.session),
-    );
-    final profile = _adminProfileFromFrontend(authState.profile);
-    if (profile != null) {
-      await widget.adminSessionStore.saveProfileCache(profile);
+  Future<void> _openAdminPanel({String initialPageName = ''}) async {
+    final authState = _authState;
+    if (authState != null && !authState.isAdmin) return;
+
+    if (authState != null) {
+      await widget.adminSessionStore.saveSession(
+        _adminSessionFromFrontend(authState.session),
+      );
+      final profile = _adminProfileFromFrontend(authState.profile);
+      if (profile != null) {
+        await widget.adminSessionStore.saveProfileCache(profile);
+      }
     }
 
     if (!mounted) return;
-    setState(() => _adminOpen = true);
+    setState(() {
+      _adminInitialPageName = initialPageName.trim();
+      _adminOpen = true;
+    });
   }
 
   void _openFrontend() {
@@ -530,7 +543,10 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
   Widget build(BuildContext context) {
     if (_adminOpen) {
       return widget.adminApp ??
-          PateeznewsAdminApp(onOpenFrontend: _openFrontend);
+          PateeznewsAdminApp(
+            initialPageName: _adminInitialPageName,
+            onOpenFrontend: _openFrontend,
+          );
     }
 
     SystemChrome.setSystemUIOverlayStyle(AppTheme.lightOverlay);
