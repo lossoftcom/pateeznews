@@ -13,6 +13,7 @@ import '../core/notifications/frontend_push_notification_service.dart';
 import '../core/theme/app_theme.dart';
 import '../core/theme/app_typography.dart';
 import '../core/theme/frontend_font_settings.dart';
+import '../core/update/app_update_service.dart';
 import '../features/account/data/frontend_auth_repository.dart';
 import '../features/announcements/data/announcements_repository.dart';
 import '../features/category/data/category_repository.dart';
@@ -48,6 +49,7 @@ class PateeznewsApp extends StatefulWidget {
     this.authRepository = const FrontendAuthRepository(),
     this.profileRepository = const ProfileRepository(),
     this.adminSessionStore = const AdminSessionStore(),
+    this.appUpdateService = const AppUpdateService(),
     this.adminApp,
   });
 
@@ -66,6 +68,7 @@ class PateeznewsApp extends StatefulWidget {
   final FrontendAuthRepository authRepository;
   final ProfileRepository profileRepository;
   final AdminSessionStore adminSessionStore;
+  final AppUpdateService appUpdateService;
   final Widget? adminApp;
 
   @override
@@ -97,6 +100,7 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
   var _ready = false;
   var _notificationDeepLink = '';
   var _notificationDeepLinkSerial = 0;
+  var _appUpdateChecked = false;
 
   /// Splash en az bu kadar görünür kalır (animasyon okunabilsin). Yüklemeler
   /// bundan önce biterse aradaki fark kadar beklenir.
@@ -154,6 +158,18 @@ class _PateeznewsAppState extends State<PateeznewsApp> {
 
     if (!mounted) return;
     setState(() => _ready = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_checkAppUpdate());
+    });
+  }
+
+  Future<void> _checkAppUpdate() async {
+    if (_appUpdateChecked || !mounted) return;
+    _appUpdateChecked = true;
+    await widget.appUpdateService.maybeShowUpdateDialog(
+      context,
+      _shellData.siteSettings.appUpdate,
+    );
   }
 
   /// Diskteki son başarılı home anlık görüntüsünü (snapshot) açılışta gösterir.

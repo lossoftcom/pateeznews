@@ -656,6 +656,15 @@ class _NewsScreenState extends State<NewsScreen> {
     );
   }
 
+  Future<void> _restorePost(AdminNewsPost post) async {
+    await _runMutation(
+      () => widget.repository.restorePost(post.id),
+      loadingMessageKey: 'news.loading.restoring',
+      successMessageKey: 'news.toast.restored',
+      successValues: {'title': post.displayTitle},
+    );
+  }
+
   Future<void> _deleteSelected() async {
     final ids = _selectedPostIds.toList(growable: false);
     if (ids.isEmpty) return;
@@ -802,6 +811,7 @@ class _NewsScreenState extends State<NewsScreen> {
                   _openShareDialog(post, NewsPublishShareMode.notificationOnly),
                 ),
                 onTogglePinned: (post) => unawaited(_togglePinned(post)),
+                onRestorePost: (post) => unawaited(_restorePost(post)),
                 onDeletePost: (post) => unawaited(_deletePost(post)),
                 onDeleteSelected: () => unawaited(_deleteSelected()),
                 onToggleTrashMode: _toggleTrashMode,

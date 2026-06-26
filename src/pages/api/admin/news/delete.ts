@@ -15,6 +15,36 @@ export const POST: APIRoute = async ({ request }) => {
       .filter((value: number) => Number.isFinite(value));
     if (!ids.length) return adminJson({ data: null, error: { message: 'At least one post id is required' } }, 400);
 
+    if (body?.restore === true) {
+      const result = await dbQuery(
+        `UPDATE public.posts
+         SET
+           status = COALESCE(NULLIF(deleted_from_status, ''), 'draft'),
+           deleted_at = NULL,
+           deleted_by = NULL,
+           deleted_from_status = NULL,
+           updated_at = now()
+         WHERE id = ANY($1::bigint[])
+           AND deleted_at IS NOT NULL
+         RETURNING id, slug, language_code, status`,
+        [ids]
+      );
+
+      if (result.rows.length) {
+        invalidateNewsDataCache();
+        invalidateServerNewsDataCache();
+        if (result.rows.some((row) => String(row.status || '').trim() === 'published')) {
+          try {
+            await submitIndexNowForPosts(request, result.rows);
+          } catch (error) {
+            console.warn('IndexNow submission failed:', error instanceof Error ? error.message : error);
+          }
+        }
+      }
+
+      return adminJson({ data: { restored: result.rows.map((row) => row.id) }, error: null });
+    }
+
     if (body?.permanent === true) {
       const cleanupLanguage = String(body?.language || '').trim() || 'tr';
       const result = await deleteTrashPostsByIds(ids, cleanupLanguage);

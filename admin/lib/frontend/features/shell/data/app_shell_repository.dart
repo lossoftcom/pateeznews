@@ -12,6 +12,7 @@ class AppShellSettings {
     required this.darkLogoUrl,
     required this.faviconUrl,
     this.socialAuth = const AppSocialAuthSettings.empty(),
+    this.appUpdate = const AppUpdateSettings.empty(),
   });
 
   const AppShellSettings.empty()
@@ -19,7 +20,8 @@ class AppShellSettings {
       logoUrl = '',
       darkLogoUrl = '',
       faviconUrl = '',
-      socialAuth = const AppSocialAuthSettings.empty();
+      socialAuth = const AppSocialAuthSettings.empty(),
+      appUpdate = const AppUpdateSettings.empty();
 
   factory AppShellSettings.fromJson(
     Map<dynamic, dynamic> json,
@@ -31,6 +33,7 @@ class AppShellSettings {
       darkLogoUrl: resolveUrl(_string(json['darkLogoUrl'])),
       faviconUrl: resolveUrl(_string(json['faviconUrl'])),
       socialAuth: AppSocialAuthSettings.fromJson(json['socialAuth']),
+      appUpdate: AppUpdateSettings.fromJson(json['appUpdate']),
     );
   }
 
@@ -39,6 +42,7 @@ class AppShellSettings {
   final String darkLogoUrl;
   final String faviconUrl;
   final AppSocialAuthSettings socialAuth;
+  final AppUpdateSettings appUpdate;
 
   String get displayLogoUrl {
     if (logoUrl.isNotEmpty) return logoUrl;
@@ -100,6 +104,47 @@ class AppSocialAuthSettings {
       googleEnabled || appleEnabled || facebookEnabled || xEnabled;
 
   String get redirectTo => '$redirectScheme://$redirectHost';
+}
+
+class AppUpdateSettings {
+  const AppUpdateSettings({
+    required this.enabled,
+    required this.latestVersion,
+    required this.remindAfterHours,
+    required this.iosStoreUrl,
+    required this.androidStoreUrl,
+  });
+
+  const AppUpdateSettings.empty()
+    : enabled = true,
+      latestVersion = '1.0.0',
+      remindAfterHours = 24,
+      iosStoreUrl = '',
+      androidStoreUrl = '';
+
+  factory AppUpdateSettings.fromJson(Object? value) {
+    if (value is! Map) return const AppUpdateSettings.empty();
+    return AppUpdateSettings(
+      enabled: _bool(value['enabled'], fallback: true),
+      latestVersion: _string(value['latestVersion']).isEmpty
+          ? '1.0.0'
+          : _string(value['latestVersion']),
+      remindAfterHours: _intInRange(
+        value['remindAfterHours'],
+        fallback: 24,
+        min: 1,
+        max: 720,
+      ),
+      iosStoreUrl: _string(value['iosStoreUrl']),
+      androidStoreUrl: _string(value['androidStoreUrl']),
+    );
+  }
+
+  final bool enabled;
+  final String latestVersion;
+  final int remindAfterHours;
+  final String iosStoreUrl;
+  final String androidStoreUrl;
 }
 
 class AppShellNavigationItem {
@@ -359,6 +404,16 @@ bool _bool(Object? value, {required bool fallback}) {
   if (text == 'true' || text == '1') return true;
   if (text == 'false' || text == '0') return false;
   return fallback;
+}
+
+int _intInRange(
+  Object? value, {
+  required int fallback,
+  required int min,
+  required int max,
+}) {
+  final parsed = int.tryParse(value?.toString() ?? '') ?? fallback;
+  return parsed.clamp(min, max).toInt();
 }
 
 String? _nullableString(Object? value) {

@@ -502,6 +502,10 @@ class _GeneralSettingsForm {
   final newsletterPopupButtonLabel = TextEditingController();
   final socialAuthRedirectScheme = TextEditingController();
   final socialAuthRedirectHost = TextEditingController();
+  final appUpdateLatestVersion = TextEditingController();
+  final appUpdateRemindAfterHours = TextEditingController();
+  final appUpdateIosStoreUrl = TextEditingController();
+  final appUpdateAndroidStoreUrl = TextEditingController();
   final robotsTxt = TextEditingController();
   final headerCustomCodes = TextEditingController();
   final footerCustomCodes = TextEditingController();
@@ -512,6 +516,7 @@ class _GeneralSettingsForm {
   var socialAuthAppleEnabled = true;
   var socialAuthFacebookEnabled = true;
   var socialAuthXEnabled = true;
+  var appUpdateEnabled = true;
 
   void apply(GeneralSettingsData settings) {
     siteName.text = settings.siteName;
@@ -574,6 +579,12 @@ class _GeneralSettingsForm {
     socialAuthXEnabled = settings.socialAuthXEnabled;
     socialAuthRedirectScheme.text = settings.socialAuthRedirectScheme;
     socialAuthRedirectHost.text = settings.socialAuthRedirectHost;
+    appUpdateEnabled = settings.appUpdateEnabled;
+    appUpdateLatestVersion.text = settings.appUpdateLatestVersion;
+    appUpdateRemindAfterHours.text = settings.appUpdateRemindAfterHours
+        .toString();
+    appUpdateIosStoreUrl.text = settings.appUpdateIosStoreUrl;
+    appUpdateAndroidStoreUrl.text = settings.appUpdateAndroidStoreUrl;
     robotsTxt.text = settings.robotsTxt;
     headerCustomCodes.text = settings.headerCustomCodes;
     footerCustomCodes.text = settings.footerCustomCodes;
@@ -685,6 +696,16 @@ class _GeneralSettingsForm {
       socialAuthXEnabled: socialAuthXEnabled,
       socialAuthRedirectScheme: socialAuthRedirectScheme.text,
       socialAuthRedirectHost: socialAuthRedirectHost.text,
+      appUpdateEnabled: appUpdateEnabled,
+      appUpdateLatestVersion: appUpdateLatestVersion.text,
+      appUpdateRemindAfterHours: _boundedInt(
+        appUpdateRemindAfterHours.text,
+        fallback: base.appUpdateRemindAfterHours,
+        min: 1,
+        max: 720,
+      ),
+      appUpdateIosStoreUrl: appUpdateIosStoreUrl.text,
+      appUpdateAndroidStoreUrl: appUpdateAndroidStoreUrl.text,
       robotsTxt: robotsTxt.text,
       headerCustomCodes: headerCustomCodes.text,
       footerCustomCodes: footerCustomCodes.text,
@@ -749,6 +770,10 @@ class _GeneralSettingsForm {
     newsletterPopupButtonLabel.dispose();
     socialAuthRedirectScheme.dispose();
     socialAuthRedirectHost.dispose();
+    appUpdateLatestVersion.dispose();
+    appUpdateRemindAfterHours.dispose();
+    appUpdateIosStoreUrl.dispose();
+    appUpdateAndroidStoreUrl.dispose();
     robotsTxt.dispose();
     headerCustomCodes.dispose();
     footerCustomCodes.dispose();
@@ -1058,6 +1083,11 @@ class _GeneralSettingsTabView extends StatelessWidget {
         onSave: onSave,
       ),
       _GeneralSettingsTab.socialAuth => _SocialAuthSettings(
+        form: form,
+        saving: saving,
+        onSave: onSave,
+      ),
+      _GeneralSettingsTab.appUpdate => _AppUpdateSettings(
         form: form,
         saving: saving,
         onSave: onSave,
@@ -2781,6 +2811,77 @@ class _SocialProviderItem extends StatelessWidget {
   }
 }
 
+class _AppUpdateSettings extends StatefulWidget {
+  const _AppUpdateSettings({
+    required this.form,
+    required this.saving,
+    required this.onSave,
+  });
+
+  final _GeneralSettingsForm form;
+  final bool saving;
+  final VoidCallback onSave;
+
+  @override
+  State<_AppUpdateSettings> createState() => _AppUpdateSettingsState();
+}
+
+class _AppUpdateSettingsState extends State<_AppUpdateSettings> {
+  @override
+  Widget build(BuildContext context) {
+    final form = widget.form;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _PrivacyToggleRow(
+          items: [
+            _PrivacyToggleItem(
+              label: 'Güncelleme kontrolü',
+              helper:
+                  'Mobil uygulama açıldığında mağazadaki son sürüm kontrol edilir.',
+              value: form.appUpdateEnabled,
+              onChanged: (value) =>
+                  setState(() => form.appUpdateEnabled = value),
+            ),
+          ],
+        ),
+        const SizedBox(height: 18),
+        _ResponsiveFieldRow(
+          children: [
+            _TextInputField(
+              label: 'Mağazadaki güncel sürüm',
+              controller: form.appUpdateLatestVersion,
+              hintText: '1.0.0',
+            ),
+            _TextInputField(
+              label: 'Tekrar sorma aralığı (saat)',
+              controller: form.appUpdateRemindAfterHours,
+              hintText: '24',
+            ),
+          ],
+        ),
+        const SizedBox(height: 18),
+        _ResponsiveFieldRow(
+          children: [
+            _TextInputField(
+              label: 'iOS App Store URL',
+              controller: form.appUpdateIosStoreUrl,
+              hintText: 'https://apps.apple.com/app/id...',
+            ),
+            _TextInputField(
+              label: 'Android Play Store URL',
+              controller: form.appUpdateAndroidStoreUrl,
+              hintText: 'https://play.google.com/store/apps/details?id=...',
+            ),
+          ],
+        ),
+        const _FormDivider(),
+        _SaveRow(saving: widget.saving, onPressed: widget.onSave),
+      ],
+    );
+  }
+}
+
 class _CompactToggle extends StatelessWidget {
   const _CompactToggle({required this.value, required this.onChanged});
 
@@ -3843,6 +3944,7 @@ enum _GeneralSettingsTab {
   services('Google & Servisler'),
   privacy('Çerez & Bülten'),
   socialAuth('Sosyal Giriş'),
+  appUpdate('Mobil Güncelleme'),
   customCode('Özel Kodlar'),
   robots('Robots & Teknik'),
   contact('İletişim');

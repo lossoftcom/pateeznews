@@ -182,6 +182,11 @@ class GeneralSettingsData {
     required this.socialAuthXEnabled,
     required this.socialAuthRedirectScheme,
     required this.socialAuthRedirectHost,
+    required this.appUpdateEnabled,
+    required this.appUpdateLatestVersion,
+    required this.appUpdateRemindAfterHours,
+    required this.appUpdateIosStoreUrl,
+    required this.appUpdateAndroidStoreUrl,
     required this.robotsTxt,
     required this.headerCustomCodes,
     required this.footerCustomCodes,
@@ -256,6 +261,11 @@ class GeneralSettingsData {
       socialAuthXEnabled: true,
       socialAuthRedirectScheme: 'com.pateez.app',
       socialAuthRedirectHost: 'login-callback',
+      appUpdateEnabled: true,
+      appUpdateLatestVersion: '1.0.0',
+      appUpdateRemindAfterHours: 24,
+      appUpdateIosStoreUrl: '',
+      appUpdateAndroidStoreUrl: '',
       robotsTxt: '',
       headerCustomCodes: '',
       footerCustomCodes: '',
@@ -376,6 +386,17 @@ class GeneralSettingsData {
         json['social_auth_redirect_host'],
         fallback: 'login-callback',
       ),
+      appUpdateEnabled: _bool(json['app_update_enabled'], fallback: true),
+      appUpdateLatestVersion: _string(
+        json['app_update_latest_version'],
+        fallback: '1.0.0',
+      ),
+      appUpdateRemindAfterHours: _int(
+        json['app_update_remind_after_hours'],
+        fallback: 24,
+      ),
+      appUpdateIosStoreUrl: _string(json['app_update_ios_store_url']),
+      appUpdateAndroidStoreUrl: _string(json['app_update_android_store_url']),
       robotsTxt: _string(json['robots_txt']),
       headerCustomCodes: _string(json['header_custom_codes']),
       footerCustomCodes: _string(json['footer_custom_codes']),
@@ -447,6 +468,11 @@ class GeneralSettingsData {
   final bool socialAuthXEnabled;
   final String socialAuthRedirectScheme;
   final String socialAuthRedirectHost;
+  final bool appUpdateEnabled;
+  final String appUpdateLatestVersion;
+  final int appUpdateRemindAfterHours;
+  final String appUpdateIosStoreUrl;
+  final String appUpdateAndroidStoreUrl;
   final String robotsTxt;
   final String headerCustomCodes;
   final String footerCustomCodes;
@@ -528,6 +554,13 @@ class GeneralSettingsData {
       'social_auth_redirect_host': socialAuthRedirectHost.trim().isEmpty
           ? 'login-callback'
           : socialAuthRedirectHost.trim(),
+      'app_update_enabled': appUpdateEnabled,
+      'app_update_latest_version': appUpdateLatestVersion.trim().isEmpty
+          ? '1.0.0'
+          : appUpdateLatestVersion.trim(),
+      'app_update_remind_after_hours': appUpdateRemindAfterHours.clamp(1, 720),
+      'app_update_ios_store_url': appUpdateIosStoreUrl.trim(),
+      'app_update_android_store_url': appUpdateAndroidStoreUrl.trim(),
       'robots_txt': robotsTxt,
       'header_custom_codes': headerCustomCodes,
       'footer_custom_codes': footerCustomCodes,
@@ -612,6 +645,11 @@ class GeneralSettingsData {
     bool? socialAuthXEnabled,
     String? socialAuthRedirectScheme,
     String? socialAuthRedirectHost,
+    bool? appUpdateEnabled,
+    String? appUpdateLatestVersion,
+    int? appUpdateRemindAfterHours,
+    String? appUpdateIosStoreUrl,
+    String? appUpdateAndroidStoreUrl,
     String? robotsTxt,
     String? headerCustomCodes,
     String? footerCustomCodes,
@@ -698,6 +736,14 @@ class GeneralSettingsData {
           socialAuthRedirectScheme ?? this.socialAuthRedirectScheme,
       socialAuthRedirectHost:
           socialAuthRedirectHost ?? this.socialAuthRedirectHost,
+      appUpdateEnabled: appUpdateEnabled ?? this.appUpdateEnabled,
+      appUpdateLatestVersion:
+          appUpdateLatestVersion ?? this.appUpdateLatestVersion,
+      appUpdateRemindAfterHours:
+          appUpdateRemindAfterHours ?? this.appUpdateRemindAfterHours,
+      appUpdateIosStoreUrl: appUpdateIosStoreUrl ?? this.appUpdateIosStoreUrl,
+      appUpdateAndroidStoreUrl:
+          appUpdateAndroidStoreUrl ?? this.appUpdateAndroidStoreUrl,
       robotsTxt: robotsTxt ?? this.robotsTxt,
       headerCustomCodes: headerCustomCodes ?? this.headerCustomCodes,
       footerCustomCodes: footerCustomCodes ?? this.footerCustomCodes,
@@ -1045,8 +1091,9 @@ class SupabaseAdminGeneralSettingsRepository
 
   Uri _uri(String path) {
     final baseUrl = (apiBaseUrl ?? _apiBaseUrl).trim();
-    if (baseUrl.isNotEmpty && !isLocalAdminApiBaseUrl(baseUrl))
+    if (baseUrl.isNotEmpty && !isLocalAdminApiBaseUrl(baseUrl)) {
       return Uri.parse(baseUrl).resolve(path);
+    }
     return _defaultLocalApiBaseUrl().resolve(path);
   }
 
@@ -1105,7 +1152,10 @@ const _settingsSelect =
     'newsletter_popup_button_label,'
     'social_auth_google_enabled,social_auth_apple_enabled,'
     'social_auth_facebook_enabled,social_auth_x_enabled,'
-    'social_auth_redirect_scheme,social_auth_redirect_host,robots_txt,'
+    'social_auth_redirect_scheme,social_auth_redirect_host,'
+    'app_update_enabled,app_update_latest_version,'
+    'app_update_remind_after_hours,app_update_ios_store_url,'
+    'app_update_android_store_url,robots_txt,'
     'header_custom_codes,footer_custom_codes';
 
 String _string(Object? value, {String fallback = ''}) {

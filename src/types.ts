@@ -298,6 +298,11 @@ export interface SiteSettings {
   social_auth_x_enabled?: boolean;
   social_auth_redirect_scheme?: string;
   social_auth_redirect_host?: string;
+  app_update_enabled?: boolean;
+  app_update_latest_version?: string;
+  app_update_remind_after_hours?: number;
+  app_update_ios_store_url?: string;
+  app_update_android_store_url?: string;
   google_analytics_id?: string;
   google_search_console_code?: string;
   bing_verification_code?: string;

@@ -74,6 +74,16 @@ const siteSettingsPayload = (
     redirectScheme: text(settings?.social_auth_redirect_scheme) || "com.pateez.app",
     redirectHost: text(settings?.social_auth_redirect_host) || "login-callback",
   },
+  appUpdate: {
+    enabled: settings?.app_update_enabled !== false,
+    latestVersion: text(settings?.app_update_latest_version) || "1.0.0",
+    remindAfterHours: Math.min(
+      720,
+      Math.max(1, Number(settings?.app_update_remind_after_hours) || 24),
+    ),
+    iosStoreUrl: text(settings?.app_update_ios_store_url),
+    androidStoreUrl: text(settings?.app_update_android_store_url),
+  },
 });
 
 const navigationItemPayload = (item: NavigationItem) => ({

@@ -102,6 +102,7 @@ class NewsTableCard extends StatelessWidget {
     required this.onNotifyPost,
     required this.onToggleStatus,
     required this.onTogglePinned,
+    required this.onRestorePost,
     required this.onDeletePost,
     required this.onDeleteSelected,
     required this.onToggleTrashMode,
@@ -144,6 +145,7 @@ class NewsTableCard extends StatelessWidget {
   final ValueChanged<AdminNewsPost> onNotifyPost;
   final ValueChanged<AdminNewsPost> onToggleStatus;
   final ValueChanged<AdminNewsPost> onTogglePinned;
+  final ValueChanged<AdminNewsPost> onRestorePost;
   final ValueChanged<AdminNewsPost> onDeletePost;
   final VoidCallback onDeleteSelected;
   final VoidCallback onToggleTrashMode;
@@ -193,6 +195,7 @@ class NewsTableCard extends StatelessWidget {
               onNotifyPost: onNotifyPost,
               onToggleStatus: onToggleStatus,
               onTogglePinned: onTogglePinned,
+              onRestorePost: onRestorePost,
               onDeletePost: onDeletePost,
               onDeleteSelected: onDeleteSelected,
               onToggleTrashMode: onToggleTrashMode,
@@ -261,6 +264,7 @@ class NewsTableCard extends StatelessWidget {
                               onNotifyPost: onNotifyPost,
                               onToggleStatus: onToggleStatus,
                               onTogglePinned: onTogglePinned,
+                              onRestorePost: onRestorePost,
                               onDeletePost: onDeletePost,
                             ),
                     ),
@@ -1034,6 +1038,7 @@ class _NewsDataTable extends StatefulWidget {
     required this.onNotifyPost,
     required this.onToggleStatus,
     required this.onTogglePinned,
+    required this.onRestorePost,
     required this.onDeletePost,
   });
 
@@ -1053,6 +1058,7 @@ class _NewsDataTable extends StatefulWidget {
   final ValueChanged<AdminNewsPost> onNotifyPost;
   final ValueChanged<AdminNewsPost> onToggleStatus;
   final ValueChanged<AdminNewsPost> onTogglePinned;
+  final ValueChanged<AdminNewsPost> onRestorePost;
   final ValueChanged<AdminNewsPost> onDeletePost;
 
   static const double _selectWidth = 42;
@@ -1175,6 +1181,7 @@ class _NewsDataTableState extends State<_NewsDataTable> {
                                     onNotifyPost: widget.onNotifyPost,
                                     onToggleStatus: widget.onToggleStatus,
                                     onTogglePinned: widget.onTogglePinned,
+                                    onRestorePost: widget.onRestorePost,
                                     onDeletePost: widget.onDeletePost,
                                   ),
                               ],
@@ -1520,6 +1527,7 @@ class _NewsRow extends StatelessWidget {
     required this.onNotifyPost,
     required this.onToggleStatus,
     required this.onTogglePinned,
+    required this.onRestorePost,
     required this.onDeletePost,
   });
 
@@ -1536,6 +1544,7 @@ class _NewsRow extends StatelessWidget {
   final ValueChanged<AdminNewsPost> onNotifyPost;
   final ValueChanged<AdminNewsPost> onToggleStatus;
   final ValueChanged<AdminNewsPost> onTogglePinned;
+  final ValueChanged<AdminNewsPost> onRestorePost;
   final ValueChanged<AdminNewsPost> onDeletePost;
 
   @override
@@ -1623,22 +1632,18 @@ class _NewsRow extends StatelessWidget {
                 width: layout.menuWidth,
                 child: Align(
                   alignment: Alignment.center,
-                  child: trashMode
-                      ? const SymbolIcon(
-                          Symbols.delete,
-                          color: AppColors.iconMuted,
-                          size: 18,
-                        )
-                      : _NewsRowMenu(
-                          post: post,
-                          canManagePublication: canManagePublication,
-                          onEditPost: onEditPost,
-                          onSharePost: onSharePost,
-                          onNotifyPost: onNotifyPost,
-                          onToggleStatus: onToggleStatus,
-                          onTogglePinned: onTogglePinned,
-                          onDeletePost: onDeletePost,
-                        ),
+                  child: _NewsRowMenu(
+                    post: post,
+                    trashMode: trashMode,
+                    canManagePublication: canManagePublication,
+                    onEditPost: onEditPost,
+                    onSharePost: onSharePost,
+                    onNotifyPost: onNotifyPost,
+                    onToggleStatus: onToggleStatus,
+                    onTogglePinned: onTogglePinned,
+                    onRestorePost: onRestorePost,
+                    onDeletePost: onDeletePost,
+                  ),
                 ),
               ),
             ],
@@ -4202,22 +4207,26 @@ class _DateCell extends StatelessWidget {
 class _NewsRowMenu extends StatefulWidget {
   const _NewsRowMenu({
     required this.post,
+    required this.trashMode,
     required this.canManagePublication,
     required this.onEditPost,
     required this.onSharePost,
     required this.onNotifyPost,
     required this.onToggleStatus,
     required this.onTogglePinned,
+    required this.onRestorePost,
     required this.onDeletePost,
   });
 
   final AdminNewsPost post;
+  final bool trashMode;
   final bool canManagePublication;
   final ValueChanged<AdminNewsPost> onEditPost;
   final ValueChanged<AdminNewsPost> onSharePost;
   final ValueChanged<AdminNewsPost> onNotifyPost;
   final ValueChanged<AdminNewsPost> onToggleStatus;
   final ValueChanged<AdminNewsPost> onTogglePinned;
+  final ValueChanged<AdminNewsPost> onRestorePost;
   final ValueChanged<AdminNewsPost> onDeletePost;
 
   @override
@@ -4256,6 +4265,7 @@ class _NewsRowMenuState extends State<_NewsRowMenu> {
               offset: const Offset(0, 8),
               child: _NewsMenuCard(
                 post: widget.post,
+                trashMode: widget.trashMode,
                 canManagePublication: widget.canManagePublication,
                 onEdit: () =>
                     _runAndClose(() => widget.onEditPost(widget.post)),
@@ -4267,6 +4277,8 @@ class _NewsRowMenuState extends State<_NewsRowMenu> {
                     _runAndClose(() => widget.onToggleStatus(widget.post)),
                 onTogglePinned: () =>
                     _runAndClose(() => widget.onTogglePinned(widget.post)),
+                onRestore: () =>
+                    _runAndClose(() => widget.onRestorePost(widget.post)),
                 onDelete: () =>
                     _runAndClose(() => widget.onDeletePost(widget.post)),
               ),
@@ -4330,22 +4342,26 @@ class _NewsRowMenuState extends State<_NewsRowMenu> {
 class _NewsMenuCard extends StatelessWidget {
   const _NewsMenuCard({
     required this.post,
+    required this.trashMode,
     required this.canManagePublication,
     required this.onEdit,
     required this.onShare,
     required this.onNotify,
     required this.onToggleStatus,
     required this.onTogglePinned,
+    required this.onRestore,
     required this.onDelete,
   });
 
   final AdminNewsPost post;
+  final bool trashMode;
   final bool canManagePublication;
   final VoidCallback onEdit;
   final VoidCallback onShare;
   final VoidCallback onNotify;
   final VoidCallback onToggleStatus;
   final VoidCallback onTogglePinned;
+  final VoidCallback onRestore;
   final VoidCallback onDelete;
 
   @override
@@ -4369,42 +4385,65 @@ class _NewsMenuCard extends StatelessWidget {
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          children: [
-            _NewsMenuItem(
-              icon: Symbols.edit_square,
-              label: 'Edit',
-              onTap: onEdit,
-            ),
-            if (canManagePublication)
-              _NewsMenuItem(
-                icon: post.published ? Symbols.visibility_off : Symbols.check,
-                label: post.published ? 'Unpublish' : 'Publish',
-                onTap: onToggleStatus,
-              ),
-            if (canManagePublication) ...[
-              _NewsMenuItem(
-                icon: Symbols.share_outlined,
-                label: 'Share',
-                onTap: onShare,
-              ),
-              _NewsMenuItem(
-                icon: Symbols.notifications,
-                label: 'Send notification',
-                onTap: onNotify,
-              ),
-            ],
-            _NewsMenuItem(
-              icon: post.isPinned ? Symbols.visibility_off : Symbols.verified,
-              label: post.isPinned ? 'Unpin' : 'Pin',
-              onTap: onTogglePinned,
-            ),
-            _NewsMenuItem(
-              icon: Symbols.delete,
-              label: 'Delete',
-              onTap: onDelete,
-              danger: true,
-            ),
-          ],
+          children: trashMode
+              ? [
+                  _NewsMenuItem(
+                    icon: Symbols.edit_square,
+                    label: 'Edit',
+                    onTap: onEdit,
+                  ),
+                  _NewsMenuItem(
+                    icon: Symbols.undo,
+                    label: 'news.restore',
+                    onTap: onRestore,
+                  ),
+                  _NewsMenuItem(
+                    icon: Symbols.delete,
+                    label: 'Delete',
+                    onTap: onDelete,
+                    danger: true,
+                  ),
+                ]
+              : [
+                  _NewsMenuItem(
+                    icon: Symbols.edit_square,
+                    label: 'Edit',
+                    onTap: onEdit,
+                  ),
+                  if (canManagePublication)
+                    _NewsMenuItem(
+                      icon: post.published
+                          ? Symbols.visibility_off
+                          : Symbols.check,
+                      label: post.published ? 'Unpublish' : 'Publish',
+                      onTap: onToggleStatus,
+                    ),
+                  if (canManagePublication) ...[
+                    _NewsMenuItem(
+                      icon: Symbols.share_outlined,
+                      label: 'Share',
+                      onTap: onShare,
+                    ),
+                    _NewsMenuItem(
+                      icon: Symbols.notifications,
+                      label: 'Send notification',
+                      onTap: onNotify,
+                    ),
+                  ],
+                  _NewsMenuItem(
+                    icon: post.isPinned
+                        ? Symbols.visibility_off
+                        : Symbols.verified,
+                    label: post.isPinned ? 'Unpin' : 'Pin',
+                    onTap: onTogglePinned,
+                  ),
+                  _NewsMenuItem(
+                    icon: Symbols.delete,
+                    label: 'Delete',
+                    onTap: onDelete,
+                    danger: true,
+                  ),
+                ],
         ),
       ),
     );
@@ -4695,6 +4734,7 @@ class _NewsMobileView extends StatefulWidget {
     required this.onNotifyPost,
     required this.onToggleStatus,
     required this.onTogglePinned,
+    required this.onRestorePost,
     required this.onDeletePost,
     required this.onDeleteSelected,
     required this.onToggleTrashMode,
@@ -4733,6 +4773,7 @@ class _NewsMobileView extends StatefulWidget {
   final ValueChanged<AdminNewsPost> onNotifyPost;
   final ValueChanged<AdminNewsPost> onToggleStatus;
   final ValueChanged<AdminNewsPost> onTogglePinned;
+  final ValueChanged<AdminNewsPost> onRestorePost;
   final ValueChanged<AdminNewsPost> onDeletePost;
   final VoidCallback onDeleteSelected;
   final VoidCallback onToggleTrashMode;
@@ -4894,6 +4935,7 @@ class _NewsMobileViewState extends State<_NewsMobileView> {
                             onNotifyPost: widget.onNotifyPost,
                             onToggleStatus: widget.onToggleStatus,
                             onTogglePinned: widget.onTogglePinned,
+                            onRestorePost: widget.onRestorePost,
                             onDeletePost: widget.onDeletePost,
                           );
                         },
@@ -5597,6 +5639,7 @@ class _NewsMobileCard extends StatelessWidget {
     required this.onNotifyPost,
     required this.onToggleStatus,
     required this.onTogglePinned,
+    required this.onRestorePost,
     required this.onDeletePost,
   });
 
@@ -5610,6 +5653,7 @@ class _NewsMobileCard extends StatelessWidget {
   final ValueChanged<AdminNewsPost> onNotifyPost;
   final ValueChanged<AdminNewsPost> onToggleStatus;
   final ValueChanged<AdminNewsPost> onTogglePinned;
+  final ValueChanged<AdminNewsPost> onRestorePost;
   final ValueChanged<AdminNewsPost> onDeletePost;
 
   @override
@@ -5689,65 +5733,74 @@ class _NewsMobileCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              if (trashMode)
-                const Padding(
-                  padding: EdgeInsets.only(top: 3),
-                  child: SymbolIcon(
-                    Symbols.delete,
-                    color: Color(0xFF9AA3AA),
-                    size: 18,
-                  ),
-                )
-              else
-                Transform.scale(
-                  scale: 0.88,
-                  alignment: Alignment.topRight,
-                  child: AdminMobileMenuButton(
-                    tooltip: context.t('Post actions'),
-                    actions: [
-                      AdminMobileMenuAction(
-                        icon: Symbols.edit_square,
-                        label: context.t('Edit'),
-                        onTap: () => onEditPost(post),
-                      ),
-                      if (canManagePublication)
-                        AdminMobileMenuAction(
-                          icon: post.published
-                              ? Symbols.visibility_off
-                              : Symbols.check,
-                          label: context.t(
-                            post.published ? 'Unpublish' : 'Publish',
+              Transform.scale(
+                scale: 0.88,
+                alignment: Alignment.topRight,
+                child: AdminMobileMenuButton(
+                  tooltip: context.t('Post actions'),
+                  actions: trashMode
+                      ? [
+                          AdminMobileMenuAction(
+                            icon: Symbols.edit_square,
+                            label: context.t('Edit'),
+                            onTap: () => onEditPost(post),
                           ),
-                          onTap: () => onToggleStatus(post),
-                        ),
-                      if (canManagePublication)
-                        AdminMobileMenuAction(
-                          icon: Symbols.share_outlined,
-                          label: context.t('Share'),
-                          onTap: () => onSharePost(post),
-                        ),
-                      if (canManagePublication)
-                        AdminMobileMenuAction(
-                          icon: Symbols.notifications,
-                          label: context.t('Send notification'),
-                          onTap: () => onNotifyPost(post),
-                        ),
-                      AdminMobileMenuAction(
-                        icon: post.isPinned
-                            ? Symbols.visibility_off
-                            : Symbols.verified,
-                        label: context.t(post.isPinned ? 'Unpin' : 'Pin'),
-                        onTap: () => onTogglePinned(post),
-                      ),
-                      AdminMobileMenuAction(
-                        icon: Symbols.delete,
-                        label: context.t('Delete'),
-                        danger: true,
-                        onTap: () => onDeletePost(post),
-                      ),
-                    ],
-                  ),
+                          AdminMobileMenuAction(
+                            icon: Symbols.undo,
+                            label: context.t('news.restore'),
+                            onTap: () => onRestorePost(post),
+                          ),
+                          AdminMobileMenuAction(
+                            icon: Symbols.delete,
+                            label: context.t('Delete'),
+                            danger: true,
+                            onTap: () => onDeletePost(post),
+                          ),
+                        ]
+                      : [
+                          AdminMobileMenuAction(
+                            icon: Symbols.edit_square,
+                            label: context.t('Edit'),
+                            onTap: () => onEditPost(post),
+                          ),
+                          if (canManagePublication)
+                            AdminMobileMenuAction(
+                              icon: post.published
+                                  ? Symbols.visibility_off
+                                  : Symbols.check,
+                              label: context.t(
+                                post.published ? 'Unpublish' : 'Publish',
+                              ),
+                              onTap: () => onToggleStatus(post),
+                            ),
+                          if (canManagePublication)
+                            AdminMobileMenuAction(
+                              icon: Symbols.share_outlined,
+                              label: context.t('Share'),
+                              onTap: () => onSharePost(post),
+                            ),
+                          if (canManagePublication)
+                            AdminMobileMenuAction(
+                              icon: Symbols.notifications,
+                              label: context.t('Send notification'),
+                              onTap: () => onNotifyPost(post),
+                            ),
+                          AdminMobileMenuAction(
+                            icon: post.isPinned
+                                ? Symbols.visibility_off
+                                : Symbols.verified,
+                            label: context.t(post.isPinned ? 'Unpin' : 'Pin'),
+                            onTap: () => onTogglePinned(post),
+                          ),
+                          AdminMobileMenuAction(
+                            icon: Symbols.delete,
+                            label: context.t('Delete'),
+                            danger: true,
+                            onTap: () => onDeletePost(post),
+                          ),
+                        ],
                 ),
+              ),
             ],
           ),
           const SizedBox(height: 13),

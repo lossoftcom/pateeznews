@@ -35,6 +35,8 @@ abstract class AdminNewsRepository {
 
   Future<void> deletePosts(List<String> postIds, {bool permanently = false});
 
+  Future<void> restorePost(String postId);
+
   Future<AdminNewsEditorBootstrap> fetchEditorBootstrap();
 
   Future<AdminNewsEditorPost> fetchEditorPost(String postId);
@@ -203,6 +205,17 @@ class SupabaseAdminNewsRepository implements AdminNewsRepository {
       if (permanently) 'permanent': true,
     });
     _throwIfApiError(result, fallbackMessage: 'Seçili haberler silinemedi');
+  }
+
+  @override
+  Future<void> restorePost(String postId) async {
+    final id = int.tryParse(postId);
+    if (id == null) return;
+    final result = await _postJson('/api/admin/news/delete', {
+      'ids': [id],
+      'restore': true,
+    });
+    _throwIfApiError(result, fallbackMessage: 'Haber geri alınamadı');
   }
 
   @override
