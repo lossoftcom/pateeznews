@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -11,6 +10,15 @@ import '../theme/app_typography.dart';
 class AppUpdateService {
   const AppUpdateService();
 
+  static const _currentVersion = String.fromEnvironment(
+    'PATEEZ_APP_VERSION',
+    defaultValue: '1.0.0',
+  );
+  static const _packageName = String.fromEnvironment(
+    'PATEEZ_APP_PACKAGE',
+    defaultValue: 'com.pateez.app',
+  );
+
   Future<void> maybeShowUpdateDialog(
     BuildContext context,
     AppUpdateSettings settings,
@@ -18,11 +26,10 @@ class AppUpdateService {
     if (kIsWeb || !_isMobileTarget(defaultTargetPlatform)) return;
     if (!settings.enabled) return;
 
-    final packageInfo = await PackageInfo.fromPlatform();
     final latestVersion = settings.latestVersion.trim();
-    if (!_isNewerVersion(latestVersion, packageInfo.version)) return;
+    if (!_isNewerVersion(latestVersion, _currentVersion)) return;
 
-    final storeUri = _storeUri(settings, packageInfo.packageName);
+    final storeUri = _storeUri(settings, _packageName);
     if (storeUri == null) return;
 
     final preferences = await SharedPreferences.getInstance();
@@ -42,13 +49,13 @@ class AppUpdateService {
       context: context,
       barrierDismissible: false,
       builder: (_) => _AppUpdateDialog(
-        currentVersion: packageInfo.version,
+        currentVersion: _currentVersion,
         latestVersion: latestVersion,
       ),
     );
 
     if (action == _AppUpdateDialogAction.update) {
-      await _openStore(storeUri, packageInfo.packageName);
+      await _openStore(storeUri, _packageName);
       return;
     }
 

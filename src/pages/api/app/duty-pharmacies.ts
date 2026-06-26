@@ -19,9 +19,11 @@ const DISTRICT_ORDER = ['MERKEZ', 'ALTUNHİSAR', 'BOR', 'ÇAMARDI', 'ÇİFTLİK'
 const NEO_REQUEST_HEADERS = {
   Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
   'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
-  'Cache-Control': 'no-cache',
-  Pragma: 'no-cache',
   Referer: 'https://www.neo.org.tr/',
+  'Sec-Fetch-Dest': 'document',
+  'Sec-Fetch-Mode': 'navigate',
+  'Sec-Fetch-Site': 'none',
+  'Sec-Fetch-User': '?1',
   'Upgrade-Insecure-Requests': '1',
   'User-Agent':
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
@@ -422,11 +424,11 @@ const cacheMatchesToday = (payload: any) => {
   return payload?.citySlug === CITY_SLUG && payload?.serviceDate === today && Array.isArray(payload?.pharmacies);
 };
 
-const fetchFresh = async ({ reuseInFlight = true } = {}): Promise<DutyPharmacyPayload> => {
+const fetchFresh = async ({ reuseInFlight = true, respectSourceRetry = true } = {}): Promise<DutyPharmacyPayload> => {
   if (reuseInFlight && refreshInFlight) return refreshInFlight;
 
   const operation = (async () => {
-    await assertSourceRetryAllowed();
+    if (respectSourceRetry) await assertSourceRetryAllowed();
 
     const response = await fetch(SOURCE_URL, {
       signal: AbortSignal.timeout(SOURCE_FETCH_TIMEOUT_MS),
@@ -517,7 +519,7 @@ export const GET: APIRoute = async ({ url }) => {
 
   if (forceRefresh && cached?.payload && cacheMatchesToday(cached.payload)) {
     try {
-      const fresh = await fetchFresh({ reuseInFlight: false });
+      const fresh = await fetchFresh({ reuseInFlight: false, respectSourceRetry: false });
       return json({
         ...fresh,
         cache: { hit: false, stale: false, source: 'neo.org.tr', refreshIntervalMinutes: PHARMACY_REFRESH_MINUTES },
@@ -550,7 +552,7 @@ export const GET: APIRoute = async ({ url }) => {
   }
 
   try {
-    const fresh = await fetchFresh({ reuseInFlight: !forceRefresh });
+    const fresh = await fetchFresh({ reuseInFlight: !forceRefresh, respectSourceRetry: !forceRefresh });
     return json({
       ...fresh,
       cache: { hit: false, stale: false, source: 'neo.org.tr', refreshIntervalMinutes: PHARMACY_REFRESH_MINUTES },

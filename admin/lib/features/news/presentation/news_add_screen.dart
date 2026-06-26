@@ -27,6 +27,7 @@ import '../../../shared/data/media_download_saver.dart';
 import '../../../shared/data/media_service.dart';
 import '../../../shared/data/media_upload_transformer.dart';
 import '../../../shared/widgets/admin_cached_image.dart';
+import '../../../shared/widgets/admin_date_time_picker.dart';
 import '../../../shared/widgets/admin_rich_text_editor.dart'
     show
         adminEmptyQuillDeltaJson,
@@ -2107,6 +2108,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
         session: widget.session,
         socialRepository: widget.socialRepository,
         data: _collectShareData(),
+        scheduledAt: _futureScheduledPublishAt,
         onSendSocialPost: _sendNewsSocialPost,
         onSendNotification: _sendNewsNotification,
         onConfirmPublish: () async {
@@ -2218,6 +2220,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
       widget.session,
       socialAccountId: request.socialAccountId,
       data: request.data,
+      scheduledAt: request.scheduledAt,
     );
     return NewsSocialPublishResult(
       id: result.id,
@@ -2235,7 +2238,9 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
       title: request.title,
       body: request.body,
       targetType: request.targetType,
-      status: AdminNotificationStatus.draft,
+      status: request.scheduledAt == null
+          ? AdminNotificationStatus.draft
+          : AdminNotificationStatus.scheduled,
       priority: request.priority,
       recipientCount: 0,
       queuedCount: 0,
@@ -2249,11 +2254,20 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
       targetPlatforms: request.targetPlatforms,
       ttlSeconds: request.ttlSeconds,
       channelId: request.channelId,
+      scheduledStartAt: request.scheduledAt,
     );
     final saved = await widget.notificationsRepository.saveCampaign(
       widget.session,
       campaign: campaign,
     );
+    if (request.scheduledAt != null) {
+      return NewsNotificationDispatchResult(
+        recipientCount: saved.recipientCount,
+        queuedCount: saved.queuedCount,
+        sentCount: saved.sentCount,
+        failedCount: saved.failedCount,
+      );
+    }
     final dispatched = await widget.notificationsRepository
         .updateCampaignAction(widget.session, saved, 'dispatch');
     return NewsNotificationDispatchResult(
@@ -3503,6 +3517,51 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
       int.parse(match.group(4)!),
       int.parse(match.group(5)!),
     );
+  }
+
+  DateTime? get _scheduledPublishAt =>
+      _parseEditorDate(_publishAtController.text);
+
+  DateTime? get _futureScheduledPublishAt {
+    final value = _scheduledPublishAt;
+    if (value == null) return null;
+    return value.isAfter(DateTime.now()) ? value : null;
+  }
+
+  void _setScheduledPublishAt(DateTime? value) {
+    _publishAtController.text = value == null ? '' : _formatEditorDate(value);
+  }
+
+  Future<void> _pickScheduledPublishAt() async {
+    final picked = await showAdminDateTimePicker(
+      context,
+      initialValue:
+          _scheduledPublishAt ?? DateTime.now().add(const Duration(hours: 1)),
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _setScheduledPublishAt(picked));
+  }
+
+  Future<void> _handleScheduleSave() async {
+    if (_saving) return;
+    var scheduledAt = _futureScheduledPublishAt;
+    if (scheduledAt == null) {
+      final picked = await showAdminDateTimePicker(
+        context,
+        initialValue: DateTime.now().add(const Duration(hours: 1)),
+      );
+      if (picked == null || !mounted) return;
+      scheduledAt = picked;
+      setState(() => _setScheduledPublishAt(scheduledAt));
+    }
+    if (!scheduledAt.isAfter(DateTime.now())) {
+      _showEditorMessage(
+        'İleri tarihli yayın zamanı şu andan sonra olmalı.',
+        isError: true,
+      );
+      return;
+    }
+    await _handleSave('published');
   }
 
   NewsAddQuizSort _quizSortFromText(String value) {
@@ -5068,7 +5127,7 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
               canPublish: _isSuperAdminUser,
               onSaveDraft: () => unawaited(_handleSave('draft')),
               onPublish: () => unawaited(_handleSave('published')),
-              onSchedule: () => unawaited(_handleSave('published')),
+              onSchedule: () => unawaited(_handleScheduleSave()),
             ),
           ),
         ],
@@ -8317,14 +8376,16 @@ class _NewsAddScreenState extends State<NewsAddScreen> {
       factClaimAppearanceUrlController: _factClaimAppearanceUrlController,
       factRatingValue: _factRatingValue,
       publishAtController: _publishAtController,
+      scheduledAt: _scheduledPublishAt,
       saving: _saving,
       onFactCheckChanged: _handleFactCheckChanged,
       onFactRatingChanged: (value) => setState(
         () => _factRatingValue = _normalizeFactCheckRatingValue(value),
       ),
+      onPickPublishAt: () => unawaited(_pickScheduledPublishAt()),
       onSaveDraft: () => unawaited(_handleSave('draft')),
       onPublish: () => unawaited(_handleSave('published')),
-      onSchedule: () => unawaited(_handleSave('published')),
+      onSchedule: () => unawaited(_handleScheduleSave()),
     );
   }
 }
@@ -20288,9 +20349,11 @@ class _PublishCard extends StatelessWidget {
     required this.factClaimAppearanceUrlController,
     required this.factRatingValue,
     required this.publishAtController,
+    required this.scheduledAt,
     required this.saving,
     required this.onFactCheckChanged,
     required this.onFactRatingChanged,
+    required this.onPickPublishAt,
     required this.onSaveDraft,
     required this.onPublish,
     required this.onSchedule,
@@ -20306,9 +20369,11 @@ class _PublishCard extends StatelessWidget {
   final TextEditingController factClaimAppearanceUrlController;
   final String factRatingValue;
   final TextEditingController publishAtController;
+  final DateTime? scheduledAt;
   final bool saving;
   final ValueChanged<bool> onFactCheckChanged;
   final ValueChanged<String?> onFactRatingChanged;
+  final VoidCallback onPickPublishAt;
   final VoidCallback onSaveDraft;
   final VoidCallback onPublish;
   final VoidCallback onSchedule;
@@ -20380,48 +20445,49 @@ class _PublishCard extends StatelessWidget {
           ],
           const SizedBox(height: 16),
           const _FieldLabel('newsAdd.scheduledPublish'),
-          Container(
-            height: 44,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(
-              color: AppColors.surface.withValues(alpha: 0.6),
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onPickPublishAt,
               borderRadius: BorderRadius.circular(AppRadius.value),
-              border: Border.all(color: AppColors.line),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: publishAtController,
-                    cursorColor: AppColors.deepOcean,
-                    style: const TextStyle(
-                      color: AppColors.deepOcean,
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w700,
-                    ),
-                    decoration: InputDecoration(
-                      hintText: context.t('newsAdd.datePlaceholder'),
-                      hintStyle: const TextStyle(
-                        color: AppColors.placeholder,
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w500,
+              mouseCursor: SystemMouseCursors.click,
+              child: Container(
+                height: 44,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: AppColors.surface.withValues(alpha: 0.6),
+                  borderRadius: BorderRadius.circular(AppRadius.value),
+                  border: Border.all(color: AppColors.line),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        scheduledAt == null
+                            ? context.t('newsAdd.datePlaceholder')
+                            : publishAtController.text,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: scheduledAt == null
+                              ? AppColors.placeholder
+                              : AppColors.deepOcean,
+                          fontSize: 12.5,
+                          fontWeight: scheduledAt == null
+                              ? FontWeight.w500
+                              : FontWeight.w700,
+                          letterSpacing: 0,
+                        ),
                       ),
-                      isDense: true,
-                      border: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                      focusedBorder: InputBorder.none,
                     ),
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'[0-9\.\:\s]')),
-                    ],
-                  ),
+                    const Icon(
+                      Symbols.calendar_today_outlined,
+                      size: 14,
+                      color: AppColors.iconMuted,
+                    ),
+                  ],
                 ),
-                const Icon(
-                  Symbols.calendar_today_outlined,
-                  size: 14,
-                  color: AppColors.iconMuted,
-                ),
-              ],
+              ),
             ),
           ),
           if (showActions) ...[

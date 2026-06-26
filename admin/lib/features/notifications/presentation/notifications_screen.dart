@@ -12,6 +12,7 @@ import '../../../core/theme/app_radius.dart';
 import '../../../shared/icons/symbols.dart';
 import '../../../shared/branding/admin_branding.dart';
 import '../../../shared/widgets/admin_brand_mark.dart';
+import '../../../shared/widgets/admin_date_time_picker.dart';
 import '../../../shared/widgets/app_confirmation_dialog.dart';
 import '../../../shared/widgets/sortable_table_header.dart';
 import '../../../shared/widgets/symbol_icon.dart';
@@ -2750,6 +2751,7 @@ class _CampaignDialogState extends State<_CampaignDialog> {
   var _priority = 'normal';
   var _ttlSeconds = 3600;
   var _channelId = 'pateez_general';
+  DateTime? _scheduledStartAt;
 
   static const _platforms = <_CampaignPlatform>[
     _CampaignPlatform('android', 'Android', Symbols.apps),
@@ -2771,6 +2773,7 @@ class _CampaignDialogState extends State<_CampaignDialog> {
     _manualLink = _deepLink;
     _selectedNewsLink = _deepLink;
     _imageUrl = campaign?.imageUrl ?? '';
+    _scheduledStartAt = campaign?.scheduledStartAt;
     _ttlSeconds = campaign?.ttlSeconds ?? 3600;
     _channelId = (campaign?.channelId ?? '').trim().isEmpty
         ? 'pateez_general'
@@ -2808,9 +2811,13 @@ class _CampaignDialogState extends State<_CampaignDialog> {
     return null;
   }
 
-  void _save() {
+  void _save({
+    AdminNotificationStatus? statusOverride,
+    DateTime? scheduledStartAt,
+  }) {
     final platforms = _targetPlatforms();
     final template = _selectedTemplate;
+    final schedule = scheduledStartAt ?? _scheduledStartAt;
     Navigator.of(context).pop(
       AdminNotificationCampaign(
         id: widget.campaign?.id ?? 0,
@@ -2824,7 +2831,10 @@ class _CampaignDialogState extends State<_CampaignDialog> {
         targetTopics: widget.campaign?.targetTopics ?? const <String>[],
         imageUrl: _imageUrl.trim(),
         deepLink: _deepLink.trim(),
-        status: widget.campaign?.status ?? AdminNotificationStatus.draft,
+        status:
+            statusOverride ??
+            widget.campaign?.status ??
+            AdminNotificationStatus.draft,
         priority: _priority,
         ttlSeconds: _ttlSeconds,
         channelId: _channelId,
@@ -2834,9 +2844,23 @@ class _CampaignDialogState extends State<_CampaignDialog> {
         failedCount: widget.campaign?.failedCount ?? 0,
         openedCount: widget.campaign?.openedCount ?? 0,
         clickedCount: widget.campaign?.clickedCount ?? 0,
-        scheduledStartAt: widget.campaign?.scheduledStartAt,
+        scheduledStartAt: schedule,
         createdAt: widget.campaign?.createdAt ?? DateTime.now(),
       ),
+    );
+  }
+
+  Future<void> _schedule() async {
+    final picked = await showAdminDateTimePicker(
+      context,
+      initialValue:
+          _scheduledStartAt ?? DateTime.now().add(const Duration(hours: 1)),
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _scheduledStartAt = picked);
+    _save(
+      statusOverride: AdminNotificationStatus.scheduled,
+      scheduledStartAt: picked,
     );
   }
 
@@ -3240,7 +3264,8 @@ class _CampaignDialogState extends State<_CampaignDialog> {
               _TemplateDrawerActions(
                 mobile: mobile,
                 onCancel: () => Navigator.of(context).pop(),
-                onSave: _save,
+                onSave: () => _save(),
+                onSchedule: () => unawaited(_schedule()),
               ),
             ],
           ),
@@ -4252,11 +4277,13 @@ class _TemplateDrawerActions extends StatelessWidget {
     required this.mobile,
     required this.onCancel,
     required this.onSave,
+    this.onSchedule,
   });
 
   final bool mobile;
   final VoidCallback onCancel;
   final VoidCallback onSave;
+  final VoidCallback? onSchedule;
 
   @override
   Widget build(BuildContext context) {
@@ -4270,12 +4297,23 @@ class _TemplateDrawerActions extends StatelessWidget {
       label: context.t('common.save'),
       onPressed: onSave,
     );
+    final schedule = onSchedule == null
+        ? null
+        : AdminTableSecondaryActionButton(
+            icon: Symbols.schedule_send,
+            label: 'Zamanla',
+            onPressed: onSchedule!,
+          );
 
     if (mobile) {
       return Row(
         children: [
           Expanded(child: cancel),
           const SizedBox(width: 10),
+          if (schedule != null) ...[
+            Expanded(child: schedule),
+            const SizedBox(width: 10),
+          ],
           Expanded(child: save),
         ],
       );
@@ -4283,7 +4321,12 @@ class _TemplateDrawerActions extends StatelessWidget {
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,
-      children: [cancel, const SizedBox(width: 10), save],
+      children: [
+        cancel,
+        const SizedBox(width: 10),
+        if (schedule != null) ...[schedule, const SizedBox(width: 10)],
+        save,
+      ],
     );
   }
 }

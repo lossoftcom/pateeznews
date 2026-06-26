@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -100,9 +101,9 @@ class _AdminGateState extends State<AdminGate> {
 
   /// Oturumu yalnızca KULLANICI ETKİNLİĞİNE göre sonlandıran inaktivite süresi.
   /// Bu süre boyunca hiç etkileşim (dokunma/kaydırma/tuş) olmazsa giriş ekranına
-  /// düşülür; her etkileşimde sayaç sıfırlanır. (Eski davranış: token'ın mutlak
-  /// son kullanım anında, kullanıcı aktif olsa bile çıkış yapılıyordu.)
-  static const _idleTimeout = Duration(minutes: 30);
+  /// düşülür; her etkileşimde sayaç sıfırlanır. Yalnızca Flutter admin web'de
+  /// çalışır; mobil uygulama yüzeylerinde aktif değildir.
+  static const _idleTimeout = Duration(minutes: 45);
   Timer? _idleTimer;
   Timer? _externalAuthSyncTimer;
   Object? _browserAuthStorageListener;
@@ -265,7 +266,7 @@ class _AdminGateState extends State<AdminGate> {
   void _startIdleTimer() {
     _idleTimer?.cancel();
     _idleTimer = null;
-    if (_session == null) return;
+    if (!kIsWeb || _session == null) return;
     _idleTimer = Timer(_idleTimeout, _handleIdleTimeout);
   }
 
@@ -296,41 +297,44 @@ class _AdminGateState extends State<AdminGate> {
 
     final session = _session;
 
-    return session != null
-        ? _ActivityDetector(
-            onActivity: _startIdleTimer,
-            child: DashboardScreen(
-              session: session,
-              profile: _profile,
-              onLogout: () => unawaited(_logout()),
-              newsRepository: widget.newsRepository,
-              storiesRepository: widget.storiesRepository,
-              pagesRepository: widget.pagesRepository,
-              commentsRepository: widget.commentsRepository,
-              navigationRepository: widget.navigationRepository,
-              usersRepository: widget.usersRepository,
-              rolesRepository: widget.rolesRepository,
-              languagesRepository: widget.languagesRepository,
-              generalSettingsRepository: widget.generalSettingsRepository,
-              fontSettingsRepository: widget.fontSettingsRepository,
-              aiSettingsRepository: widget.aiSettingsRepository,
-              contentSettingsRepository: widget.contentSettingsRepository,
-              initialContentSettings:
-                  _contentSettingsSnapshot ??
-                  ContentSettingsSnapshot.defaults(widget.languageCode),
-              moduleSettingsRepository: widget.moduleSettingsRepository,
-              securitySettingsRepository: widget.securitySettingsRepository,
-              storageSettingsRepository: widget.storageSettingsRepository,
-              accountSettingsRepository: widget.accountSettingsRepository,
-              subscribersRepository: widget.subscribersRepository,
-              notificationsRepository: widget.notificationsRepository,
-              smsRepository: widget.smsRepository,
-              socialRepository: widget.socialRepository,
-              initialPageName: widget.initialPageName,
-              onOpenFrontend: widget.onOpenFrontend,
-            ),
-          )
-        : LoginScreen(onLogin: _login);
+    if (session == null) {
+      return LoginScreen(onLogin: _login);
+    }
+
+    final dashboard = DashboardScreen(
+      session: session,
+      profile: _profile,
+      onLogout: () => unawaited(_logout()),
+      newsRepository: widget.newsRepository,
+      storiesRepository: widget.storiesRepository,
+      pagesRepository: widget.pagesRepository,
+      commentsRepository: widget.commentsRepository,
+      navigationRepository: widget.navigationRepository,
+      usersRepository: widget.usersRepository,
+      rolesRepository: widget.rolesRepository,
+      languagesRepository: widget.languagesRepository,
+      generalSettingsRepository: widget.generalSettingsRepository,
+      fontSettingsRepository: widget.fontSettingsRepository,
+      aiSettingsRepository: widget.aiSettingsRepository,
+      contentSettingsRepository: widget.contentSettingsRepository,
+      initialContentSettings:
+          _contentSettingsSnapshot ??
+          ContentSettingsSnapshot.defaults(widget.languageCode),
+      moduleSettingsRepository: widget.moduleSettingsRepository,
+      securitySettingsRepository: widget.securitySettingsRepository,
+      storageSettingsRepository: widget.storageSettingsRepository,
+      accountSettingsRepository: widget.accountSettingsRepository,
+      subscribersRepository: widget.subscribersRepository,
+      notificationsRepository: widget.notificationsRepository,
+      smsRepository: widget.smsRepository,
+      socialRepository: widget.socialRepository,
+      initialPageName: widget.initialPageName,
+      onOpenFrontend: widget.onOpenFrontend,
+    );
+
+    return kIsWeb
+        ? _ActivityDetector(onActivity: _startIdleTimer, child: dashboard)
+        : dashboard;
   }
 }
 

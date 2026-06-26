@@ -59,6 +59,7 @@ class NewsNotificationDispatchRequest {
     required this.priority,
     required this.ttlSeconds,
     required this.channelId,
+    this.scheduledAt,
   });
 
   final String campaignName;
@@ -71,6 +72,7 @@ class NewsNotificationDispatchRequest {
   final String priority;
   final int ttlSeconds;
   final String channelId;
+  final DateTime? scheduledAt;
 }
 
 class NewsNotificationDispatchResult {
@@ -91,10 +93,12 @@ class NewsSocialPublishRequest {
   const NewsSocialPublishRequest({
     required this.socialAccountId,
     required this.data,
+    this.scheduledAt,
   });
 
   final int? socialAccountId;
   final SocialPublishData data;
+  final DateTime? scheduledAt;
 }
 
 class NewsSocialPublishResult {
@@ -116,6 +120,7 @@ Future<void> showNewsPublishShareDialog(
   NewsPublishShareMode mode = NewsPublishShareMode.publishFlow,
   AdminSocialRepository socialRepository =
       const SupabaseAdminSocialRepository(),
+  DateTime? scheduledAt,
   Future<void> Function()? onConfirmPublish,
   Future<NewsSocialPublishResult> Function(NewsSocialPublishRequest request)?
   onSendSocialPost,
@@ -135,6 +140,7 @@ Future<void> showNewsPublishShareDialog(
       data: data,
       mode: mode,
       socialRepository: socialRepository,
+      scheduledAt: scheduledAt,
       onConfirmPublish: onConfirmPublish,
       onSendSocialPost: onSendSocialPost,
       onSendNotification: onSendNotification,
@@ -252,6 +258,7 @@ class _NewsPublishShareDialog extends StatefulWidget {
     required this.data,
     required this.mode,
     required this.socialRepository,
+    this.scheduledAt,
     required this.onConfirmPublish,
     required this.onSendSocialPost,
     required this.onSendNotification,
@@ -261,6 +268,7 @@ class _NewsPublishShareDialog extends StatefulWidget {
   final NewsPublishShareData data;
   final NewsPublishShareMode mode;
   final AdminSocialRepository socialRepository;
+  final DateTime? scheduledAt;
   final Future<void> Function()? onConfirmPublish;
   final Future<NewsSocialPublishResult> Function(
     NewsSocialPublishRequest request,
@@ -490,7 +498,10 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
     return switch (widget.mode) {
       NewsPublishShareMode.socialOnly => 'Sosyal medya paylaşımı gönderildi.',
       NewsPublishShareMode.notificationOnly => 'Bildirim gönderildi.',
-      NewsPublishShareMode.publishFlow => 'Haber yayına alındı.',
+      NewsPublishShareMode.publishFlow =>
+        widget.scheduledAt == null
+            ? 'Haber yayına alındı.'
+            : 'Haber yayına zamanlandı.',
     };
   }
 
@@ -505,7 +516,9 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
             ? 'Bildirim gönderimi hazır.'
             : _notificationSummary,
       NewsPublishShareMode.publishFlow =>
-        'Haber yayında. ${_publishFlowSummary()}',
+        widget.scheduledAt == null
+            ? 'Haber yayında. ${_publishFlowSummary()}'
+            : 'Haber zamanlandı. ${_publishFlowSummary()}',
     };
   }
 
@@ -522,19 +535,21 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
     if (result == null) return 'Sosyal medya paylaşımı hazır.';
     final id = result.bundlePostId.isNotEmpty ? result.bundlePostId : result.id;
     final status = result.status.trim();
+    final action = widget.scheduledAt == null
+        ? 'Sosyal medya paylaşımı gönderildi'
+        : 'Sosyal medya paylaşımı zamanlandı';
     if (id.isEmpty) {
-      return status.isEmpty
-          ? 'Sosyal medya paylaşımı gönderildi.'
-          : 'Sosyal medya paylaşımı gönderildi ($status).';
+      return status.isEmpty ? '$action.' : '$action ($status).';
     }
-    return status.isEmpty
-        ? 'Sosyal medya paylaşımı gönderildi: $id'
-        : 'Sosyal medya paylaşımı gönderildi: $id ($status).';
+    return status.isEmpty ? '$action: $id' : '$action: $id ($status).';
   }
 
   String get _notificationSummary {
     final result = _notificationResult;
     if (result == null) return 'Bildirim gönderimi hazır.';
+    if (widget.scheduledAt != null) {
+      return 'Bildirim kampanyası zamanlandı.';
+    }
     if (result.recipientCount == 0) {
       return 'Bildirim kampanyası oluşturuldu, uygun cihaz bulunamadı.';
     }
@@ -649,6 +664,7 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
     }
     return NewsSocialPublishRequest(
       socialAccountId: _primarySocialAccountId,
+      scheduledAt: widget.scheduledAt,
       data: SocialPublishData(
         selectedPlatforms: _selectedSocialPlatforms,
         selectedConnectedAccountIds: _selectedConnectedAccountIds,
@@ -701,6 +717,7 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
       priority: 'normal',
       ttlSeconds: 3600,
       channelId: 'pateez_general',
+      scheduledAt: widget.scheduledAt,
     );
   }
 
@@ -2321,8 +2338,16 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
         final hasSteps = _shareSocial || _notify;
         children.add(
           _Btn(
-            label: hasSteps ? 'Devam et' : 'Şimdi gönder',
-            icon: hasSteps ? Symbols.arrow_forward : Symbols.send_rounded,
+            label: hasSteps
+                ? 'Devam et'
+                : widget.scheduledAt == null
+                ? 'Şimdi gönder'
+                : 'Zamanla',
+            icon: hasSteps
+                ? Symbols.arrow_forward
+                : widget.scheduledAt == null
+                ? Symbols.send_rounded
+                : Symbols.schedule_send,
             primary: true,
             trailingIcon: hasSteps,
             loading: _publishing,
@@ -2340,9 +2365,15 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
         children.add(const Spacer());
         children.add(
           _Btn(
-            label: _isLastBeforeDone ? 'Şimdi gönder' : 'Devam',
+            label: _isLastBeforeDone
+                ? widget.scheduledAt == null
+                      ? 'Şimdi gönder'
+                      : 'Zamanla'
+                : 'Devam',
             icon: _isLastBeforeDone
-                ? Symbols.send_rounded
+                ? widget.scheduledAt == null
+                      ? Symbols.send_rounded
+                      : Symbols.schedule_send
                 : Symbols.arrow_forward,
             primary: true,
             trailingIcon: !_isLastBeforeDone,
@@ -2361,8 +2392,10 @@ class _NewsPublishShareDialogState extends State<_NewsPublishShareDialog> {
         children.add(const Spacer());
         children.add(
           _Btn(
-            label: 'Şimdi gönder',
-            icon: Symbols.send_rounded,
+            label: widget.scheduledAt == null ? 'Şimdi gönder' : 'Zamanla',
+            icon: widget.scheduledAt == null
+                ? Symbols.send_rounded
+                : Symbols.schedule_send,
             primary: true,
             loading: _publishing,
             onTap: _confirmPublish,
