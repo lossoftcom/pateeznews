@@ -11,7 +11,6 @@ import 'package:pateeznews_admin/features/news/presentation/widgets/news_link_op
 import 'package:pateeznews_admin/shared/icons/symbols.dart';
 import 'package:quill_native_bridge/quill_native_bridge.dart';
 import 'package:share_plus/share_plus.dart' hide XFile;
-import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../../core/theme/app_colors.dart';
@@ -3148,14 +3147,6 @@ Map<String, String>? _automaticNewsImageHttpHeaders(
   return kIsWeb && imageRequestHeaders.isNotEmpty ? imageRequestHeaders : null;
 }
 
-Future<void> _openPreviewExternalUrl(String value) async {
-  final raw = value.trim();
-  if (raw.isEmpty) return;
-  final uri = Uri.tryParse(raw);
-  if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) return;
-  await launchUrl(uri, webOnlyWindowName: '_blank');
-}
-
 IconData _platformIcon(String platform) {
   return switch (platform) {
     'Instagram' => Symbols.instagram_fill,
@@ -5733,60 +5724,6 @@ class _PreviewLinkValue extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _PreviewLinkInfoBlock extends StatelessWidget {
-  const _PreviewLinkInfoBlock({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final displayValue = _readableText(value);
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.value),
-        border: Border.all(color: AppColors.line.withValues(alpha: 0.72)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppColors.inkSoft,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0,
-            ),
-          ),
-          const SizedBox(height: 5),
-          MouseRegion(
-            cursor: SystemMouseCursors.click,
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => unawaited(_openPreviewExternalUrl(value)),
-              child: Text(
-                displayValue,
-                softWrap: true,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppColors.actionRed,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0,
-                  height: 1.35,
-                  decoration: TextDecoration.underline,
-                  decorationColor: AppColors.actionRed.withValues(alpha: 0.65),
-                ),
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

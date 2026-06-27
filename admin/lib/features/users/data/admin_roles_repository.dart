@@ -295,8 +295,9 @@ class SupabaseAdminRolesRepository implements AdminRolesRepository {
 
   Uri _uri(String path) {
     final baseUrl = (apiBaseUrl ?? _apiBaseUrl).trim();
-    if (baseUrl.isNotEmpty && !isLocalAdminApiBaseUrl(baseUrl))
+    if (baseUrl.isNotEmpty && !isLocalAdminApiBaseUrl(baseUrl)) {
       return Uri.parse(baseUrl).resolve(path);
+    }
     return _defaultLocalApiBaseUrl().resolve(path);
   }
 

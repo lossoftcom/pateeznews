@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:pateeznews_admin/core/network/admin_api_headers.dart';
 
@@ -149,8 +148,9 @@ class SupabaseAdminStorageSettingsRepository
 
   Uri _uri(String path) {
     final baseUrl = (apiBaseUrl ?? _apiBaseUrl).trim();
-    if (baseUrl.isNotEmpty && !isLocalAdminApiBaseUrl(baseUrl))
+    if (baseUrl.isNotEmpty && !isLocalAdminApiBaseUrl(baseUrl)) {
       return Uri.parse(baseUrl).resolve(path);
+    }
     return Uri.parse('https://pateez.com').resolve(path);
   }
 }

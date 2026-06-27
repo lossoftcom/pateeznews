@@ -1154,6 +1154,7 @@ class _FakeAdminNewsRepository implements AdminNewsRepository {
 
   String? toggledStatusPostId;
   String? toggledPinnedPostId;
+  String? restoredPostId;
   String? deletedPostId;
   List<String>? deletedPostIds;
   bool? deletedPermanently;
@@ -1180,6 +1181,11 @@ class _FakeAdminNewsRepository implements AdminNewsRepository {
     deletedPostIds = postIds;
     deletedPermanently = permanently;
     _posts.removeWhere((post) => postIds.contains(post.id));
+  }
+
+  @override
+  Future<void> restorePost(String postId) async {
+    restoredPostId = postId;
   }
 
   @override
@@ -1330,6 +1336,7 @@ class _FakeAdminNewsRepository implements AdminNewsRepository {
       publisherId: post.publisherId,
       isPinned: post.isPinned,
       showInManset: false,
+      hideCoverInDetail: false,
       factChecked: false,
       schemaType: 'NewsArticle',
       publishedAt: post.createdAt,
@@ -4557,6 +4564,7 @@ void main() {
                 onNotifyPost: (_) {},
                 onToggleStatus: (_) {},
                 onTogglePinned: (_) {},
+                onRestorePost: (_) {},
                 onDeletePost: (_) {},
                 onDeleteSelected: () => deleteSelectedCalled = true,
                 onToggleTrashMode: () {},

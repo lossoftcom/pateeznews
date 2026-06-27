@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:pateeznews_admin/core/network/admin_api_headers.dart';
 import 'package:pateeznews_admin/shared/widgets/highlighted_text.dart';
@@ -262,8 +261,9 @@ class SupabaseAdminSubscribersRepository implements AdminSubscribersRepository {
 
   Uri _resolveUri(String path) {
     final configured = (apiBaseUrl ?? _apiBaseUrl).trim();
-    if (configured.isNotEmpty && !isLocalAdminApiBaseUrl(configured))
+    if (configured.isNotEmpty && !isLocalAdminApiBaseUrl(configured)) {
       return Uri.parse(configured).resolve(path);
+    }
     return Uri.parse('https://pateez.com').resolve(path);
   }
 

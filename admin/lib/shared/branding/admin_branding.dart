@@ -144,8 +144,9 @@ class AdminBrandingStore {
 
   static Uri _resolveApiUri(String path) {
     final base = _apiBaseUrl.trim();
-    if (base.isNotEmpty && !isLocalAdminApiBaseUrl(base))
+    if (base.isNotEmpty && !isLocalAdminApiBaseUrl(base)) {
       return Uri.parse(base).resolve(path);
+    }
     return Uri.parse('https://pateez.com').resolve(path);
   }
 

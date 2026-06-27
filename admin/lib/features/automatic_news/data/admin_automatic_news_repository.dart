@@ -709,8 +709,9 @@ class SupabaseAdminAutomaticNewsRepository
 
   Uri _resolveUri(String path) {
     final configured = (apiBaseUrl ?? _apiBaseUrl).trim();
-    if (configured.isNotEmpty && !isLocalAdminApiBaseUrl(configured))
+    if (configured.isNotEmpty && !isLocalAdminApiBaseUrl(configured)) {
       return Uri.parse(configured).resolve(path);
+    }
     return Uri.parse('https://pateez.com').resolve(path);
   }
 
